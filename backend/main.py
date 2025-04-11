@@ -29,6 +29,10 @@ def check_telegram_auth(init_data: str):
     hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
     return hmac_hash == hash_, parsed
 
+@app.get("/")
+def read_root():
+    return {"message": "Backend работает!"}
+
 @app.post("/auth")
 async def auth(request: Request, db: Session = Depends(get_db)):
     body = await request.json()

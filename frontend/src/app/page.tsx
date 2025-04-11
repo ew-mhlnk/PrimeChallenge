@@ -35,62 +35,64 @@ declare global {
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [isTelegram, setIsTelegram] = useState(false);
+  const [isTelegram, setIsTelegram] = useState<boolean | null>(null); // начально null
 
   useEffect(() => {
-    const initTelegram = async () => {
-      if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+    const waitForTelegram = () => {
+      if (window.Telegram?.WebApp) {
         const webApp = window.Telegram.WebApp;
         webApp.ready();
+
         const initData = webApp.initData;
         const user = webApp.initDataUnsafe?.user;
+
         setIsTelegram(true);
 
         if (user) {
           setUser({ id: user.id, firstName: user.first_name });
-          try {
-            const response = await fetch('https://primechallenge.onrender.com/auth', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ initData }),
-            });
-            const data = await response.json();
-            if (!response.ok) {
-              console.error('Auth failed:', data);
-            } else {
-              console.log('Auth succeeded:', data);
-            }
-          } catch (error) {
-            console.error('Fetch error:', error);
-          }
+
+          fetch('https://primechallenge.onrender.com/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ initData }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.status !== 'ok') {
+                console.error('Auth failed:', data);
+              } else {
+                console.log('Auth succeeded:', data);
+              }
+            })
+            .catch((error) => console.error('Fetch error:', error));
         } else {
           setUser({ id: 0, firstName: 'Гость' });
         }
       } else {
-        setIsTelegram(false);
+        setTimeout(waitForTelegram, 300); // ждем Telegram.WebApp
       }
     };
 
     if (typeof window !== 'undefined') {
-      if (window.Telegram?.WebApp) {
-        initTelegram();
-      } else {
-        setTimeout(() => {
-          if (!window.Telegram?.WebApp) initTelegram();
-        }, 2000);
-      }
+      waitForTelegram();
     }
 
+    // загрузка турниров (локальный api)
     fetch('/api/tournaments')
       .then((res) => res.json())
       .then((data: Tournament[]) => setTournaments(data))
       .catch((err) => console.error('Ошибка загрузки турниров:', err));
   }, []);
 
-  if (!isTelegram) {
+  if (isTelegram === false) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <p className="text-xl">Открой меня в Telegram: <a href="https://t.me/PrimeBracketBot" className="text-cyan-400">t.me/PrimeBracketBot</a></p>
+        <p className="text-xl">
+          Открой меня в Telegram:{' '}
+          <a href="https://t.me/PrimeBracketBot" className="text-cyan-400">
+            t.me/PrimeBracketBot
+          </a>
+        </p>
       </div>
     );
   }
@@ -105,6 +107,7 @@ export default function Home() {
           {user ? `Привет, ${user.firstName}!` : 'Загрузка...'}
         </p>
       </header>
+
       <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {tournaments.length > 0 ? (
           tournaments.map((tournament) => (
