@@ -8,4 +8,4 @@ class User(Base):
     __tablename__ = "users"
     user_id = Column(Integer, primary_key=True)  # Telegram ID
     first_name = Column(String(255), nullable=False)
-    created_at = Column(DateTime, server_default=func.now())  # Текущее время
+    created_at = Column(DateTime, server_default=func.now())
