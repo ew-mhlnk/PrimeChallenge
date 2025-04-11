@@ -48,11 +48,21 @@ export default function Home() {
 
         if (user) {
           setUser({ id: user.id, firstName: user.first_name });
-          await fetch('https://primechallenge.onrender.com/auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ initData }),
-          });
+          try {
+            const response = await fetch('https://primechallenge.onrender.com/auth', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ initData }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+              console.error('Auth failed:', data);
+            } else {
+              console.log('Auth succeeded:', data);
+            }
+          } catch (error) {
+            console.error('Fetch error:', error);
+          }
         } else {
           setUser({ id: 0, firstName: 'Гость' });
         }

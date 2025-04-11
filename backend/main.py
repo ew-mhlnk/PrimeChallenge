@@ -5,7 +5,7 @@ import hashlib
 import hmac
 import os
 import json
-from database.db import SessionLocal, engine  # Абсолютный импорт
+from database.db import SessionLocal, engine
 from database.models import Base, User
 
 Base.metadata.create_all(bind=engine)
