@@ -27,7 +27,6 @@ declare global {
             first_name: string;
           };
         };
-        expand: () => void;
       };
     };
   }
@@ -37,7 +36,6 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isTelegram, setIsTelegram] = useState(false);
-
   type DebugInfo = {
     initData: string;
     initDataUnsafe: {
@@ -47,61 +45,69 @@ export default function Home() {
       };
     };
   };
+  
   const [debug, setDebug] = useState<DebugInfo | null>(null);
+
+  // 🔍 Ранняя проверка window.Telegram
+  if (typeof window !== 'undefined') {
+    console.log(">>> [init] Telegram WebApp early check:", window.Telegram?.WebApp);
+  }
 
   useEffect(() => {
     const initTelegram = async () => {
-      if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-        const webApp = window.Telegram.WebApp;
-        webApp.ready();
-        webApp.expand();
+      const webApp = window.Telegram?.WebApp;
+      if (!webApp) {
+        console.warn('❌ window.Telegram.WebApp не найден');
+        return;
+      }
 
-        const initData = webApp.initData;
-        const initDataUnsafe = webApp.initDataUnsafe;
-        const tgUser = initDataUnsafe?.user;
+      webApp.ready();
 
-        console.log('initData:', initData);
-        console.log('initDataUnsafe:', initDataUnsafe);
+      const initData = webApp.initData;
+      const initDataUnsafe = webApp.initDataUnsafe;
+      const tgUser = initDataUnsafe?.user;
 
-        setDebug({ initData, initDataUnsafe });
-        setIsTelegram(true);
+      console.log('✅ Telegram WebApp найден');
+      console.log('initData:', initData);
+      console.log('initDataUnsafe:', initDataUnsafe);
 
-        if (tgUser) {
-          setUser({ id: tgUser.id, firstName: tgUser.first_name });
+      setDebug({ initData, initDataUnsafe });
+      setIsTelegram(true);
 
-          try {
-            const response = await fetch('https://primechallenge.onrender.com/auth', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ initData }),
-            });
-            const data = await response.json();
+      if (tgUser) {
+        setUser({ id: tgUser.id, firstName: tgUser.first_name });
 
-            console.log('Auth response:', data);
-            if (!response.ok || data.status !== 'ok') {
-              console.error('Auth failed:', data);
-            }
-          } catch (error) {
-            console.error('Fetch error:', error);
+        try {
+          const response = await fetch('https://primechallenge.onrender.com/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ initData }),
+          });
+          const data = await response.json();
+
+          console.log('Auth response:', data);
+          if (!response.ok || data.status !== 'ok') {
+            console.error('Auth failed:', data);
           }
-        } else {
-          console.warn('Telegram user is undefined');
-          setUser({ id: 0, firstName: 'Гость' });
+        } catch (error) {
+          console.error('Fetch error:', error);
         }
       } else {
-        setIsTelegram(false);
+        console.warn('Telegram user is undefined');
+        setUser({ id: 0, firstName: 'Гость' });
       }
     };
 
-    if (typeof window !== 'undefined') {
-      if (window.Telegram?.WebApp) {
+    const waitForTelegram = () => {
+      if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
         initTelegram();
       } else {
-        setTimeout(() => {
-          if (window.Telegram?.WebApp) initTelegram();
-        }, 2000);
+        console.log('⏳ Telegram WebApp не готов. Повтор через 500ms...');
+        setTimeout(waitForTelegram, 500);
       }
-    }
+    };
+
+    waitForTelegram();
 
     fetch('/api/tournaments')
       .then((res) => res.json())
@@ -109,15 +115,17 @@ export default function Home() {
       .catch((err) => console.error('Ошибка загрузки турниров:', err));
   }, []);
 
+  // ⚠️ Пока Telegram не определён, показываем "ожидание"
   if (!isTelegram) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <p className="text-xl">
-          Открой меня в Telegram:{' '}
-          <a href="https://t.me/PrimeBracketBot" className="text-cyan-400">
-            t.me/PrimeBracketBot
-          </a>
+      <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6">
+        <p className="text-xl mb-4 text-center">
+          Проверяем Telegram WebApp...<br />
+          Открой через Telegram-бота:
         </p>
+        <a href="https://t.me/PrimeBracketBot" className="text-cyan-400 underline">
+          @PrimeBracketBot
+        </a>
       </div>
     );
   }
