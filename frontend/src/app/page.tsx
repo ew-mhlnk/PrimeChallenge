@@ -20,7 +20,7 @@ interface Tournament {
 
 declare global {
   interface Window {
-    Telegram?: {п
+    Telegram?: {
       WebApp: {
         ready: () => void;
         initData: string;
