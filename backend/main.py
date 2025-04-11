@@ -5,26 +5,11 @@ import hashlib
 import hmac
 import os
 import json
-from sqlalchemy import Column, Integer, String, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from .database.db import SessionLocal, engine
+from .database.models import Base, User
 
-# БД
-Base = declarative_base()
+Base.metadata.create_all(bind=engine)  # Убедись, что таблица создаётся
 
-class User(Base):
-    __tablename__ = "users"
-    user_id = Column(Integer, primary_key=True)  # Telegram ID
-    first_name = Column(String, nullable=False)
-    created_at = Column(DateTime, default="CURRENT_TIMESTAMP")
-
-DATABASE_URL = "postgresql://user:password@localhost:5432/prime_bracket"  # Замени на свой
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base.metadata.create_all(bind=engine)
-
-# FastAPI
 app = FastAPI()
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
