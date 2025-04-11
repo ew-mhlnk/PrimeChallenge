@@ -36,7 +36,18 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isTelegram, setIsTelegram] = useState(false);
-  const [debug, setDebug] = useState<any>(null); // 🐞 отладка
+  type DebugInfo = {
+    initData: string;
+    initDataUnsafe: {
+      user?: {
+        id: number;
+        first_name: string;
+      };
+    };
+  };
+  
+  const [debug, setDebug] = useState<DebugInfo | null>(null);
+  
 
   useEffect(() => {
     const initTelegram = async () => {
