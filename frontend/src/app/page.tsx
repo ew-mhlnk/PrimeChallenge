@@ -1,8 +1,5 @@
 'use client';
 
-console.log("Telegram WebApp:", window.Telegram?.WebApp);
-console.log("Full initData:", window.Telegram?.WebApp?.initData);
-
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
@@ -30,6 +27,7 @@ declare global {
             first_name: string;
           };
         };
+        expand: () => void;
       };
     };
   }
@@ -39,6 +37,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isTelegram, setIsTelegram] = useState(false);
+
   type DebugInfo = {
     initData: string;
     initDataUnsafe: {
@@ -48,15 +47,14 @@ export default function Home() {
       };
     };
   };
-  
   const [debug, setDebug] = useState<DebugInfo | null>(null);
-  
 
   useEffect(() => {
     const initTelegram = async () => {
       if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
         const webApp = window.Telegram.WebApp;
         webApp.ready();
+        webApp.expand();
 
         const initData = webApp.initData;
         const initDataUnsafe = webApp.initDataUnsafe;
@@ -65,12 +63,7 @@ export default function Home() {
         console.log('initData:', initData);
         console.log('initDataUnsafe:', initDataUnsafe);
 
-        // 🐞 Сохраняем данные в debug, чтобы отобразить на экране
-        setDebug({
-          initData,
-          initDataUnsafe,
-        });
-
+        setDebug({ initData, initDataUnsafe });
         setIsTelegram(true);
 
         if (tgUser) {
@@ -84,8 +77,7 @@ export default function Home() {
             });
             const data = await response.json();
 
-            console.log('Auth response:', data); // 🐞 Показываем результат запроса
-
+            console.log('Auth response:', data);
             if (!response.ok || data.status !== 'ok') {
               console.error('Auth failed:', data);
             }
@@ -106,7 +98,7 @@ export default function Home() {
         initTelegram();
       } else {
         setTimeout(() => {
-          if (!window.Telegram?.WebApp) initTelegram();
+          if (window.Telegram?.WebApp) initTelegram();
         }, 2000);
       }
     }
