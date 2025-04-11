@@ -1,5 +1,8 @@
 'use client';
 
+console.log("Telegram WebApp:", window.Telegram?.WebApp);
+console.log("Full initData:", window.Telegram?.WebApp?.initData);
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
