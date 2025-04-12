@@ -1,20 +1,19 @@
 from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from urllib.parse import parse_qs
-import hashlib
-import hmac
 import os
-import json
+import logging
+from init_data_py import InitData
 from database.db import SessionLocal, engine
 from database.models import Base, User
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-if not BOT_TOKEN:
-    raise RuntimeError("TELEGRAM_BOT_TOKEN not set in environment variables")
 
 def get_db():
     db = SessionLocal()
@@ -23,22 +22,6 @@ def get_db():
     finally:
         db.close()
 
-def check_telegram_auth(init_data: str):
-    try:
-        parsed = parse_qs(init_data)
-        hash_ = parsed.pop("hash")[0]
-
-        data_check_string = '\n'.join(
-            f"{k}={v[0]}" for k, v in sorted(parsed.items())
-        )
-        secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
-        hmac_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-
-        return hmac_hash == hash_, parsed
-    except Exception as e:
-        print(f"Auth check error: {e}")
-        return False, {}
-
 @app.get("/")
 def read_root():
     return {"message": "Backend работает!"}
@@ -46,38 +29,29 @@ def read_root():
 @app.post("/auth")
 async def auth(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
-    init_data = body.get("initData")
-    if not init_data:
+    init_data_raw = body.get("initData")
+    if not init_data_raw:
         raise HTTPException(status_code=400, detail="No initData provided")
 
-    is_valid, parsed = check_telegram_auth(init_data)
-    if not is_valid:
+    try:
+        init_data = InitData.parse(init_data_raw)
+        init_data.validate(BOT_TOKEN, lifetime=3600)  # Validate with 1 hour lifetime
+    except Exception as e:
+        logger.error(f"Init data validation failed: {e}")
         raise HTTPException(status_code=403, detail="Invalid Telegram auth")
 
-    user_data_json = parsed.get("user")
-    if not user_data_json:
-        raise HTTPException(status_code=400, detail="User not found in initData")
+    user_data = init_data.user
+    if not user_data:
+        raise HTTPException(status_code=400, detail="User not found")
 
-    try:
-        user_data = json.loads(user_data_json[0])
-        user_id = user_data["id"]
-        first_name = user_data.get("first_name", "")
-        last_name = user_data.get("last_name", "")
-        username = user_data.get("username", "")
+    user_id = user_data.id
+    first_name = user_data.first_name
 
-        existing_user = db.query(User).filter(User.user_id == user_id).first()
-        if not existing_user:
-            new_user = User(
-                user_id=user_id,
-                first_name=first_name,
-                last_name=last_name,
-                username=username
-            )
-            db.add(new_user)
-            db.commit()
-            db.refresh(new_user)
+    existing = db.query(User).filter(User.user_id == user_id).first()
+    if not existing:
+        db_user = User(user_id=user_id, first_name=first_name)
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
 
-        return {"status": "ok", "user_id": user_id}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error parsing user data: {str(e)}")
+    return {"status": "ok", "user_id": user_id}
