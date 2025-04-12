@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@telegram-apps/sdk": "^3.7.1",
+    "@tma.js/sdk": "^2.7.0"
+  }
+}
