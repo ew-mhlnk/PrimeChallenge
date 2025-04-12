@@ -16,12 +16,32 @@ interface Tournament {
   active: boolean;
 }
 
+interface DebugData {
+  initData: string;
+  initDataUnsafe: {
+    user?: {
+      id: number;
+      first_name: string;
+    };
+  };
+}
+
+interface WebApp {
+  ready: () => void;
+  initData: string;
+  initDataUnsafe: {
+    user?: {
+      id: number;
+      first_name: string;
+    };
+  };
+}
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [isTelegram, setIsTelegram] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [debug, setDebug] = useState<any>(null);
+  const [debug, setDebug] = useState<DebugData | null>(null);
 
   useEffect(() => {
     console.log('>>> [init] Starting Telegram WebApp initialization...');
@@ -39,9 +59,27 @@ export default function Home() {
     const initTelegram = async () => {
       try {
         console.log('>>> [init] Initializing @telegram-apps/sdk...');
-        const [webApp] = init();
-        console.log('✅ Telegram WebApp SDK initialized');
+        let webApp: WebApp;
 
+        try {
+          const sdkInit = init();
+          if (Array.isArray(sdkInit)) {
+            webApp = sdkInit[0]; // Первый элемент — WebApp
+            console.log('✅ Telegram WebApp SDK initialized');
+          } else {
+            throw new Error('SDK init did not return an array');
+          }
+        } catch (sdkError) {
+          console.warn('>>> [init] SDK initialization failed, falling back to window.Telegram.WebApp:', sdkError);
+          if (window.Telegram?.WebApp) {
+            webApp = window.Telegram.WebApp;
+            console.log('✅ Fallback to window.Telegram.WebApp successful');
+          } else {
+            throw new Error('No Telegram WebApp available');
+          }
+        }
+
+        webApp.ready();
         const initData = webApp.initData;
         const initDataUnsafe = webApp.initDataUnsafe;
         const tgUser = initDataUnsafe?.user;
@@ -49,7 +87,6 @@ export default function Home() {
         console.log('initData:', initData);
         console.log('initDataUnsafe:', initDataUnsafe);
         setDebug({ initData, initDataUnsafe });
-        setIsTelegram(true);
 
         if (tgUser && initData) {
           console.log('>>> [auth] User found, attempting authentication...');
@@ -79,8 +116,7 @@ export default function Home() {
           setUser({ id: 0, firstName: 'Гость' });
         }
       } catch (error) {
-        console.error('>>> [init] Failed to initialize Telegram SDK:', error);
-        setIsTelegram(false);
+        console.error('>>> [init] Failed to initialize Telegram:', error);
         setUser({ id: 0, firstName: 'Гость' });
       }
       setIsLoading(false);
