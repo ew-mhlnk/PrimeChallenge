@@ -7,5 +7,4 @@ DATABASE_URL = os.getenv("DATABASE_URL")  # Бери из переменной �
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base.metadata.drop_all(bind=engine)  # Удаляет старую таблицу (опционально)
-Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)  # Создаёт таблицу, если её нет
