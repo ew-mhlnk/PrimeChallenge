@@ -18,9 +18,9 @@ def get_tournaments():
     data = sheet.get_all_records()
     return [
         {
-            "name": row["name"],
-            "dates": row["dates"],
-            "status": row["status"]
+            "name": row["Name"],
+            "dates": row["Date"],
+            "status": row["Status"]
         }
         for row in data
     ]
@@ -31,15 +31,15 @@ def get_tournament_matches(tournament_name):
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID")).worksheet(tournament_name)
         data = sheet.get_all_values()
         matches = []
-        current_round = "R64"  # Турнир 500 начинается с R64
+        current_round = "R32"  # Турнир 500 начинается с R32
         match_number = 1
         for i in range(2, len(data), 2):  # Читаем пары строк
-            player1 = data[i-1][6]  # Колонка G (R64)
-            player2 = data[i][6]
+            player1 = data[i-1][12]  # Колонка M (R32)
+            player2 = data[i][12]
             if not player1 or not player2:
                 continue
-            score1 = " ".join(filter(None, data[i-1][7:12]))  # Игнорируем пустые ячейки
-            score2 = " ".join(filter(None, data[i][7:12]))
+            score1 = " ".join(filter(None, data[i-1][13:18]))  # Колонки N-R (1, 2, 3, 4, 5)
+            score2 = " ".join(filter(None, data[i][13:18]))
             score = f"{score1} vs {score2}" if score1 or score2 else None
             winner = None
             if score1 and score2:
