@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { retrieveRawInitData } from '@tma.js/sdk'; // или '@telegram-apps/sdk'
+import { init } from '@telegram-apps/sdk';
 
 interface User {
   id: number;
@@ -19,56 +19,80 @@ interface Tournament {
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [isTelegram, setIsTelegram] = useState(false);
-  const [debug, setDebug] = useState<string | null>(null);
+  const [isTelegram, setIsTelegram] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [debug, setDebug] = useState<any>(null);
 
   useEffect(() => {
+    console.log('>>> [init] Starting Telegram WebApp initialization...');
+
+    // Загрузка турниров сразу
+    console.log('>>> [tournaments] Loading tournaments...');
+    fetch('/api/tournaments')
+      .then((res) => res.json())
+      .then((data: Tournament[]) => {
+        console.log('>>> [tournaments] Tournaments loaded:', data);
+        setTournaments(data);
+      })
+      .catch((err) => console.error('>>> [tournaments] Ошибка загрузки турниров:', err));
+
     const initTelegram = async () => {
       try {
-        const initData = retrieveRawInitData(); // строка initData из Telegram
-        if (!initData || initData.length === 0) {
-          console.warn('Telegram WebApp не готов');
-          return;
-        }
+        console.log('>>> [init] Initializing @telegram-apps/sdk...');
+        const [webApp] = init();
+        console.log('✅ Telegram WebApp SDK initialized');
 
-        setDebug(initData);
+        const initData = webApp.initData;
+        const initDataUnsafe = webApp.initDataUnsafe;
+        const tgUser = initDataUnsafe?.user;
+
+        console.log('initData:', initData);
+        console.log('initDataUnsafe:', initDataUnsafe);
+        setDebug({ initData, initDataUnsafe });
         setIsTelegram(true);
 
-        const response = await fetch('https://primechallenge.onrender.com/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData }),
-        });
+        if (tgUser && initData) {
+          console.log('>>> [auth] User found, attempting authentication...');
+          setUser({ id: tgUser.id, firstName: tgUser.first_name });
+          try {
+            const response = await fetch('https://primechallenge.onrender.com/auth', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ initData }),
+            });
+            const data = await response.json();
+            console.log('🔐 Auth response:', data);
 
-        const data = await response.json();
-
-        if (response.ok && data.status === 'ok') {
-          setUser({ id: data.user_id, firstName: data.first_name });
+            if (response.ok && data.status === 'ok') {
+              console.log('>>> [auth] Authentication successful');
+              setUser({ id: data.user_id, firstName: tgUser.first_name });
+            } else {
+              console.error('❌ Auth failed:', data);
+              setUser({ id: 0, firstName: 'Гость' });
+            }
+          } catch (error) {
+            console.error('❌ Fetch error:', error);
+            setUser({ id: 0, firstName: 'Гость' });
+          }
         } else {
-          console.error('Auth failed:', data);
+          console.warn('⚠️ No user or initData available');
+          setUser({ id: 0, firstName: 'Гость' });
         }
-      } catch (err) {
-        console.error('Ошибка инициализации Telegram:', err);
+      } catch (error) {
+        console.error('>>> [init] Failed to initialize Telegram SDK:', error);
+        setIsTelegram(false);
+        setUser({ id: 0, firstName: 'Гость' });
       }
+      setIsLoading(false);
     };
 
     initTelegram();
-
-    fetch('/api/tournaments')
-      .then((res) => res.json())
-      .then((data: Tournament[]) => setTournaments(data))
-      .catch((err) => console.error('Ошибка загрузки турниров:', err));
   }, []);
 
-  if (!isTelegram) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <p className="text-xl text-center">
-          Открой меня в Telegram:{' '}
-          <a href="https://t.me/PrimeBracketBot" className="text-cyan-400 underline">
-            t.me/PrimeBracketBot
-          </a>
-        </p>
+        <p className="text-xl text-center">Загрузка...</p>
       </div>
     );
   }
@@ -80,13 +104,13 @@ export default function Home() {
           Prime Bracket Challenge
         </h1>
         <p className="text-gray-400 mt-2">
-          {user ? `Привет, ${user.firstName}!` : 'Загрузка...'}
+          {user ? `Привет, ${user.firstName}!` : 'Загрузка пользователя...'}
         </p>
       </header>
 
       {debug && (
         <pre className="text-sm text-gray-400 bg-gray-800 p-2 rounded mb-6 overflow-x-auto">
-          {debug}
+          {JSON.stringify(debug, null, 2)}
         </pre>
       )}
 
