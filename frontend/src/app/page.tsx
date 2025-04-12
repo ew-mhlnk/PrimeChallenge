@@ -15,23 +15,10 @@ interface Tournament {
   active: boolean;
 }
 
-interface DebugData {
-  initData?: string;
-  initDataUnsafe?: {
-    user?: {
-      id: number;
-      first_name: string;
-    };
-  };
-  error?: string;
-  windowTelegram?: boolean;
-}
-
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [debug, setDebug] = useState<DebugData | null>(null);
 
   useEffect(() => {
     console.log('>>> [init] Starting Telegram WebApp initialization...');
@@ -49,7 +36,6 @@ export default function Home() {
     const initTelegram = async () => {
       if (typeof window === 'undefined') {
         console.log('>>> [init] Window is undefined, skipping Telegram check');
-        setDebug({ error: 'Window is undefined', windowTelegram: false });
         setUser({ id: 0, firstName: 'Гость' });
         setIsLoading(false);
         return;
@@ -73,7 +59,6 @@ export default function Home() {
 
           console.log('>>> [init] initData:', initData);
           console.log('>>> [init] initDataUnsafe:', initDataUnsafe);
-          setDebug({ initData, initDataUnsafe, windowTelegram: true });
 
           if (tgUser && initData) {
             console.log('>>> [auth] User found, attempting authentication...');
@@ -92,17 +77,14 @@ export default function Home() {
                 setUser({ id: data.user_id, firstName: tgUser.first_name });
               } else {
                 console.error('❌ Auth failed:', data);
-                setDebug((prev) => ({ ...prev, error: `Auth failed: ${JSON.stringify(data)}`, windowTelegram: true }));
                 setUser({ id: 0, firstName: 'Гость' });
               }
             } catch (error) {
               console.error('❌ Fetch error:', error);
-              setDebug((prev) => ({ ...prev, error: `Fetch error: ${error}`, windowTelegram: true }));
               setUser({ id: 0, firstName: 'Гость' });
             }
           } else {
             console.warn('⚠️ No user or initData available');
-            setDebug({ error: 'No user or initData available', windowTelegram: true });
             setUser({ id: 0, firstName: 'Гость' });
           }
           setIsLoading(false);
@@ -111,7 +93,6 @@ export default function Home() {
           setTimeout(checkTelegram, attemptInterval);
         } else {
           console.log('>>> [init] Telegram WebApp not found after all attempts');
-          setDebug({ error: 'Telegram WebApp not found after all attempts', windowTelegram: false });
           setUser({ id: 0, firstName: 'Гость' });
           setIsLoading(false);
         }
@@ -133,7 +114,6 @@ export default function Home() {
         };
         script.onerror = () => {
           console.error('>>> [init] Failed to load Telegram WebApp script');
-          setDebug({ error: 'Failed to load Telegram WebApp script', windowTelegram: false });
           setUser({ id: 0, firstName: 'Гость' });
           setIsLoading(false);
         };
@@ -165,12 +145,6 @@ export default function Home() {
           {user ? `Привет, ${user.firstName}!` : 'Загрузка пользователя...'}
         </p>
       </header>
-
-      {debug && (
-        <pre className="text-sm text-gray-400 bg-gray-800 p-2 rounded mb-6 overflow-x-auto">
-          {JSON.stringify(debug, null, 2)}
-        </pre>
-      )}
 
       <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {tournaments.length > 0 ? (
