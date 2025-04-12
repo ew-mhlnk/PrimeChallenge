@@ -20,3 +20,4 @@ npm-debug.log*
 
 # Прочие
 *.DS_Store
+backend/credentials/google-credentials.json

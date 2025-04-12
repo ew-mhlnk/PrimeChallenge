@@ -1,11 +1,44 @@
-from sqlalchemy import Column, Integer, String, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, String, ForeignKey, Enum
+from sqlalchemy.orm import relationship
+from database.db import Base
+import enum
 
-Base = declarative_base()
+class Status(enum.Enum):
+    ACTIVE = "Активен"
+    CLOSED = "Закрыт"
+    COMPLETED = "Завершён"
 
 class User(Base):
     __tablename__ = "users"
-    user_id = Column(Integer, primary_key=True)  # Telegram ID
-    first_name = Column(String(255), nullable=False)
-    created_at = Column(DateTime, server_default=func.now())
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, unique=True, index=True)
+    first_name = Column(String)
+
+class Tournament(Base):
+    __tablename__ = "tournaments"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    dates = Column(String)
+    status = Column(Enum(Status), default=Status.ACTIVE)
+    matches = relationship("Match", back_populates="tournament")
+
+class Match(Base):
+    __tablename__ = "matches"
+    id = Column(Integer, primary_key=True, index=True)
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"))
+    round = Column(String)  # R64, R32, ...
+    match_number = Column(Integer)
+    player1 = Column(String)
+    player2 = Column(String)
+    score = Column(String, nullable=True)  # Например, "6-1 6-1"
+    winner = Column(String, nullable=True)
+    tournament = relationship("Tournament", back_populates="matches")
+    picks = relationship("Pick", back_populates="match")
+
+class Pick(Base):
+    __tablename__ = "picks"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"))
+    match_id = Column(Integer, ForeignKey("matches.id"))
+    predicted_winner = Column(String)
+    match = relationship("Match", back_populates="picks")

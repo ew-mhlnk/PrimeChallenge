@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 
 interface User {
   id: number;
@@ -11,21 +10,35 @@ interface User {
 interface Tournament {
   id: number;
   name: string;
-  date: string;
-  active: boolean;
+  dates: string;
+  status: string;
+}
+
+interface Match {
+  id: number;
+  round: string;
+  match_number: number;
+  player1: string;
+  player2: string;
+  score: string | null;
+  winner: string | null;
+  predicted_winner?: string;
 }
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [currentRound, setCurrentRound] = useState<string>('R64');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     console.log('>>> [init] Starting Telegram WebApp initialization...');
 
-    // Загрузка турниров сразу
+    // Загрузка турниров
     console.log('>>> [tournaments] Loading tournaments...');
-    fetch('/api/tournaments')
+    fetch('https://primechallenge.onrender.com/tournaments')
       .then((res) => res.json())
       .then((data: Tournament[]) => {
         console.log('>>> [tournaments] Tournaments loaded:', data);
@@ -98,10 +111,8 @@ export default function Home() {
         }
       };
 
-      // Проверяем сразу
       checkTelegram();
 
-      // Проверяем наличие скрипта Telegram
       const existingScript = document.querySelector('script[src="https://telegram.org/js/telegram-web-app.js"]');
       if (!existingScript) {
         console.log('>>> [init] Loading Telegram WebApp script...');
@@ -127,6 +138,57 @@ export default function Home() {
     initTelegram();
   }, []);
 
+  const loadMatches = async (tournament: Tournament) => {
+    setSelectedTournament(tournament);
+    setCurrentRound('R64');
+    console.log(`>>> [matches] Loading matches for tournament ${tournament.id}`);
+    try {
+      const response = await fetch(`https://primechallenge.onrender.com/tournaments/${tournament.id}/matches`);
+      const data = await response.json();
+      console.log('>>> [matches] Matches loaded:', data);
+      setMatches(data.map((m: Match) => ({ ...m, predicted_winner: '' })));
+    } catch (err) {
+      console.error('>>> [matches] Ошибка загрузки матчей:', err);
+      setMatches([]);
+    }
+  };
+
+  const selectWinner = (matchId: number, player: string) => {
+    setMatches((prev) =>
+      prev.map((m) =>
+        m.id === matchId ? { ...m, predicted_winner: player } : m
+      )
+    );
+  };
+
+  const savePicks = async () => {
+    const roundMatches = matches.filter((m) => m.round === currentRound);
+    if (roundMatches.some((m) => !m.predicted_winner)) {
+      alert('Пожалуйста, выберите победителя для каждого матча в этом раунде.');
+      return;
+    }
+    console.log('>>> [picks] Saving picks...');
+    try {
+      const response = await fetch('https://primechallenge.onrender.com/picks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          initData: window.Telegram.WebApp.initData,
+          picks: roundMatches.map((m) => ({
+            match_id: m.id,
+            predicted_winner: m.predicted_winner,
+          })),
+        }),
+      });
+      const data = await response.json();
+      console.log('>>> [picks] Picks saved:', data);
+      alert('Ваши пики сохранены!');
+    } catch (err) {
+      console.error('>>> [picks] Ошибка сохранения пиков:', err);
+      alert('Ошибка при сохранении пиков.');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -146,27 +208,109 @@ export default function Home() {
         </p>
       </header>
 
-      <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {tournaments.length > 0 ? (
-          tournaments.map((tournament) => (
-            <Link href={`/tournament/${tournament.id}`} key={tournament.id}>
-              <div className="bg-gray-800 p-4 rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer">
+      {!selectedTournament ? (
+        <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {tournaments.length > 0 ? (
+            tournaments.map((tournament) => (
+              <div
+                key={tournament.id}
+                className="bg-gray-800 p-4 rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer"
+                onClick={() => loadMatches(tournament)}
+              >
                 <h2 className="text-xl font-semibold text-white">{tournament.name}</h2>
-                <p className="text-gray-400">{tournament.date}</p>
+                <p className="text-gray-400">{tournament.dates}</p>
                 <span
                   className={`mt-2 inline-block px-2 py-1 rounded text-sm ${
-                    tournament.active ? 'bg-green-500' : 'bg-gray-500'
+                    tournament.status === 'Активен'
+                      ? 'bg-green-500'
+                      : tournament.status === 'Закрыт'
+                      ? 'bg-yellow-500'
+                      : 'bg-gray-500'
                   }`}
                 >
-                  {tournament.active ? 'Активен' : 'Завершён'}
+                  {tournament.status}
                 </span>
               </div>
-            </Link>
-          ))
-        ) : (
-          <p className="text-gray-400">Турниры загружаются...</p>
-        )}
-      </section>
+            ))
+          ) : (
+            <p className="text-gray-400">Турниры загружаются...</p>
+          )}
+        </section>
+      ) : (
+        <section>
+          <div className="mb-6">
+            <h2 className="text-2xl font-semibold">
+              {selectedTournament.name}{' '}
+              {selectedTournament.status === 'Активен' && (
+                <span className="text-red-500">[LIVE]</span>
+              )}
+            </h2>
+            <p className="text-gray-400">{selectedTournament.dates}</p>
+          </div>
+          <div className="flex gap-2 mb-6">
+            {['R64', 'R32', 'R16', 'QF', 'SF', 'F'].map((round) => (
+              <button
+                key={round}
+                className={`px-4 py-2 rounded ${
+                  currentRound === round ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-300'
+                }`}
+                onClick={() => setCurrentRound(round)}
+              >
+                {round}
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-4">
+            {matches
+              .filter((m) => m.round === currentRound)
+              .map((match) => (
+                <div key={match.id} className="bg-gray-800 p-4 rounded-lg">
+                  <p className="text-white">
+                    {match.player1}{' '}
+                    {match.score && <span className="text-gray-400">[{match.score.split(' vs ')[0]}]</span>}
+                    <button
+                      className={`ml-2 px-2 py-1 rounded ${
+                        match.predicted_winner === match.player1
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-700 text-gray-300'
+                      } ${selectedTournament.status !== 'Активен' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      onClick={() => selectWinner(match.id, match.player1)}
+                      disabled={selectedTournament.status !== 'Активен'}
+                    >
+                      Выбрать
+                    </button>
+                  </p>
+                  <p className="text-white">
+                    {match.player2}{' '}
+                    {match.score && <span className="text-gray-400">[{match.score.split(' vs ')[1]}]</span>}
+                    <button
+                      className={`ml-2 px-2 py-1 rounded ${
+                        match.predicted_winner === match.player2
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-700 text-gray-300'
+                      } ${selectedTournament.status !== 'Активен' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      onClick={() => selectWinner(match.id, match.player2)}
+                      disabled={selectedTournament.status !== 'Активен'}
+                    >
+                      Выбрать
+                    </button>
+                  </p>
+                  {match.winner && (
+                    <p className="text-green-500 mt-2">Победитель: {match.winner}</p>
+                  )}
+                </div>
+              ))}
+          </div>
+          {selectedTournament.status === 'Активен' && (
+            <button
+              className="mt-6 bg-blue-500 text-white px-6 py-2 rounded"
+              onClick={savePicks}
+            >
+              Сохранить
+            </button>
+          )}
+        </section>
+      )}
     </div>
   );
 }

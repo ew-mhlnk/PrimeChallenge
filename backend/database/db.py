@@ -1,10 +1,12 @@
 from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from .models import Base
 import os
+from dotenv import load_dotenv
 
-DATABASE_URL = os.getenv("DATABASE_URL")  # Бери из переменной окружения
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/primebracket")
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base.metadata.create_all(bind=engine)  # Создаёт таблицу, если её нет
+Base = declarative_base()
