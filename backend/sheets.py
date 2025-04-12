@@ -1,10 +1,7 @@
 import gspread
 from google.oauth2.service_account import Credentials
 import os
-from dotenv import load_dotenv
 import json
-
-load_dotenv()
 
 def get_sheets_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -46,7 +43,6 @@ def get_tournament_matches(tournament_name):
             score = f"{score1} vs {score2}" if score1 or score2 else None
             winner = None
             if score1 and score2:
-                # Простая логика определения победителя (для теста)
                 winner = player1 if len(score1.split()) > len(score2.split()) else player2
             matches.append({
                 "round": current_round,
