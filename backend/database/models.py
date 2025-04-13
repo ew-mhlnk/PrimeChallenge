@@ -33,7 +33,7 @@ class Match(Base):
     score = Column(String, nullable=True)  # Например, "6-1 6-1"
     winner = Column(String, nullable=True)
     tournament = relationship("Tournament", back_populates="matches")
-    picks = relationship("Pick", back_populates="match")
+    picks = relationship("Pick", back_populates="matches")
 
 class Pick(Base):
     __tablename__ = "picks"
