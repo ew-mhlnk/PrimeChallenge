@@ -233,3 +233,9 @@ async def submit_pick(request: Request, db: Session = Depends(get_db)):
     
     return {"status": "ok"}
 
+@app.post("/reset-tournaments")
+def reset_tournaments(db: Session = Depends(get_db)):
+    logger.info("Resetting tournaments table")
+    db.query(Tournament).delete()
+    db.commit()
+    return {"status": "ok"}
