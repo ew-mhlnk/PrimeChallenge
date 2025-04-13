@@ -31,14 +31,12 @@ def get_tournament_matches(tournament_name):
     try:
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID")).worksheet(tournament_name)
         data = sheet.get_all_values()
-        if not data or len(data[0]) < 13:
+        if not data:
             return []
         
-        # Определяем начальный раунд на основе типа турнира
         headers = data[0]
+        # Определяем столбцы для каждого раунда
         round_columns = {
-            "R128": headers.index("R128") if "R128" in headers else -1,
-            "R64": headers.index("R64") if "R64" in headers else -1,
             "R32": headers.index("R32") if "R32" in headers else -1,
             "R16": headers.index("R16") if "R16" in headers else -1,
             "QF": headers.index("QF") if "QF" in headers else -1,
@@ -46,37 +44,37 @@ def get_tournament_matches(tournament_name):
             "F": headers.index("F") if "F" in headers else -1
         }
         
-        # Выбираем первый доступный раунд (для ATP-500 это R32)
-        start_round = "R32"  # По умолчанию для BMW Open
-        for rnd in ["R128", "R64", "R32", "R16", "QF", "SF", "F"]:
-            if round_columns[rnd] != -1 and any(data[i][round_columns[rnd]] for i in range(2, len(data))):
-                start_round = rnd
-                break
-        
-        start_col = round_columns[start_round]
         matches = []
-        match_number = 1
-        
-        for i in range(2, len(data), 2):
-            player1 = data[i-1][start_col] if start_col < len(data[i-1]) else ""
-            player2 = data[i][start_col] if start_col < len(data[i]) else ""
-            if not player1 or not player2:
-                continue
-            score1 = " ".join(filter(None, data[i-1][start_col+1:start_col+6]))  # Следующие 5 колонок для счёта
-            score2 = " ".join(filter(None, data[i][start_col+1:start_col+6]))
-            score = f"{score1} vs {score2}" if score1 or score2 else None
-            winner = None
-            if score1 and score2:
-                winner = player1 if len(score1.split()) > len(score2.split()) else player2
-            matches.append({
-                "round": start_round,
-                "match_number": match_number,
-                "player1": player1,
-                "player2": player2,
-                "score": score,
-                "winner": winner
-            })
-            match_number += 1
+        # Обрабатываем каждый раунд
+        for round_name, start_col in round_columns.items():
+            if start_col == -1:
+                continue  # Пропускаем, если раунд отсутствует в заголовках
+            
+            # Читаем пары игроков (каждые две строки)
+            for i in range(1, len(data), 2):  # Начинаем с 1, пропуская заголовки
+                player1 = data[i][start_col] if start_col < len(data[i]) else ""
+                player2 = data[i + 1][start_col] if i + 1 < len(data) and start_col < len(data[i + 1]) else ""
+                if not player1 or not player2:
+                    continue  # Пропускаем, если пара неполная
+                
+                # Извлекаем счёты из следующих 5 столбцов
+                score1 = " ".join(filter(None, data[i][start_col + 1:start_col + 6]))
+                score2 = " ".join(filter(None, data[i + 1][start_col + 1:start_col + 6]))
+                score = f"{score1} vs {score2}" if score1 or score2 else None
+                
+                # Определяем победителя (если счёт есть)
+                winner = None
+                if score1 and score2:
+                    winner = player1 if len(score1.split()) > len(score2.split()) else player2
+                
+                matches.append({
+                    "round": round_name,
+                    "match_number": (i // 2) + 1,  # Номер матча в рамках раунда
+                    "player1": player1,
+                    "player2": player2,
+                    "score": score,
+                    "winner": winner
+                })
         
         return matches
     except gspread.exceptions.WorksheetNotFound:

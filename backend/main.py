@@ -139,13 +139,13 @@ def get_all_tournaments(db: Session = Depends(get_db)):
     return db_tournaments
 
 @app.get("/tournaments/{tournament_id}/matches", response_model=List[MatchResponse])
-def get_tournament_matches(tournament_id: int, db: Session = Depends(get_db)):
+def get_tournament_matches_endpoint(tournament_id: int, db: Session = Depends(get_db)):
     logger.info(f"Fetching matches for tournament {tournament_id}")
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
     
-    sheet_matches = get_tournament_matches(tournament.name)
+    sheet_matches = get_tournament_matches(tournament.name)  # Вызов из sheets
     db_matches = []
     for m in sheet_matches:
         existing = db.query(Match).filter(
@@ -160,8 +160,8 @@ def get_tournament_matches(tournament_id: int, db: Session = Depends(get_db)):
                 match_number=m["match_number"],
                 player1=m["player1"],
                 player2=m["player2"],
-                score=m["score"],
-                winner=m["winner"]
+                score=m.get("score"),
+                winner=m.get("winner")
             )
             db.add(db_match)
             db.commit()
@@ -169,8 +169,8 @@ def get_tournament_matches(tournament_id: int, db: Session = Depends(get_db)):
         else:
             existing.player1 = m["player1"]
             existing.player2 = m["player2"]
-            existing.score = m["score"]
-            existing.winner = m["winner"]
+            existing.score = m.get("score")
+            existing.winner = m.get("winner")
             db.commit()
             db.refresh(existing)
             db_match = existing
