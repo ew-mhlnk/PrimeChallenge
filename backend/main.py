@@ -27,7 +27,7 @@ app.add_middleware(
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 if not BOT_TOKEN:
-    logger.error("TELEGRAM_BOT_TOKEN not set")
+    logger.error("TELEGRAM_B<|control340|>_TOKEN not set")
     raise RuntimeError("TELEGRAM_BOT_TOKEN is required")
 
 def get_db():
@@ -112,20 +112,29 @@ def get_all_tournaments(db: Session = Depends(get_db)):
     sheet_tournaments = get_tournaments()
     db_tournaments = []
     for t in sheet_tournaments:
+        # Показываем только активные турниры
+        if t["status"] != "Активен":
+            logger.info(f"Skipping tournament {t['name']} with status {t['status']}")
+            continue
         existing = db.query(Tournament).filter(Tournament.name == t["name"]).first()
-        status_map = {"Активен": Status.ACTIVE, "Закрыт": Status.CLOSED, "Завершён": Status.COMPLETED}
+        status_map = {
+            "Активен": "Активен",
+            "Закрыт": "Закрыт",
+            "Завершён": "Завершён"
+        }
+        status = status_map.get(t["status"], "Активен")
         if not existing:
             db_tournament = Tournament(
                 name=t["name"],
                 dates=t["dates"],
-                status=status_map.get(t["status"], Status.ACTIVE)
+                status=status
             )
             db.add(db_tournament)
             db.commit()
             db.refresh(db_tournament)
         else:
             existing.dates = t["dates"]
-            existing.status = status_map.get(t["status"], Status.ACTIVE)
+            existing.status = status
             db.commit()
             db.refresh(existing)
             db_tournament = existing
