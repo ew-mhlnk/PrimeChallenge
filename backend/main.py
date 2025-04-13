@@ -112,15 +112,12 @@ def get_all_tournaments(db: Session = Depends(get_db)):
     sheet_tournaments = get_tournaments()
     db_tournaments = []
     for t in sheet_tournaments:
-        # Фильтр: только активные турниры
-        if t["status"] != "Активен":
-            logger.info(f"Skipping tournament {t['name']} with status {t['status']}")
-            continue
+        logger.info(f"Processing tournament {t['name']} with status {t['status']}")
         existing = db.query(Tournament).filter(Tournament.name == t["name"]).first()
         status_map = {
-            "Активен": Status.ACTIVE,
-            "Закрыт": Status.CLOSED,
-            "Завершён": Status.COMPLETED
+            "ACTIVE": Status.ACTIVE,
+            "CLOSED": Status.CLOSED,
+            "COMPLETED": Status.COMPLETED
         }
         status = status_map.get(t["status"], Status.ACTIVE)
         if not existing:
