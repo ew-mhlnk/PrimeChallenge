@@ -32,19 +32,31 @@ export default function Home() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [currentRound, setCurrentRound] = useState<string>('R64');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     console.log('>>> [init] Starting Telegram WebApp initialization...');
 
     // Загрузка турниров
     console.log('>>> [tournaments] Loading tournaments...');
-    fetch('https://primechallenge.onrender.com/tournaments')
-      .then((res) => res.json())
+    fetch('https://primechallenge.onrender.com/tournaments', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP error! Status: ${res.status}, Message: ${await res.text()}`);
+        }
+        return res.json();
+      })
       .then((data: Tournament[]) => {
         console.log('>>> [tournaments] Tournaments loaded:', data);
         setTournaments(data);
       })
-      .catch((err) => console.error('>>> [tournaments] Ошибка загрузки турниров:', err));
+      .catch((err) => {
+        console.error('>>> [tournaments] Ошибка загрузки турниров:', err);
+        setError('Не удалось загрузить турниры. Попробуйте позже.');
+      });
 
     const initTelegram = async () => {
       if (typeof window === 'undefined') {
@@ -75,7 +87,6 @@ export default function Home() {
 
           if (tgUser && initData) {
             console.log('>>> [auth] User found, attempting authentication...');
-            setUser({ id: tgUser.id, firstName: tgUser.first_name });
             try {
               const response = await fetch('https://primechallenge.onrender.com/auth', {
                 method: 'POST',
@@ -144,12 +155,16 @@ export default function Home() {
     console.log(`>>> [matches] Loading matches for tournament ${tournament.id}`);
     try {
       const response = await fetch(`https://primechallenge.onrender.com/tournaments/${tournament.id}/matches`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
       const data = await response.json();
       console.log('>>> [matches] Matches loaded:', data);
       setMatches(data.map((m: Match) => ({ ...m, predicted_winner: '' })));
     } catch (err) {
       console.error('>>> [matches] Ошибка загрузки матчей:', err);
       setMatches([]);
+      setError('Не удалось загрузить матчи. Попробуйте позже.');
     }
   };
 
@@ -180,6 +195,9 @@ export default function Home() {
           })),
         }),
       });
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
       const data = await response.json();
       console.log('>>> [picks] Picks saved:', data);
       alert('Ваши пики сохранены!');
@@ -207,6 +225,12 @@ export default function Home() {
           {user ? `Привет, ${user.firstName}!` : 'Загрузка пользователя...'}
         </p>
       </header>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-500 text-white rounded-lg">
+          {error}
+        </div>
+      )}
 
       {!selectedTournament ? (
         <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -246,6 +270,12 @@ export default function Home() {
               )}
             </h2>
             <p className="text-gray-400">{selectedTournament.dates}</p>
+            <button
+              className="mt-2 text-blue-400 underline"
+              onClick={() => setSelectedTournament(null)}
+            >
+              Назад к турнирам
+            </button>
           </div>
           <div className="flex gap-2 mb-6">
             {['R64', 'R32', 'R16', 'QF', 'SF', 'F'].map((round) => (
