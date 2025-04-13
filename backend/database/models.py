@@ -1,3 +1,4 @@
+# Forced update to ensure Status uses 'Активен' (2025-04-13)
 from sqlalchemy import Column, Integer, String, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 from database.db import Base
@@ -42,4 +43,3 @@ class Pick(Base):
     match_id = Column(Integer, ForeignKey("matches.id"))
     predicted_winner = Column(String)
     match = relationship("Match", back_populates="picks")
-    
