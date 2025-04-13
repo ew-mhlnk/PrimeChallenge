@@ -232,3 +232,4 @@ async def submit_pick(request: Request, db: Session = Depends(get_db)):
             db.refresh(db_pick)
     
     return {"status": "ok"}
+

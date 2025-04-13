@@ -42,3 +42,4 @@ class Pick(Base):
     match_id = Column(Integer, ForeignKey("matches.id"))
     predicted_winner = Column(String)
     match = relationship("Match", back_populates="picks")
+    

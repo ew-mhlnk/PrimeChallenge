@@ -14,3 +14,4 @@ interface TelegramWebApp {
       WebApp: TelegramWebApp;
     };
   }
+  
