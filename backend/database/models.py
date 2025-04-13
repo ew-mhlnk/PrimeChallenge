@@ -5,11 +5,12 @@ from sqlalchemy.orm import relationship
 from database.db import Base
 import enum
 
+# Temporary fix to match Google Sheets and database (2025-04-15)
 class Status(enum.Enum):
-    ACTIVE = "Активен"
-    CLOSED = "Закрыт"
-    COMPLETED = "Завершён"
-
+    ACTIVE = "ACTIVE"
+    CLOSED = "CLOSED"
+    COMPLETED = "COMPLETED"
+    
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
