@@ -11,36 +11,30 @@ from apscheduler.triggers.interval import IntervalTrigger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Создаём таблицы в БД (временно, чтобы убедиться, что структура правильная)
 Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://prime-challenge.vercel.app"],
+    allow_origins=["*"],  # Разрешаем все источники для теста
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Подключаем роуты
 app.include_router(auth.router, prefix="/auth")
 app.include_router(tournaments.router, prefix="/tournaments")
 app.include_router(picks.router, prefix="/picks")
 app.include_router(results.router, prefix="/results")
 
-# Настройка планировщика задач
 scheduler = BackgroundScheduler()
 
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting up the application and scheduler")
-    # Запускаем синхронизацию сразу при старте
     sync_google_sheets_with_db()
-    # Настраиваем задачу на выполнение каждый час
     scheduler.add_job(
         sync_google_sheets_with_db,
         trigger=IntervalTrigger(hours=1),
@@ -58,3 +52,9 @@ async def shutdown_event():
 def read_root():
     logger.info("Root endpoint accessed")
     return {"message": "Backend работает!"}
+
+@app.get("/sync")
+async def manual_sync():
+    logger.info("Manual sync triggered")
+    sync_google_sheets_with_db()
+    return {"message": "Sync completed"}
