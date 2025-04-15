@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 import logging
-from typing import List
+from typing import List, Optional
 from database.db import get_db
 from database.models import Tournament, Match
 from pydantic import BaseModel
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class TournamentResponse(BaseModel):
     id: int
     name: str
-    dates: str
+    dates: Optional[str]  # Делаем поле необязательным
     status: str
     starting_round: str
     type: str
@@ -23,12 +23,12 @@ class MatchResponse(BaseModel):
     match_number: int
     player1: str
     player2: str
-    set1: str | None
-    set2: str | None
-    set3: str | None
-    set4: str | None
-    set5: str | None
-    winner: str | None
+    set1: Optional[str]
+    set2: Optional[str]
+    set3: Optional[str]
+    set4: Optional[str]
+    set5: Optional[str]
+    winner: Optional[str]
 
 @router.get("/", response_model=List[TournamentResponse])
 async def get_all_tournaments(db: Session = Depends(get_db)):
