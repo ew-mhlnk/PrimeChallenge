@@ -2,7 +2,7 @@ import gspread
 import os
 from sqlalchemy.orm import Session
 from database.db import get_db
-from database.models import Tournament, Match, Pick, Result
+from database.models import Tournament, Match, Pick  # Убрали Result
 import logging
 
 logger = logging.getLogger(__name__)
