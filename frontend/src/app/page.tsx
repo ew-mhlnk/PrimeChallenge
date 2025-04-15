@@ -3,33 +3,51 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
-interface User {
+// Интерфейс для данных, которые приходят с бэкенда
+interface BackendTournament {
   id: number;
-  firstName: string;
+  name: string;
+  dates: string; // Поле с бэкенда
+  status: string; // Поле с бэкенда
+  starting_round: string;
+  type: string;
 }
 
+// Интерфейс для данных, которые использует фронтенд
 interface Tournament {
   id: number;
   name: string;
-  date: string;
-  active: boolean;
+  date: string; // Ожидаемое поле на фронтенде
+  active: boolean; // Ожидаемое поле на фронтенде
 }
 
 export default function Home() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<{ id: number; firstName: string } | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     console.log('>>> [init] Starting Telegram WebApp initialization...');
 
-    // Загрузка турниров сразу
+    // Загрузка турниров
     console.log('>>> [tournaments] Loading tournaments...');
-    fetch('/api/tournaments')
-      .then((res) => res.json())
-      .then((data: Tournament[]) => {
+    fetch('https://primechallenge.onrender.com/tournaments')
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to fetch tournaments: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data: BackendTournament[]) => {
         console.log('>>> [tournaments] Tournaments loaded:', data);
-        setTournaments(data);
+        // Преобразуем данные из формата бэкенда в формат фронтенда
+        const transformedData = data.map(tournament => ({
+          id: tournament.id,
+          name: tournament.name,
+          date: tournament.dates, // dates → date
+          active: tournament.status.toUpperCase() === 'ACTIVE' // status → active
+        }));
+        setTournaments(transformedData);
       })
       .catch((err) => console.error('>>> [tournaments] Ошибка загрузки турниров:', err));
 
@@ -71,9 +89,9 @@ export default function Home() {
               const data = await response.json();
               console.log('🔐 Auth response:', data);
 
-              if (response.ok && data.user_id) {  // Изменили проверку
+              if (response.ok && data.status === 'ok') {
                 console.log('>>> [auth] Authentication successful');
-                setUser({ id: data.user_id, firstName: data.first_name || tgUser.first_name });
+                setUser({ id: data.user_id, firstName: tgUser.first_name });
               } else {
                 console.error('❌ Auth failed:', data);
                 setUser({ id: 0, firstName: 'Гость' });
@@ -97,10 +115,8 @@ export default function Home() {
         }
       };
 
-      // Проверяем сразу
       checkTelegram();
 
-      // Проверяем наличие скрипта Telegram
       const existingScript = document.querySelector('script[src="https://telegram.org/js/telegram-web-app.js"]');
       if (!existingScript) {
         console.log('>>> [init] Loading Telegram WebApp script...');
