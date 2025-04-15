@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 import logging
 from database.db import SessionLocal
 from database.models import User
 from pydantic import BaseModel
-from services.auth_service import authenticate_user  # Абсолютный импорт
+from services.auth_service import authenticate_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -26,5 +26,11 @@ class AuthResponse(BaseModel):
 @router.post("/", response_model=AuthResponse)
 def auth(request: AuthRequest, db: Session = Depends(get_db)):
     logger.info("Auth endpoint accessed")
-    user = authenticate_user(request.initData, db)
-    return {"user_id": user.user_id, "first_name": user.first_name}
+    logger.debug(f"Received initData: {request.initData}")
+    try:
+        user = authenticate_user(request.initData, db)
+        logger.info(f"Authenticated user: {user.user_id}, {user.first_name}")
+        return {"user_id": user.user_id, "first_name": user.first_name}
+    except Exception as e:
+        logger.error(f"Authentication failed: {str(e)}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
