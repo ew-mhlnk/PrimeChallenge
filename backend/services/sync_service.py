@@ -2,15 +2,15 @@ import gspread
 import os
 from sqlalchemy.orm import Session
 from database.db import get_db
-from database.models import Tournament, Match, Pick  # Убрали Result
+from database.models import Tournament
 import logging
 
 logger = logging.getLogger(__name__)
 
 def sync_google_sheets_with_db():
     logger.info("Starting Google Sheets synchronization with DB")
+    db = None  # Инициализируем db как None
     try:
-        # Подключаемся к Google Sheets
         credentials = os.getenv("GOOGLE_CREDENTIALS")
         if not credentials:
             logger.error("GOOGLE_CREDENTIALS environment variable not set")
@@ -24,25 +24,27 @@ def sync_google_sheets_with_db():
         
         sheet = gc.open_by_key(sheet_id)
         
-        # Синхронизация турниров
-        worksheet = sheet.worksheet("tournaments")
-        data = worksheet.get_all_records()
-        logger.info(f"Data from Google Sheets: {data}")
+        try:
+            worksheet = sheet.worksheet("tournaments")
+            data = worksheet.get_all_records()
+            logger.info(f"Data from Google Sheets: {data}")
+        except gspread.exceptions.WorksheetNotFound:
+            logger.error("Worksheet 'tournaments' not found in Google Sheets")
+            return  # Просто логируем и выходим, не ломая приложение
         
-        db: Session = next(get_db())
+        db = next(get_db())  # Инициализируем db только если дошли до этого места
         
-        # Очищаем таблицу tournaments перед синхронизацией
+        # Очищаем таблицу Tournament
         db.query(Tournament).delete()
         db.commit()
         
+        # Добавляем данные из Google Sheets
         for row in data:
-            # Логируем сырые данные
             logger.info(f"Processing row: {row}")
-            # Приводим ключи к нужному формату, если есть проблемы с регистром
             tournament = Tournament(
                 id=row.get("ID"),
                 name=row.get("Name"),
-                dates=row.get("Date"),  # Убедимся, что ключ "Date" совпадает
+                dates=row.get("Date"),
                 status=row.get("Status"),
                 starting_round=row.get("Starting Round"),
                 type=row.get("Type")
@@ -50,10 +52,11 @@ def sync_google_sheets_with_db():
             db.add(tournament)
         db.commit()
         
-        # Здесь должна быть синхронизация матчей и других данных
-        logger.info("Google Sheets synchronization and points calculation completed successfully")
+        logger.info("Google Sheets synchronization completed successfully")
     except Exception as e:
         logger.error(f"Error during synchronization: {e}")
-        raise
+        if db:
+            db.rollback()
     finally:
-        db.close()
+        if db:  # Закрываем db только если она была создана
+            db.close()
