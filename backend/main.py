@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 import logging
 from routers import auth, tournaments, picks, results
 from database.models import Base
@@ -18,7 +19,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Разрешаем все источники для теста
+    allow_origins=["https://prime-challenge.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,10 +52,28 @@ async def shutdown_event():
 @app.get("/")
 def read_root():
     logger.info("Root endpoint accessed")
-    return {"message": "Backend работает!"}
+    return Response(
+        content='{"message": "Backend работает!"}',
+        media_type="application/json",
+        headers={
+            "Access-Control-Allow-Origin": "https://prime-challenge.vercel.app",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*"
+        }
+    )
 
 @app.get("/sync")
 async def manual_sync():
     logger.info("Manual sync triggered")
     sync_google_sheets_with_db()
-    return {"message": "Sync completed"}
+    return Response(
+        content='{"message": "Sync completed"}',
+        media_type="application/json",
+        headers={
+            "Access-Control-Allow-Origin": "https://prime-challenge.vercel.app",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*"
+        }
+    )
