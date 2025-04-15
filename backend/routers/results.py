@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 import logging
 from typing import List
 from database.db import SessionLocal
 from database.models import Pick, Match, User
 from pydantic import BaseModel
-from services.auth_service import authenticate_user  # Абсолютный импорт
+from services.auth_service import authenticate_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class MatchResult(BaseModel):
     points: int
 
 @router.get("/", response_model=List[MatchResult])
-def get_results(db: Session = Depends(get_db), user: User = Depends(authenticate_user)):
+async def get_results(request: Request, db: Session = Depends(get_db), user: User = Depends(authenticate_user)):
     logger.info(f"Fetching results for user {user.user_id}")
     picks = db.query(Pick).filter(Pick.user_id == user.user_id).all()
     results = []

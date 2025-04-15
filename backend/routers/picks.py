@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 import logging
 from typing import List
 from database.db import SessionLocal
 from database.models import User, Match, Pick
 from pydantic import BaseModel
-from services.auth_service import authenticate_user  # Абсолютный импорт
+from services.auth_service import authenticate_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -18,7 +18,6 @@ def get_db():
         db.close()
 
 class PickRequest(BaseModel):
-    initData: str
     picks: List[dict]
 
 class PickResponse(BaseModel):
@@ -28,11 +27,11 @@ class PickResponse(BaseModel):
     points: int
 
 @router.post("/", response_model=List[PickResponse])
-def submit_picks(request: PickRequest, db: Session = Depends(get_db), user: User = Depends(authenticate_user)):
+async def submit_picks(request: Request, pick_request: PickRequest, db: Session = Depends(get_db), user: User = Depends(authenticate_user)):
     logger.info(f"Submitting picks for user {user.user_id}")
     submitted_picks = []
 
-    for pick_data in request.picks:
+    for pick_data in pick_request.picks:
         match_id = pick_data.get("match_id")
         predicted_winner = pick_data.get("predicted_winner")
 
@@ -52,7 +51,7 @@ def submit_picks(request: PickRequest, db: Session = Depends(get_db), user: User
         existing_pick = db.query(Pick).filter(Pick.user_id == user.user_id, Pick.match_id == match_id).first()
         if existing_pick:
             existing_pick.predicted_winner = predicted_winner
-            existing_pick.points = 0  # Сбрасываем очки, они будут пересчитаны при синхронизации
+            existing_pick.points = 0
         else:
             new_pick = Pick(
                 user_id=user.user_id,
@@ -69,7 +68,7 @@ def submit_picks(request: PickRequest, db: Session = Depends(get_db), user: User
     return submitted_picks
 
 @router.get("/", response_model=List[PickResponse])
-def get_user_picks(db: Session = Depends(get_db), user: User = Depends(authenticate_user)):
+async def get_user_picks(request: Request, db: Session = Depends(get_db), user: User = Depends(authenticate_user)):
     logger.info(f"Fetching picks for user {user.user_id}")
     picks = db.query(Pick).filter(Pick.user_id == user.user_id).all()
     return picks

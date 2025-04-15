@@ -1,49 +1,56 @@
-import logging
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from database.models import User
-import hashlib
-import hmac
-import os
+from database.db import get_db
+import logging
+from init_data_py import InitData
 from config import TELEGRAM_BOT_TOKEN
 
 logger = logging.getLogger(__name__)
 
-def authenticate_user(init_data: str, db: Session) -> User:
-    logger.info("Validating initData...")
-    
-    # Парсим initData
+async def authenticate_user(request: Request, db: Session = Depends(get_db)) -> User:
+    logger.info("Authenticating user via dependency...")
     try:
-        params = dict(param.split('=') for param in init_data.split('&'))
-        check_hash = params.pop('hash')
-        user_data = params.get('user', '{}')
-        user = eval(user_data)  # Небезопасно, лучше использовать json.loads в будущем
-        user_id = user.get('id')
-        first_name = user.get('first_name', 'Unknown')
+        body = await request.json()
+        logger.debug(f"Request body: {body}")
+        init_data_raw = body.get("initData")
+        if not init_data_raw:
+            logger.error("No initData provided in request")
+            raise HTTPException(status_code=400, detail="No initData provided")
+
+        logger.info("Validating initData...")
+        try:
+            init_data = InitData.parse(init_data_raw)
+            init_data.validate(TELEGRAM_BOT_TOKEN, lifetime=3600)
+            logger.info("Init data validated successfully")
+        except Exception as e:
+            logger.error(f"Init data validation failed: {e}")
+            raise HTTPException(status_code=403, detail="Invalid Telegram auth")
+
+        user_data = init_data.user
+        if not user_data:
+            logger.error("User not found in initData")
+            raise HTTPException(status_code=400, detail="User not found")
+
+        user_id = user_data.id
+        first_name = user_data.first_name or "Unknown"
+        logger.info(f"Authenticated user: {user_id}, {first_name}")
+
+        existing = db.query(User).filter(User.user_id == user_id).first()
+        if not existing:
+            logger.info(f"Creating new user: {user_id}, {first_name}")
+            db_user = User(user_id=user_id, first_name=first_name)
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+        else:
+            logger.info(f"User already exists: {user_id}")
+            existing.first_name = first_name
+            db.commit()
+            db.refresh(existing)
+            db_user = existing
+
+        return db_user
     except Exception as e:
-        logger.error(f"Failed to parse initData: {str(e)}")
-        raise ValueError("Invalid initData format")
-
-    # Проверяем подпись
-    data_check_string = '\n'.join(f"{k}={v}" for k, v in sorted(params.items()))
-    secret_key = hmac.new("WebAppData".encode(), TELEGRAM_BOT_TOKEN.encode(), hashlib.sha256).digest()
-    calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-
-    if calculated_hash != check_hash:
-        logger.error("Invalid hash in initData")
-        raise ValueError("Invalid hash")
-
-    logger.info("Init data validated successfully")
-
-    # Ищем пользователя в базе
-    db_user = db.query(User).filter(User.user_id == user_id).first()
-    if not db_user:
-        logger.info(f"Creating new user: {user_id}")
-        db_user = User(user_id=user_id, first_name=first_name)
-        db.add(db_user)
-        db.commit()
-    else:
-        logger.info(f"User already exists: {user_id}")
-        db_user.first_name = first_name
-        db.commit()
-
-    return db_user
+        logger.error(f"Unexpected error in authenticate_user: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
