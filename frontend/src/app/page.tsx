@@ -3,22 +3,20 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
-// Интерфейс для данных, которые приходят с бэкенда
 interface BackendTournament {
   id: number;
   name: string;
-  dates: string; // Поле с бэкенда
-  status: string; // Поле с бэкенда
+  dates: string;
+  status: string;
   starting_round: string;
   type: string;
 }
 
-// Интерфейс для данных, которые использует фронтенд
 interface Tournament {
   id: number;
   name: string;
-  date: string; // Ожидаемое поле на фронтенде
-  active: boolean; // Ожидаемое поле на фронтенде
+  date: string;
+  active: boolean;
 }
 
 export default function Home() {
@@ -29,7 +27,6 @@ export default function Home() {
   useEffect(() => {
     console.log('>>> [init] Starting Telegram WebApp initialization...');
 
-    // Загрузка турниров
     console.log('>>> [tournaments] Loading tournaments...');
     fetch('https://primechallenge.onrender.com/tournaments')
       .then((res) => {
@@ -40,16 +37,16 @@ export default function Home() {
       })
       .then((data: BackendTournament[]) => {
         console.log('>>> [tournaments] Tournaments loaded:', data);
-        // Преобразуем данные из формата бэкенда в формат фронтенда
         const transformedData = data.map(tournament => ({
           id: tournament.id,
           name: tournament.name,
-          date: tournament.dates, // dates → date
-          active: tournament.status.toUpperCase() === 'ACTIVE' // status → active
+          date: tournament.dates,
+          active: tournament.status.toUpperCase() === 'ACTIVE'
         }));
         setTournaments(transformedData);
       })
-      .catch((err) => console.error('>>> [tournaments] Ошибка загрузки турниров:', err));
+      .catch((err) => console.error('>>> [tournaments] Ошибка загрузки турниров:', err))
+      .finally(() => setIsLoading(false)); // Устанавливаем isLoading в false после завершения запроса
 
     const initTelegram = async () => {
       if (typeof window === 'undefined') {
@@ -179,7 +176,7 @@ export default function Home() {
             </Link>
           ))
         ) : (
-          <p className="text-gray-400">Турниры загружаются...</p>
+          <p className="text-gray-400">Нет доступных турниров</p>
         )}
       </section>
     </div>
