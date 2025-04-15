@@ -2,20 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 import logging
 from typing import List
-from database.db import SessionLocal
+from database.db import get_db
 from database.models import User, Match, Pick
 from pydantic import BaseModel
 from services.auth_service import authenticate_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 class PickRequest(BaseModel):
     picks: List[dict]

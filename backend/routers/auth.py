@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 import logging
-from database.db import SessionLocal
+from database.db import get_db
 from database.models import User
 from pydantic import BaseModel
 from init_data_py import InitData
@@ -9,13 +9,6 @@ from config import TELEGRAM_BOT_TOKEN
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 class AuthResponse(BaseModel):
     status: str

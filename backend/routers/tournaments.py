@@ -2,19 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 import logging
 from typing import List
-from database.db import SessionLocal
+from database.db import get_db
 from database.models import Tournament, Match
 from pydantic import BaseModel
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 class TournamentResponse(BaseModel):
     id: int
@@ -38,13 +31,13 @@ class MatchResponse(BaseModel):
     winner: str | None
 
 @router.get("/", response_model=List[TournamentResponse])
-def get_all_tournaments(db: Session = Depends(get_db)):
+async def get_all_tournaments(db: Session = Depends(get_db)):
     logger.info("Fetching tournaments from DB")
     db_tournaments = db.query(Tournament).all()
     return db_tournaments
 
 @router.get("/{tournament_id}/matches", response_model=List[MatchResponse])
-def get_tournament_matches_endpoint(tournament_id: int, db: Session = Depends(get_db)):
+async def get_tournament_matches_endpoint(tournament_id: int, db: Session = Depends(get_db)):
     logger.info(f"Fetching matches for tournament {tournament_id} from DB")
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if not tournament:
