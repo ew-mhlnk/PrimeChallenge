@@ -2,12 +2,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 from routers import auth, tournaments, picks, results
+from database.models import Base
+from database.db import engine
 from services.sync_service import sync_google_sheets_with_db
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Создаём таблицы в БД (временно, чтобы убедиться, что структура правильная)
+Base.metadata.drop_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
