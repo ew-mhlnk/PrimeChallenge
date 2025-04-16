@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.routers import auth, tournaments
-from backend.services.sync_service import sync_google_sheets_with_db
+from routers import auth, tournaments  # Используем относительный импорт
+from services.sync_service import sync_google_sheets_with_db
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -10,7 +10,7 @@ app = FastAPI()
 # Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://prime-challenge.vercel.app"],  # Указываем конкретный origin фронтенда
+    allow_origins=["https://prime-challenge.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
