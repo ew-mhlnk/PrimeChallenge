@@ -8,7 +8,7 @@ export default function useMatches(selectedTournament: Tournament | null) {
   const loadMatches = async (tournament: Tournament) => {
     console.log(`>>> [matches] Loading matches for tournament ${tournament.id}`);
     try {
-      const response = await fetch(`https://primechallenge.onrender.com/tournaments/${tournament.id}/matches`);
+      const response = await fetch(`https://primechallenge.onrender.com/tournaments/matches?tournament_id=${tournament.id}`);
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }

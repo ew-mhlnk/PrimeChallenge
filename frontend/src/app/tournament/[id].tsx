@@ -3,27 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-
-interface Match {
-  id: number;
-  round: string;
-  match_number: number;
-  player1: string;
-  player2: string;
-  set1: string | null;
-  set2: string | null;
-  set3: string | null;
-  set4: string | null;
-  set5: string | null;
-  winner: string | null;
-}
-
-interface Tournament {
-  id: number;
-  name: string;
-  dates: string;
-  active: boolean;
-}
+import { Tournament, Match } from '@/types';
 
 export default function TournamentPage() {
   const { id } = useParams(); // Получаем ID турнира из URL
@@ -49,7 +29,7 @@ export default function TournamentPage() {
       .catch((err) => console.error('>>> [tournament] Error loading tournament:', err));
 
     // Загружаем матчи для турнира
-    fetch(`https://primechallenge.onrender.com/matches?tournament_id=${id}`)
+    fetch(`https://primechallenge.onrender.com/tournaments/matches?tournament_id=${id}`)
       .then((res) => {
         if (!res.ok) {
           throw new Error(`Failed to fetch matches: ${res.status}`);

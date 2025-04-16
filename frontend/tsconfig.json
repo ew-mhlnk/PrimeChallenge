@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
-    "target": "es2015", // Было, например, "es5", меняем на "es2015"
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "target": "es2015",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -13,8 +17,26 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "incremental": true
+    "incremental": true,
+    "baseUrl": ".", // Добавляем baseUrl для относительных путей
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ] // Указываем, что @/ соответствует src/
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "next-env.d.ts",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }
