@@ -13,7 +13,19 @@ logger = logging.getLogger(__name__)
 async def get_all_tournaments(db: Session = Depends(get_db)):
     logger.info("Fetching tournaments from DB")
     db_tournaments = db.query(Tournament).all()
-    tournaments_data = [t.__dict__ for t in db_tournaments]  # Используем __dict__ вместо dict()
+    # Вручную сериализуем только нужные поля
+    tournaments_data = [
+        {
+            "id": t.id,
+            "name": t.name,
+            "dates": t.dates,
+            "status": t.status,
+            "starting_round": t.starting_round,
+            "type": t.type,
+            "active": t.status == "ACTIVE"
+        }
+        for t in db_tournaments
+    ]
     return JSONResponse(
         content=tournaments_data,
         headers={

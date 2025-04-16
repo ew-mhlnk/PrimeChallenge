@@ -36,7 +36,12 @@ def sync_google_sheets_with_db():
         
         db = next(get_db())
         
-        # Очищаем таблицу tournaments перед синхронизацией
+        # Сначала удаляем матчи, чтобы не нарушать foreign key constraint
+        logger.info("Clearing existing matches")
+        db.query(Match).delete()
+        db.commit()
+        
+        # Теперь удаляем турниры
         logger.info("Clearing existing tournaments")
         db.query(Tournament).delete()
         db.commit()
@@ -56,11 +61,6 @@ def sync_google_sheets_with_db():
         db.commit()
         
         # Синхронизация матчей
-        logger.info("Clearing existing matches")
-        db.query(Match).delete()
-        db.commit()
-        
-        # Для каждого турнира читаем его лист
         tournaments = db.query(Tournament).all()
         for tournament in tournaments:
             try:

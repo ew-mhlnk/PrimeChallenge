@@ -3,13 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
-interface BackendTournament {
+interface User {
   id: number;
-  name: string;
-  dates: string;
-  status: string;
-  starting_round: string;
-  type: string;
+  firstName: string;
 }
 
 interface Tournament {
@@ -20,33 +16,28 @@ interface Tournament {
 }
 
 export default function Home() {
-  const [user, setUser] = useState<{ id: number; firstName: string } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     console.log('>>> [init] Starting Telegram WebApp initialization...');
 
+    // Загрузка турниров
     console.log('>>> [tournaments] Loading tournaments...');
-    fetch('https://primechallenge.onrender.com/tournaments')
+    fetch('https://primechallenge.onrender.com/tournaments/', { mode: 'no-cors' })
       .then((res) => {
         if (!res.ok) {
           throw new Error(`Failed to fetch tournaments: ${res.status}`);
         }
         return res.json();
       })
-      .then((data: BackendTournament[]) => {
+      .then((data: Tournament[]) => {
         console.log('>>> [tournaments] Tournaments loaded:', data);
-        const transformedData = data.map(tournament => ({
-          id: tournament.id,
-          name: tournament.name,
-          date: tournament.dates,
-          active: tournament.status.toUpperCase() === 'ACTIVE'
-        }));
-        setTournaments(transformedData);
+        setTournaments(data);
       })
       .catch((err) => console.error('>>> [tournaments] Ошибка загрузки турниров:', err))
-      .finally(() => setIsLoading(false)); // Устанавливаем isLoading в false после завершения запроса
+      .finally(() => setIsLoading(false));
 
     const initTelegram = async () => {
       if (typeof window === 'undefined') {
@@ -78,7 +69,7 @@ export default function Home() {
           if (tgUser && initData) {
             console.log('>>> [auth] User found, attempting authentication...');
             try {
-              const response = await fetch('https://primechallenge.onrender.com/auth', {
+              const response = await fetch('https://primechallenge.onrender.com/auth/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ initData }),
