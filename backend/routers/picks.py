@@ -21,7 +21,7 @@ class PickResponse(BaseModel):
 
 @router.post("/", response_model=List[PickResponse])
 async def submit_picks(request: Request, pick_request: PickRequest, db: Session = Depends(get_db), user: User = Depends(authenticate_user)):
-    logger.info(f"Submitting picks for user {user.user_id}")
+    logger.info(f"Submitting picks for user {user.telegram_id}")
     submitted_picks = []
 
     for pick_data in pick_request.picks:
@@ -41,13 +41,13 @@ async def submit_picks(request: Request, pick_request: PickRequest, db: Session 
         if predicted_winner not in [match.player1, match.player2]:
             raise HTTPException(status_code=400, detail="Predicted winner must be one of the players")
 
-        existing_pick = db.query(Pick).filter(Pick.user_id == user.user_id, Pick.match_id == match_id).first()
+        existing_pick = db.query(Pick).filter(Pick.user_id == user.telegram_id, Pick.match_id == match_id).first()
         if existing_pick:
             existing_pick.predicted_winner = predicted_winner
             existing_pick.points = 0
         else:
             new_pick = Pick(
-                user_id=user.user_id,
+                user_id=user.telegram_id,
                 match_id=match_id,
                 predicted_winner=predicted_winner,
                 points=0
@@ -57,11 +57,11 @@ async def submit_picks(request: Request, pick_request: PickRequest, db: Session 
 
         db.commit()
 
-    logger.info(f"Picks submitted successfully for user {user.user_id}")
+    logger.info(f"Picks submitted successfully for user {user.telegram_id}")
     return submitted_picks
 
 @router.get("/", response_model=List[PickResponse])
 async def get_user_picks(request: Request, db: Session = Depends(get_db), user: User = Depends(authenticate_user)):
-    logger.info(f"Fetching picks for user {user.user_id}")
-    picks = db.query(Pick).filter(Pick.user_id == user.user_id).all()
+    logger.info(f"Fetching picks for user {user.telegram_id}")
+    picks = db.query(Pick).filter(Pick.user_id == user.telegram_id).all()
     return picks

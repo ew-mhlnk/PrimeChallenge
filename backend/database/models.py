@@ -38,4 +38,12 @@ class User(Base):
     first_name = Column(String)
     username = Column(String, nullable=True)
 
+class Pick(Base):
+    __tablename__ = "picks"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.telegram_id"), index=True)
+    match_id = Column(Integer, ForeignKey("matches.id"), index=True)
+    predicted_winner = Column(String)
+    points = Column(Integer, default=0)
+
 logger.info("Database models loaded successfully")

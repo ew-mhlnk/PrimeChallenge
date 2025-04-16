@@ -36,10 +36,10 @@ async def authenticate_user(request: Request, db: Session = Depends(get_db)) -> 
         first_name = user_data.first_name or "Unknown"
         logger.info(f"Authenticated user: {user_id}, {first_name}")
 
-        existing = db.query(User).filter(User.user_id == user_id).first()
+        existing = db.query(User).filter(User.telegram_id == user_id).first()
         if not existing:
             logger.info(f"Creating new user: {user_id}, {first_name}")
-            db_user = User(user_id=user_id, first_name=first_name)
+            db_user = User(telegram_id=user_id, first_name=first_name)
             db.add(db_user)
             db.commit()
             db.refresh(db_user)
