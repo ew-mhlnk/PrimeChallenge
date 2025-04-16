@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # Подключаем роутеры
 app.include_router(auth.router, prefix="/auth")
 app.include_router(tournaments.router, prefix="/tournaments")
-app.include_router(matches.router, prefix="/tournaments")  # Добавляем matches с префиксом
+app.include_router(matches.router)  # Убираем prefix, т.к. он уже задан в matches.py
 
 @app.on_event("startup")
 async def startup_event():
