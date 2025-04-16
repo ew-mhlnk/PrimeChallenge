@@ -43,10 +43,10 @@ async def auth(request: Request, db: Session = Depends(get_db)):
         first_name = user_data.first_name or "Unknown"
         logger.info(f"Authenticated user: {user_id}, {first_name}")
 
-        existing = db.query(User).filter(User.telegram_id == user_id).first()
+        existing = db.query(User).filter(User.user_id == user_id).first()
         if not existing:
             logger.info(f"Creating new user: {user_id}, {first_name}")
-            db_user = User(telegram_id=user_id, first_name=first_name)
+            db_user = User(user_id=user_id, first_name=first_name)
             db.add(db_user)
             db.commit()
             db.refresh(db_user)
@@ -57,7 +57,7 @@ async def auth(request: Request, db: Session = Depends(get_db)):
             db.refresh(existing)
             db_user = existing
 
-        return {"status": "ok", "user_id": user_id}
+        return {"status": "ok", "user_id": db_user.user_id}
     except Exception as e:
         logger.error(f"Unexpected error in auth endpoint: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
