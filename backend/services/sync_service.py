@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def sync_google_sheets_with_db():
     logger.info("Starting Google Sheets synchronization with DB")
-    db = None  # Инициализируем db как None, чтобы избежать UnboundLocalError
+    db = None
     try:
         # Подключаемся к Google Sheets
         credentials = os.getenv("GOOGLE_CREDENTIALS")
@@ -56,7 +56,6 @@ def sync_google_sheets_with_db():
         db.commit()
         
         # Синхронизация матчей
-        # Очищаем таблицу matches перед синхронизацией
         logger.info("Clearing existing matches")
         db.query(Match).delete()
         db.commit()
@@ -65,15 +64,15 @@ def sync_google_sheets_with_db():
         tournaments = db.query(Tournament).all()
         for tournament in tournaments:
             try:
-                worksheet = sheet.worksheet(tournament.name)  # Например, "BMW Open"
-                match_data = worksheet.get_all_values()  # Получаем все данные как список списков
+                worksheet = sheet.worksheet(tournament.name)
+                match_data = worksheet.get_all_values()
                 logger.info(f"Data from Google Sheets (worksheet '{tournament.name}'): {match_data}")
             except gspread.exceptions.WorksheetNotFound:
                 logger.error(f"Worksheet '{tournament.name}' not found in Google Sheets")
                 continue
             
             # Определяем стартовый раунд для турнира
-            starting_round = tournament.starting_round  # Например, "R32" для ATP-500
+            starting_round = tournament.starting_round
             logger.info(f"Starting round for tournament {tournament.name}: {starting_round}")
             
             # Находим индекс строки с заголовками (R128, R64, R32 и т.д.)
@@ -85,7 +84,6 @@ def sync_google_sheets_with_db():
                     current_round = cell
                     round_columns[current_round] = idx
                 elif cell.isdigit() and current_round:
-                    # Игнорируем столбцы с номерами (1, 2, 3, 4, 5)
                     continue
             
             # Находим индекс столбца для стартового раунда
@@ -96,7 +94,7 @@ def sync_google_sheets_with_db():
             
             # Парсим данные матчей из столбца R32 (и следующих 5 столбцов для результатов)
             match_number = 1
-            for row_idx in range(1, len(match_data), 2):  # Читаем парами строк (игрок 1 и игрок 2)
+            for row_idx in range(1, len(match_data), 2):
                 player1_row = match_data[row_idx]
                 player2_row = match_data[row_idx + 1] if row_idx + 1 < len(match_data) else [""] * len(player1_row)
                 
@@ -104,20 +102,18 @@ def sync_google_sheets_with_db():
                 player2 = player2_row[start_col] if start_col < len(player2_row) else ""
                 
                 if not player1 or not player2:
-                    continue  # Пропускаем пустые строки
+                    continue
                 
-                # Получаем результаты (столбцы после имени игрока: 1, 2, 3, 4, 5)
+                # Получаем результаты
                 set1 = player1_row[start_col + 1] if start_col + 1 < len(player1_row) else None
                 set2 = player1_row[start_col + 2] if start_col + 2 < len(player1_row) else None
                 set3 = player1_row[start_col + 3] if start_col + 3 < len(player1_row) else None
                 set4 = player1_row[start_col + 4] if start_col + 4 < len(player1_row) else None
                 set5 = player1_row[start_col + 5] if start_col + 5 < len(player1_row) else None
                 
-                # Определяем победителя (пока оставим пустым, если не указано)
-                winner = None  # Можно добавить логику определения победителя позже
+                winner = None
                 
                 match = Match(
-                    id=f"{tournament.id}-{match_number}",  # Уникальный ID матча
                     tournament_id=tournament.id,
                     round=starting_round,
                     match_number=match_number,
@@ -131,7 +127,7 @@ def sync_google_sheets_with_db():
                     winner=winner
                 )
                 db.add(match)
-                logger.info(f"Added match to DB: {match.id} - {player1} vs {player2}")
+                logger.info(f"Added match to DB: {match_number} - {player1} vs {player2}")
                 match_number += 1
             db.commit()
         
