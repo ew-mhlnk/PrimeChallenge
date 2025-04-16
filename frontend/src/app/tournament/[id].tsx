@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Tournament, Match } from '@/types';
+import { Tournament } from '@/types'; // Убрали импорт Match
+import useMatches from '@/hooks/useMatches';
 
 export default function TournamentPage() {
   const { id } = useParams(); // Получаем ID турнира из URL
   const [tournament, setTournament] = useState<Tournament | null>(null);
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { matches, error, loadMatches } = useMatches(null); // Используем хук для матчей
 
   useEffect(() => {
     // Загружаем данные турнира
@@ -24,33 +24,11 @@ export default function TournamentPage() {
         const foundTournament = data.find((t) => t.id === parseInt(id as string));
         if (foundTournament) {
           setTournament(foundTournament);
+          loadMatches(foundTournament); // Загружаем матчи для найденного турнира
         }
       })
       .catch((err) => console.error('>>> [tournament] Error loading tournament:', err));
-
-    // Загружаем матчи для турнира
-    fetch(`https://primechallenge.onrender.com/tournaments/matches?tournament_id=${id}`)
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to fetch matches: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then((data: Match[]) => {
-        console.log('>>> [matches] Matches loaded:', data);
-        setMatches(data);
-      })
-      .catch((err) => console.error('>>> [matches] Error loading matches:', err))
-      .finally(() => setIsLoading(false));
-  }, [id]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <p className="text-xl text-center">Загрузка...</p>
-      </div>
-    );
-  }
+  }, [id, loadMatches]);
 
   if (!tournament) {
     return (
@@ -79,7 +57,9 @@ export default function TournamentPage() {
 
       <section className="grid gap-4">
         <h2 className="text-2xl font-semibold">Матчи</h2>
-        {matches.length > 0 ? (
+        {error ? (
+          <p className="text-red-400">{error}</p>
+        ) : matches.length > 0 ? (
           matches.map((match) => (
             <div key={match.id} className="bg-gray-800 p-4 rounded-lg shadow-md">
               <p className="text-lg font-medium">
