@@ -33,14 +33,13 @@ class Match(Base):
 
 class User(Base):
     __tablename__ = "users"
-    user_id = Column(Integer, primary_key=True, index=True)  # Используем user_id как первичный ключ
+    user_id = Column(Integer, primary_key=True, index=True)
     first_name = Column(String)
-    username = Column(String, nullable=True)  # Добавляем username, если нужно
 
 class Pick(Base):
     __tablename__ = "picks"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), index=True)  # Связь с user_id
+    user_id = Column(Integer, ForeignKey("users.user_id"), index=True)
     match_id = Column(Integer, ForeignKey("matches.id"), index=True)
     predicted_winner = Column(String)
     points = Column(Integer, default=0)

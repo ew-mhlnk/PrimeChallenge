@@ -70,10 +70,10 @@ export default function TournamentPage() {
         <p className="text-gray-400 mt-2">{tournament.dates}</p>
         <span
           className={`mt-2 inline-block px-2 py-1 rounded text-sm ${
-            tournament.active ? 'bg-green-500' : 'bg-gray-500'
+            tournament.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-500'
           }`}
         >
-          {tournament.active ? 'Активен' : 'Завершён'}
+          {tournament.status === 'ACTIVE' ? 'Активен' : 'Завершён'}
         </span>
       </header>
 
