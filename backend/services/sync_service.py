@@ -56,38 +56,84 @@ def sync_google_sheets_with_db():
         db.commit()
         
         # Синхронизация матчей
-        try:
-            worksheet = sheet.worksheet("matches")
-            match_data = worksheet.get_all_records()
-            logger.info(f"Data from Google Sheets (matches): {match_data}")
-        except gspread.exceptions.WorksheetNotFound:
-            logger.error("Worksheet 'matches' not found in Google Sheets")
-            return
-        
         # Очищаем таблицу matches перед синхронизацией
         logger.info("Clearing existing matches")
         db.query(Match).delete()
         db.commit()
         
-        for row in match_data:
-            logger.info(f"Processing match row: {row}")
-            match = Match(
-                id=row.get("ID"),
-                tournament_id=row.get("Tournament ID"),
-                round=row.get("Round"),
-                match_number=row.get("Match Number"),
-                player1=row.get("Player 1"),
-                player2=row.get("Player 2"),
-                set1=row.get("Set 1", None),
-                set2=row.get("Set 2", None),
-                set3=row.get("Set 3", None),
-                set4=row.get("Set 4", None),
-                set5=row.get("Set 5", None),
-                winner=row.get("Winner", None)
-            )
-            db.add(match)
-            logger.info(f"Added match to DB: {match.id}")
-        db.commit()
+        # Для каждого турнира читаем его лист
+        tournaments = db.query(Tournament).all()
+        for tournament in tournaments:
+            try:
+                worksheet = sheet.worksheet(tournament.name)  # Например, "BMW Open"
+                match_data = worksheet.get_all_values()  # Получаем все данные как список списков
+                logger.info(f"Data from Google Sheets (worksheet '{tournament.name}'): {match_data}")
+            except gspread.exceptions.WorksheetNotFound:
+                logger.error(f"Worksheet '{tournament.name}' not found in Google Sheets")
+                continue
+            
+            # Определяем стартовый раунд для турнира
+            starting_round = tournament.starting_round  # Например, "R32" для ATP-500
+            logger.info(f"Starting round for tournament {tournament.name}: {starting_round}")
+            
+            # Находим индекс строки с заголовками (R128, R64, R32 и т.д.)
+            header_row = match_data[0]
+            round_columns = {}
+            current_round = None
+            for idx, cell in enumerate(header_row):
+                if cell in ["R128", "R64", "R32", "R16", "QF", "SF", "F"]:
+                    current_round = cell
+                    round_columns[current_round] = idx
+                elif cell.isdigit() and current_round:
+                    # Игнорируем столбцы с номерами (1, 2, 3, 4, 5)
+                    continue
+            
+            # Находим индекс столбца для стартового раунда
+            if starting_round not in round_columns:
+                logger.error(f"Starting round {starting_round} not found in worksheet '{tournament.name}'")
+                continue
+            start_col = round_columns[starting_round]
+            
+            # Парсим данные матчей из столбца R32 (и следующих 5 столбцов для результатов)
+            match_number = 1
+            for row_idx in range(1, len(match_data), 2):  # Читаем парами строк (игрок 1 и игрок 2)
+                player1_row = match_data[row_idx]
+                player2_row = match_data[row_idx + 1] if row_idx + 1 < len(match_data) else [""] * len(player1_row)
+                
+                player1 = player1_row[start_col] if start_col < len(player1_row) else ""
+                player2 = player2_row[start_col] if start_col < len(player2_row) else ""
+                
+                if not player1 or not player2:
+                    continue  # Пропускаем пустые строки
+                
+                # Получаем результаты (столбцы после имени игрока: 1, 2, 3, 4, 5)
+                set1 = player1_row[start_col + 1] if start_col + 1 < len(player1_row) else None
+                set2 = player1_row[start_col + 2] if start_col + 2 < len(player1_row) else None
+                set3 = player1_row[start_col + 3] if start_col + 3 < len(player1_row) else None
+                set4 = player1_row[start_col + 4] if start_col + 4 < len(player1_row) else None
+                set5 = player1_row[start_col + 5] if start_col + 5 < len(player1_row) else None
+                
+                # Определяем победителя (пока оставим пустым, если не указано)
+                winner = None  # Можно добавить логику определения победителя позже
+                
+                match = Match(
+                    id=f"{tournament.id}-{match_number}",  # Уникальный ID матча
+                    tournament_id=tournament.id,
+                    round=starting_round,
+                    match_number=match_number,
+                    player1=player1,
+                    player2=player2,
+                    set1=set1,
+                    set2=set2,
+                    set3=set3,
+                    set4=set4,
+                    set5=set5,
+                    winner=winner
+                )
+                db.add(match)
+                logger.info(f"Added match to DB: {match.id} - {player1} vs {player2}")
+                match_number += 1
+            db.commit()
         
         logger.info("Google Sheets synchronization completed successfully")
     except Exception as e:
