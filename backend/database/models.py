@@ -1,7 +1,11 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
+import logging
 
 Base = declarative_base()
+logger = logging.getLogger(__name__)
+
+logger.info("Loading database models")
 
 class Tournament(Base):
     __tablename__ = "tournaments"
@@ -26,3 +30,12 @@ class Match(Base):
     set4 = Column(String, nullable=True)
     set5 = Column(String, nullable=True)
     winner = Column(String, nullable=True)
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    telegram_id = Column(Integer, unique=True, index=True)
+    first_name = Column(String)
+    username = Column(String, nullable=True)
+
+logger.info("Database models loaded successfully")
