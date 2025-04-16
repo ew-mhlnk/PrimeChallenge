@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, tournaments  # Используем относительный импорт
+from routers import auth, tournaments, matches  # Добавляем matches
 from services.sync_service import sync_google_sheets_with_db
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # Подключаем роутеры
 app.include_router(auth.router, prefix="/auth")
 app.include_router(tournaments.router, prefix="/tournaments")
+app.include_router(matches.router, prefix="/tournaments")  # Добавляем matches с префиксом
 
 @app.on_event("startup")
 async def startup_event():
