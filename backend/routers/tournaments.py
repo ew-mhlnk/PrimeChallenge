@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 async def get_all_tournaments(db: Session = Depends(get_db)):
     logger.info("Fetching tournaments from DB")
     db_tournaments = db.query(Tournament).all()
-    # Вручную сериализуем только нужные поля
     tournaments_data = [
         {
             "id": t.id,
@@ -26,12 +25,4 @@ async def get_all_tournaments(db: Session = Depends(get_db)):
         }
         for t in db_tournaments
     ]
-    return JSONResponse(
-        content=tournaments_data,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "*"
-        }
-    )
+    return JSONResponse(content=tournaments_data)

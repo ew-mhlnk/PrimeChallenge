@@ -25,8 +25,15 @@ export default function Home() {
 
     // Загрузка турниров
     console.log('>>> [tournaments] Loading tournaments...');
-    fetch('https://primechallenge.onrender.com/tournaments/', { mode: 'no-cors' })
+    fetch('https://primechallenge.onrender.com/tournaments/', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
       .then((res) => {
+        console.log('>>> [tournaments] Response status:', res.status);
+        console.log('>>> [tournaments] Response headers:', [...res.headers.entries()]);
         if (!res.ok) {
           throw new Error(`Failed to fetch tournaments: ${res.status}`);
         }
