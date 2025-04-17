@@ -3,47 +3,50 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Tournament } from '@/types';
-import useMatches from '@/hooks/useMatches';
+import { Tournament, Match } from '@/types';
 
 export default function TournamentPage() {
-  const { id } = useParams(); // Получаем ID турнира из URL
+  const { id } = useParams();
   const [tournament, setTournament] = useState<Tournament | null>(null);
-  const [isLoadingTournament, setIsLoadingTournament] = useState(true);
-  const { matches, error } = useMatches(tournament); // Передаём tournament напрямую
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setIsLoadingTournament(true);
-    console.log('>>> [tournament] Fetching tournament with ID:', id);
-    fetch(`https://primechallenge.onrender.com/tournaments/`)
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to fetch tournaments: ${res.status}`);
+    if (!id) return;
+
+    const fetchTournamentAndMatches = async () => {
+      try {
+        // 1. Получаем все турниры
+        const tournamentsRes = await fetch(`https://primechallenge.onrender.com/tournaments`);
+        if (!tournamentsRes.ok) throw new Error('Ошибка при загрузке турниров');
+        const tournamentsData: Tournament[] = await tournamentsRes.json();
+
+        const found = tournamentsData.find((t) => t.id === parseInt(id as string));
+        if (!found) {
+          setError('Турнир не найден');
+          return;
         }
-        return res.json();
-      })
-      .then((data: Tournament[]) => {
-        console.log('>>> [tournament] Tournaments fetched:', data);
-        const foundTournament = data.find((t) => t.id === parseInt(id as string));
-        if (foundTournament) {
-          console.log('>>> [tournament] Found tournament:', foundTournament);
-          setTournament(foundTournament); // Обновляем tournament, что вызовет useMatches
-        } else {
-          console.log('>>> [tournament] Tournament not found for ID:', id);
-        }
-      })
-      .catch((err) => {
-        console.error('>>> [tournament] Error loading tournament:', err);
-      })
-      .finally(() => {
-        setIsLoadingTournament(false);
-      });
+
+        setTournament(found);
+
+        // 2. Загружаем матчи (исправленный эндпоинт)
+        const matchesRes = await fetch(`https://primechallenge.onrender.com/matches?tournament_id=${found.id}`);
+        if (!matchesRes.ok) throw new Error('Ошибка при загрузке матчей');
+        const matchesData: Match[] = await matchesRes.json();
+        setMatches(matchesData);
+      } catch (err) {
+        console.error('>>> Ошибка:', err);
+        setError('Ошибка при загрузке данных. Попробуйте позже.');
+      }
+    };
+
+    fetchTournamentAndMatches();
   }, [id]);
 
-  if (isLoadingTournament) {
+  if (error) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <p className="text-xl text-center">Загрузка турнира...</p>
+        <p className="text-xl text-red-400">{error}</p>
       </div>
     );
   }
@@ -51,7 +54,7 @@ export default function TournamentPage() {
   if (!tournament) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <p className="text-xl text-center">Турнир не найден</p>
+        <p className="text-xl">Загрузка...</p>
       </div>
     );
   }
@@ -74,10 +77,10 @@ export default function TournamentPage() {
       </header>
 
       <section className="grid gap-4">
-        <h2 className="text-2xl font-semibold">Матчи</h2>
-        {error ? (
-          <p className="text-red-400">{error}</p>
-        ) : matches.length > 0 ? (
+        <h2 className="text-2xl font-semibold mb-4">Матчи</h2>
+        {matches.length === 0 ? (
+          <p className="text-gray-400">Матчи не найдены</p>
+        ) : (
           matches.map((match) => (
             <div key={match.id} className="bg-gray-800 p-4 rounded-lg shadow-md">
               <p className="text-lg font-medium">
@@ -86,15 +89,12 @@ export default function TournamentPage() {
               <p className="text-gray-400">Раунд: {match.round}</p>
               {match.set1 && (
                 <p className="text-gray-400">
-                  Счёт: {match.set1} {match.set2 || ''} {match.set3 || ''} {match.set4 || ''}{' '}
-                  {match.set5 || ''}
+                  Счёт: {match.set1} {match.set2 || ''} {match.set3 || ''} {match.set4 || ''} {match.set5 || ''}
                 </p>
               )}
               {match.winner && <p className="text-green-400">Победитель: {match.winner}</p>}
             </div>
           ))
-        ) : (
-          <p className="text-gray-400">Матчи загружаются...</p>
         )}
       </section>
     </div>
