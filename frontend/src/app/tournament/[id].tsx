@@ -10,38 +10,71 @@ export default function TournamentPage() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      setError('ID турнира не указан');
+      setIsLoading(false);
+      return;
+    }
 
     const fetchTournamentAndMatches = async () => {
       try {
+        setIsLoading(true);
+        console.log('>>> [tournament] Fetching tournaments for ID:', id);
+
         // 1. Получаем все турниры
-        const tournamentsRes = await fetch(`https://primechallenge.onrender.com/tournaments`);
-        if (!tournamentsRes.ok) throw new Error('Ошибка при загрузке турниров');
+        const tournamentsRes = await fetch(`https://primechallenge.onrender.com/tournaments`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!tournamentsRes.ok) {
+          throw new Error(`Ошибка при загрузке турниров: ${tournamentsRes.status}`);
+        }
         const tournamentsData: Tournament[] = await tournamentsRes.json();
+        console.log('>>> [tournament] Tournaments loaded:', tournamentsData);
 
         const found = tournamentsData.find((t) => t.id === parseInt(id as string));
         if (!found) {
-          setError('Турнир не найден');
-          return;
+          throw new Error(`Турнир с ID ${id} не найден`);
         }
 
         setTournament(found);
+        console.log('>>> [tournament] Tournament set:', found);
 
-        // 2. Загружаем матчи (исправленный эндпоинт)
-        const matchesRes = await fetch(`https://primechallenge.onrender.com/matches?tournament_id=${found.id}`);
-        if (!matchesRes.ok) throw new Error('Ошибка при загрузке матчей');
+        // 2. Загружаем матчи
+        console.log('>>> [matches] Fetching matches for tournament ID:', found.id);
+        const matchesRes = await fetch(`https://primechallenge.onrender.com/matches?tournament_id=${found.id}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!matchesRes.ok) {
+          throw new Error(`Ошибка при загрузке матчей: ${matchesRes.status}`);
+        }
         const matchesData: Match[] = await matchesRes.json();
+        console.log('>>> [matches] Matches loaded:', matchesData);
         setMatches(matchesData);
-      } catch (err) {
-        console.error('>>> Ошибка:', err);
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error('>>> Ошибка:', errorMessage);
         setError('Ошибка при загрузке данных. Попробуйте позже.');
+      } finally {
+        setIsLoading(false);
+        console.log('>>> [fetch] Fetch completed, isLoading set to false');
       }
     };
 
     fetchTournamentAndMatches();
   }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <p className="text-xl">Загрузка...</p>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -54,7 +87,7 @@ export default function TournamentPage() {
   if (!tournament) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <p className="text-xl">Загрузка...</p>
+        <p className="text-xl">Турнир не найден</p>
       </div>
     );
   }
