@@ -5,6 +5,9 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Tournament, Match } from '@/types';
 
+// Указываем, что страница должна быть динамической
+export const dynamic = 'force-dynamic';
+
 export default function TournamentPage() {
   const { id } = useParams();
   const [tournament, setTournament] = useState<Tournament | null>(null);
