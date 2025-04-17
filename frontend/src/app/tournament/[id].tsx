@@ -29,8 +29,8 @@ export default function TournamentPage() {
 
         setTournament(found);
 
-        // 2. Загружаем матчи
-        const matchesRes = await fetch(`https://primechallenge.onrender.com/tournaments/matches?tournament_id=${found.id}`);
+        // 2. Загружаем матчи (исправленный эндпоинт)
+        const matchesRes = await fetch(`https://primechallenge.onrender.com/matches?tournament_id=${found.id}`);
         if (!matchesRes.ok) throw new Error('Ошибка при загрузке матчей');
         const matchesData: Match[] = await matchesRes.json();
         setMatches(matchesData);
