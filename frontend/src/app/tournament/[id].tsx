@@ -8,6 +8,11 @@ import { Tournament, Match } from '@/types';
 // Указываем, что страница должна быть динамической
 export const dynamic = 'force-dynamic';
 
+// Отключаем статическую генерацию
+export async function generateStaticParams() {
+  return [];
+}
+
 export default function TournamentPage() {
   const { id } = useParams();
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -16,6 +21,11 @@ export default function TournamentPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Проверяем, что код выполняется на клиенте
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     if (!id) {
       setError('ID турнира не указан');
       setIsLoading(false);
