@@ -1,12 +1,6 @@
 {
     "rewrites": [
-      {
-        "source": "/tournament/:id(.*)",
-        "destination": "/tournament/[id]"
-      },
-      {
-        "source": "/(.*)",
-        "destination": "/index.html"
-      }
+      { "source": "/tournament/:id(.*)", "destination": "/tournament/[id]" },
+      { "source": "/(.*)", "destination": "/index.html" }
     ]
   }
