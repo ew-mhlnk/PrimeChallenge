@@ -7,17 +7,17 @@ export interface User {
   
   export interface Match {
     id: number;
+    tournament_id: number;
     round: string;
     match_number: number;
-    player1: string;
-    player2: string;
-    set1: string | null;
-    set2: string | null;
-    set3: string | null;
-    set4: string | null;
-    set5: string | null;
+    player1: string | null;
+    player2: string | null;
     winner: string | null;
-    predicted_winner?: string;
+    set1: string | null; // Новый счёт первого сета
+    set2: string | null; // Новый счёт второго сета
+    set3: string | null; // Новый счёт третьего сета
+    set4: string | null; // Новый счёт четвёртого сета
+    set5: string | null; // Новый счёт пятого сета
   }
   
   export interface Tournament {

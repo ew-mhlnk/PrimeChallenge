@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { Tournament, Match } from '@/types';
 import useAuth from '@/hooks/useAuth';
 import useTournaments from '@/hooks/useTournaments';
-import useMatches from '@/hooks/useMatches';
 
 // Указываем, что страница должна быть динамической
 export const dynamic = 'force-dynamic';
@@ -19,6 +18,11 @@ interface Pick {
   player2: string;
   predicted_winner: string;
   winner?: string;
+  set1?: string | null; // Добавляем счёт
+  set2?: string | null;
+  set3?: string | null;
+  set4?: string | null;
+  set5?: string | null;
 }
 
 interface ComparisonResult {
@@ -52,7 +56,6 @@ export default function TournamentPage() {
   const { user, isLoading: authLoading, error: authError } = useAuth();
   const { tournaments, error: tournamentsError } = useTournaments();
   const [tournament, setTournament] = useState<Tournament | null>(null);
-  useMatches(tournament); // Мы используем хук, но не используем его значения
 
   const [picks, setPicks] = useState<Pick[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -146,7 +149,12 @@ export default function TournamentPage() {
             player1: match.player1 || 'TBD',
             player2: match.player2 || 'TBD',
             predicted_winner: '',
-            winner: '',
+            winner: match.winner || '',
+            set1: match.set1, // Добавляем счёт
+            set2: match.set2,
+            set3: match.set3,
+            set4: match.set4,
+            set5: match.set5,
           });
         });
 
@@ -162,6 +170,11 @@ export default function TournamentPage() {
               player2: '',
               predicted_winner: '',
               winner: '',
+              set1: null, // Пустой счёт для будущих раундов
+              set2: null,
+              set3: null,
+              set4: null,
+              set5: null,
             });
           }
         }
@@ -218,6 +231,11 @@ export default function TournamentPage() {
           player2: match.match_number % 2 === 0 ? nextPlayer : '',
           predicted_winner: '',
           winner: '',
+          set1: null, // Пустой счёт для нового матча
+          set2: null,
+          set3: null,
+          set4: null,
+          set5: null,
         });
       } else {
         if (match.match_number % 2 === 1) {
@@ -238,6 +256,11 @@ export default function TournamentPage() {
           player2: '',
           predicted_winner: player,
           winner: '',
+          set1: null, // Пустой счёт для финального матча
+          set2: null,
+          set3: null,
+          set4: null,
+          set5: null,
         });
       } else {
         winnerMatch.player1 = player;
@@ -372,6 +395,11 @@ export default function TournamentPage() {
                 const displayPlayer2 =
                   pick.player2 === 'Q' || pick.player2 === 'LL' ? pick.player2 : pick.player2 || 'TBD';
 
+                // Формируем строку счёта, если сеты доступны
+                const sets = [pick.set1, pick.set2, pick.set3, pick.set4, pick.set5]
+                  .filter((set) => set) // Фильтруем пустые значения
+                  .join(' ');
+
                 return (
                   <div
                     key={`${pick.round}-${pick.match_number}`}
@@ -409,6 +437,11 @@ export default function TournamentPage() {
                             >
                               {displayPlayer2}
                             </p>
+                            {sets && (
+                              <p className="text-sm text-gray-400 mt-1">
+                                Счёт: {sets}
+                              </p>
+                            )}
                           </>
                         )}
                       </div>
