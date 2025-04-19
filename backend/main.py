@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from routers import tournaments, auth, picks, sync  # Убрали matches
+from routers import tournaments, auth, picks, sync
 import logging
 
 app = FastAPI()
