@@ -2,7 +2,7 @@ import gspread
 import os
 from sqlalchemy.orm import Session
 from database.db import get_db
-from database.models import Tournament, Match, UserPick, TrueDraw
+from database.models import Tournament, UserPick, TrueDraw
 import logging
 from datetime import datetime
 from .sheets_service import get_tournament_matches
@@ -28,7 +28,7 @@ def sync_google_sheets_with_db():
         
         # Синхронизация турниров
         try:
-            worksheet = sheet.worksheet("tournaments")  # Исправляем название листа
+            worksheet = sheet.worksheet("tournaments")
             data = worksheet.get_all_records()
             logger.info(f"Data from Google Sheets (tournaments): {data}")
         except gspread.exceptions.WorksheetNotFound:
@@ -40,7 +40,6 @@ def sync_google_sheets_with_db():
         # Очистка таблиц
         db.query(TrueDraw).delete()
         db.query(UserPick).delete()
-        db.query(Match).delete()
         db.query(Tournament).delete()
         db.commit()
         
@@ -72,31 +71,11 @@ def sync_google_sheets_with_db():
             logger.info(f"Added tournament to DB: {tournament.name}")
         db.commit()
         
-        # Синхронизация матчей и true_draw
+        # Синхронизация true_draw
         tournaments = db.query(Tournament).all()
         for tournament in tournaments:
             matches = get_tournament_matches(tournament.name)
             
-            # Сохраняем матчи для всех раундов
-            for match in matches:
-                db_match = Match(
-                    tournament_id=tournament.id,
-                    round=match["Round"],
-                    match_number=match["Match Number"],
-                    player1=match["Player1"],
-                    player2=match["Player2"],
-                    set1=match["set1"],
-                    set2=match["set2"],
-                    set3=match["set3"],
-                    set4=match["set4"],
-                    set5=match["set5"],
-                    winner=match["Winner"]
-                )
-                db.add(db_match)
-                logger.info(f"Added match to DB: {match['Round']} - {match['Match Number']} - {match['Player1']} vs {match['Player2']}")
-            db.commit()
-            
-            # Заполняем true_draw (все раунды)
             for match in matches:
                 true_draw_entry = TrueDraw(
                     tournament_id=tournament.id,
@@ -104,7 +83,12 @@ def sync_google_sheets_with_db():
                     match_number=match["Match Number"],
                     player1=match["Player1"],
                     player2=match["Player2"],
-                    winner=match["Winner"]
+                    winner=match["Winner"],
+                    set1=match["set1"],
+                    set2=match["set2"],
+                    set3=match["set3"],
+                    set4=match["set4"],
+                    set5=match["set5"]
                 )
                 db.add(true_draw_entry)
             db.commit()

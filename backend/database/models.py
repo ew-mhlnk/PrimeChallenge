@@ -24,22 +24,6 @@ class Tournament(Base):
     start = Column(String)
     google_sheet_id = Column(String)
 
-class Match(Base):
-    __tablename__ = "matches"
-    id = Column(Integer, primary_key=True, index=True)
-    tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
-    round = Column(String)
-    match_number = Column(Integer)
-    player1 = Column(String)
-    player2 = Column(String)
-    set1 = Column(String, nullable=True)
-    set2 = Column(String, nullable=True)
-    set3 = Column(String, nullable=True)
-    set4 = Column(String, nullable=True)
-    set5 = Column(String, nullable=True)
-    winner = Column(String, nullable=True)
-    next_match_id = Column(Integer, nullable=True)
-
 class UserPick(Base):
     __tablename__ = "user_picks"
     id = Column(Integer, primary_key=True, index=True)
@@ -47,6 +31,8 @@ class UserPick(Base):
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
     round = Column(String)
     match_number = Column(Integer)
+    player1 = Column(String)
+    player2 = Column(String)
     predicted_winner = Column(String)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -60,5 +46,10 @@ class TrueDraw(Base):
     player1 = Column(String)
     player2 = Column(String)
     winner = Column(String)
+    set1 = Column(String, nullable=True)
+    set2 = Column(String, nullable=True)
+    set3 = Column(String, nullable=True)
+    set4 = Column(String, nullable=True)
+    set5 = Column(String, nullable=True)
 
 logger.info("Database models loaded successfully")

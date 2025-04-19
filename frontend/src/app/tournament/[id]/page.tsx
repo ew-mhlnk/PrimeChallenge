@@ -77,7 +77,7 @@ export default function TournamentPage() {
       }
     };
 
-    const fetchTournamentAndMatches = async () => {
+    const fetchTournament = async () => {
       try {
         setIsLoading(true);
 
@@ -108,23 +108,21 @@ export default function TournamentPage() {
           setSelectedRound(null);
         }
 
-        // 3. Загружаем матчи первого раунда и сразу инициализируем пики
-        const matchesRes = await fetch(`https://primechallenge.onrender.com/matches?tournament_id=${found.id}`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (!matchesRes.ok) {
-          throw new Error(`Ошибка при загрузке матчей: ${matchesRes.status}`);
+        // 3. Инициализируем пики для первого раунда
+        // Здесь мы больше не загружаем матчи из /matches
+        // Вместо этого инициализируем пустую сетку на основе starting_round
+        const initialPicks: Pick[] = [];
+        const numMatches = Math.pow(2, allRounds.length - startIndex - 1); // Количество матчей в первом раунде
+        for (let i = 1; i <= numMatches; i++) {
+          initialPicks.push({
+            round: found.starting_round,
+            match_number: i,
+            player1: `TBD ${i*2-1}`, // Временные игроки, пока пользователь не выберет
+            player2: `TBD ${i*2}`,
+            predicted_winner: "",
+            winner: "",
+          });
         }
-        const matchesData: { round: string; match_number: number; player1: string; player2: string; winner?: string }[] = await matchesRes.json();
-        const initialPicks = matchesData.map((match) => ({
-          round: match.round,
-          match_number: match.match_number,
-          player1: match.player1,
-          player2: match.player2,
-          predicted_winner: "",
-          winner: match.winner || "",
-        }));
         setPicks(initialPicks);
 
         // Если турнир закрыт, загружаем сравнение
@@ -149,7 +147,7 @@ export default function TournamentPage() {
     };
 
     initTelegram();
-    fetchTournamentAndMatches();
+    fetchTournament();
   }, [id, userId, allRounds]);
 
   const handlePick = (match: Pick, player: string) => {
@@ -189,15 +187,14 @@ export default function TournamentPage() {
         }
       }
     } else if (match.round === "F") {
-      // Если это финал (F), добавляем победителя в раунд W
       const winnerMatch = newPicks.find((p) => p.round === "W" && p.match_number === 1);
       if (!winnerMatch) {
         newPicks.push({
           round: "W",
           match_number: 1,
           player1: player,
-          player2: "", // Второй игрок не нужен, так как это победитель
-          predicted_winner: player, // Автоматически устанавливаем победителя
+          player2: "",
+          predicted_winner: player,
           winner: "",
         });
       } else {
@@ -220,23 +217,22 @@ export default function TournamentPage() {
         .map((p) => ({
           round: p.round,
           match_number: p.match_number,
+          player1: p.player1,
+          player2: p.player2,
           predicted_winner: p.predicted_winner,
         }));
 
-      console.log('Отправляемые данные:', {
+      const payload = {
         tournament_id: tournament.id,
         user_id: userId,
         picks: picksToSave,
-      });
+      };
+      console.log('Отправляемые данные:', JSON.stringify(payload, null, 2));
 
       const response = await fetch('https://primechallenge.onrender.com/picks/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tournament_id: tournament.id,
-          user_id: userId,
-          picks: picksToSave,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -332,7 +328,6 @@ export default function TournamentPage() {
                   <div key={`${pick.round}-${pick.match_number}`} className="bg-gray-800 p-4 rounded-lg shadow-md mb-2">
                     <div className="flex justify-between items-center">
                       <div>
-                        {/* Для раунда W отображаем только одного игрока (победителя) */}
                         {selectedRound === "W" ? (
                           <p className="text-lg font-medium text-green-400">
                             Победитель: {displayPlayer1}
