@@ -37,7 +37,7 @@ def sync_google_sheets_with_db():
         
         db = next(get_db())
         
-        # Очистка таблиц
+        # Очистка таблиц (убрали удаление matches)
         db.query(TrueDraw).delete()
         db.query(UserPick).delete()
         db.query(Tournament).delete()

@@ -17,10 +17,10 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app.include_router(tournaments.router, prefix="/tournaments")
-app.include_router(auth.router, prefix="/auth")
-app.include_router(picks.router, prefix="/picks")
-app.include_router(sync.router, prefix="/sync")
+app.include_router(tournaments, prefix="/tournaments")  # Убрали .router
+app.include_router(auth, prefix="/auth")               # Убрали .router
+app.include_router(picks, prefix="/picks")             # Убрали .router
+app.include_router(sync, prefix="/sync")               # Убрали .router
 
 scheduler = AsyncIOScheduler()
 scheduler.start()
