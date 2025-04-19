@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react';
 import { User } from '@/types';
 
+// Определяем интерфейс для tgUser, который приходит из Telegram
+interface TelegramUser {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
+  is_bot?: boolean;
+}
+
 export default function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -10,7 +20,7 @@ export default function useAuth() {
     const initTelegram = async () => {
       if (typeof window === 'undefined') {
         console.log('>>> [init] Window is undefined, skipping Telegram check');
-        setUser({ id: 0, firstName: 'Гость' });
+        setUser({ id: 0, telegram_id: 0, first_name: 'Гость', last_name: null, username: null });
         setIsLoading(false);
         return;
       }
@@ -29,7 +39,7 @@ export default function useAuth() {
           webApp.ready();
           const initData = webApp.initData;
           const initDataUnsafe = webApp.initDataUnsafe;
-          const tgUser = initDataUnsafe?.user;
+          const tgUser = initDataUnsafe?.user as TelegramUser | undefined; // Явно указываем тип
 
           console.log('>>> [init] initData:', initData);
           console.log('>>> [init] initDataUnsafe:', initDataUnsafe);
@@ -47,19 +57,25 @@ export default function useAuth() {
 
               if (response.ok && data.status === 'ok') {
                 console.log('>>> [auth] Authentication successful');
-                setUser({ id: data.user_id, firstName: tgUser.first_name });
+                setUser({
+                  id: data.user_id,
+                  telegram_id: tgUser.id,
+                  first_name: tgUser.first_name,
+                  last_name: tgUser.last_name || null,
+                  username: tgUser.username || null,
+                });
               } else {
                 console.error('❌ Auth failed:', data);
-                setUser({ id: 0, firstName: 'Гость' });
+                setUser({ id: 0, telegram_id: 0, first_name: 'Гость', last_name: null, username: null });
               }
             } catch (error) {
               console.error('❌ Fetch error:', error);
-              setUser({ id: 0, firstName: 'Гость' });
+              setUser({ id: 0, telegram_id: 0, first_name: 'Гость', last_name: null, username: null });
               setError('Ошибка авторизации. Попробуйте позже.');
             }
           } else {
             console.warn('⚠️ No user or initData available');
-            setUser({ id: 0, firstName: 'Гость' });
+            setUser({ id: 0, telegram_id: 0, first_name: 'Гость', last_name: null, username: null });
           }
           setIsLoading(false);
         } else if (attempts < maxAttempts) {
@@ -67,7 +83,7 @@ export default function useAuth() {
           setTimeout(checkTelegram, attemptInterval);
         } else {
           console.log('>>> [init] Telegram WebApp not found after all attempts');
-          setUser({ id: 0, firstName: 'Гость' });
+          setUser({ id: 0, telegram_id: 0, first_name: 'Гость', last_name: null, username: null });
           setIsLoading(false);
         }
       };
@@ -86,7 +102,7 @@ export default function useAuth() {
         };
         script.onerror = () => {
           console.error('>>> [init] Failed to load Telegram WebApp script');
-          setUser({ id: 0, firstName: 'Гость' });
+          setUser({ id: 0, telegram_id: 0, first_name: 'Гость', last_name: null, username: null });
           setIsLoading(false);
           setError('Не удалось загрузить Telegram WebApp.');
         };

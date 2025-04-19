@@ -39,25 +39,34 @@ async def auth(request: Request, db: Session = Depends(get_db)):
             logger.error("User not found in initData")
             raise HTTPException(status_code=400, detail="User not found")
 
-        user_id = user_data.id
+        telegram_id = user_data.id  # Используем telegram_id
         first_name = user_data.first_name or "Unknown"
-        logger.info(f"Authenticated user: {user_id}, {first_name}")
+        last_name = user_data.last_name
+        username = user_data.username
+        logger.info(f"Authenticated user: {telegram_id}, {first_name}")
 
-        existing = db.query(User).filter(User.user_id == user_id).first()
+        existing = db.query(User).filter(User.telegram_id == telegram_id).first()
         if not existing:
-            logger.info(f"Creating new user: {user_id}, {first_name}")
-            db_user = User(user_id=user_id, first_name=first_name)
+            logger.info(f"Creating new user: {telegram_id}, {first_name}")
+            db_user = User(
+                telegram_id=telegram_id,
+                first_name=first_name,
+                last_name=last_name,
+                username=username
+            )
             db.add(db_user)
             db.commit()
             db.refresh(db_user)
         else:
-            logger.info(f"User already exists: {user_id}")
+            logger.info(f"User already exists: {telegram_id}")
             existing.first_name = first_name
+            existing.last_name = last_name
+            existing.username = username
             db.commit()
             db.refresh(existing)
             db_user = existing
 
-        return {"status": "ok", "user_id": db_user.user_id}
+        return {"status": "ok", "user_id": db_user.id}  # Возвращаем id из базы
     except Exception as e:
         logger.error(f"Unexpected error in auth endpoint: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
