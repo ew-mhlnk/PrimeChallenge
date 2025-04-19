@@ -21,8 +21,8 @@ class Tournament(Base):
     status = Column(String)
     starting_round = Column(String)
     type = Column(String)
-    start = Column(String)  # Для даты начала
-    google_sheet_id = Column(String)  # Опционально, для поддержки нескольких Google Sheets
+    start = Column(String)
+    google_sheet_id = Column(String)
 
 class Match(Base):
     __tablename__ = "matches"
@@ -47,8 +47,6 @@ class UserPick(Base):
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
     round = Column(String)
     match_number = Column(Integer)
-    player1 = Column(String)
-    player2 = Column(String)
     predicted_winner = Column(String)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
