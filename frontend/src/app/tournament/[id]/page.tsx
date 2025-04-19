@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react'; // Добавляем useMemo
+import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Tournament } from '@/types';
@@ -14,6 +14,7 @@ interface Pick {
   player1: string;
   player2: string;
   predicted_winner: string;
+  winner?: string;
 }
 
 interface ComparisonResult {
@@ -36,7 +37,6 @@ export default function TournamentPage() {
   const [comparison, setComparison] = useState<ComparisonResult[]>([]);
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
 
-  // Мемоизируем allRounds, чтобы он не пересоздавался на каждом рендере
   const allRounds = useMemo(() => ["R128", "R64", "R32", "R16", "QF", "SF", "F"], []);
   const [rounds, setRounds] = useState<string[]>([]);
 
@@ -68,7 +68,11 @@ export default function TournamentPage() {
           const data = await response.json();
           if (response.ok && data.status === 'ok') {
             setUserId(data.user_id);
+          } else {
+            setError('Ошибка авторизации. Попробуйте позже.');
           }
+        } else {
+          setError('Не удалось инициализировать Telegram WebApp.');
         }
       }
     };
@@ -112,13 +116,14 @@ export default function TournamentPage() {
         if (!matchesRes.ok) {
           throw new Error(`Ошибка при загрузке матчей: ${matchesRes.status}`);
         }
-        const matchesData: { round: string; match_number: number; player1: string; player2: string }[] = await matchesRes.json();
+        const matchesData: { round: string; match_number: number; player1: string; player2: string; winner?: string }[] = await matchesRes.json();
         const initialPicks = matchesData.map((match) => ({
           round: match.round,
           match_number: match.match_number,
           player1: match.player1,
           player2: match.player2,
           predicted_winner: "",
+          winner: match.winner || "",
         }));
         setPicks(initialPicks);
 
@@ -163,19 +168,22 @@ export default function TournamentPage() {
         (p) => p.round === nextRound && p.match_number === nextMatchNumber
       );
 
+      const nextPlayer = player === "Q" || player === "LL" ? player : player;
+
       if (!existingNextMatch) {
         newPicks.push({
           round: nextRound,
           match_number: nextMatchNumber,
-          player1: player,
-          player2: "",
+          player1: match.match_number % 2 === 1 ? nextPlayer : "",
+          player2: match.match_number % 2 === 0 ? nextPlayer : "",
           predicted_winner: "",
+          winner: "",
         });
       } else {
         if (match.match_number % 2 === 1) {
-          existingNextMatch.player1 = player;
+          existingNextMatch.player1 = nextPlayer;
         } else {
-          existingNextMatch.player2 = player;
+          existingNextMatch.player2 = nextPlayer;
         }
       }
       setPicks(newPicks);
@@ -183,23 +191,41 @@ export default function TournamentPage() {
   };
 
   const savePicks = async () => {
-    if (!userId || !tournament) return;
+    if (!userId || !tournament) {
+      alert('Ошибка: пользователь или турнир не определены.');
+      return;
+    }
+
     try {
+      const picksToSave = picks
+        .filter((p) => p.predicted_winner)
+        .map((p) => ({
+          round: p.round,
+          match_number: p.match_number,
+          predicted_winner: p.predicted_winner,
+        }));
+
       const response = await fetch('https://primechallenge.onrender.com/picks/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tournament_id: tournament.id,
           user_id: userId,
-          picks: picks.filter((p) => p.predicted_winner),
+          picks: picksToSave,
         }),
       });
+
       if (!response.ok) {
-        throw new Error('Ошибка при сохранении пиков');
+        const errorText = await response.text();
+        throw new Error(`Ошибка при сохранении пиков: ${response.status} - ${errorText}`);
       }
+
       alert('Пики успешно сохранены!');
-    } catch {
-      alert('Ошибка при сохранении пиков');
+    } catch (err) {
+      // Приводим err к типу Error
+      const error = err as Error;
+      console.error('Ошибка при сохранении:', error);
+      alert(`Ошибка при сохранении пиков: ${error.message}`);
     }
   };
 
@@ -227,7 +253,6 @@ export default function TournamentPage() {
     );
   }
 
-  // Находим победителя турнира из comparison (для раунда "F")
   const championMatch = comparison.find((c) => c.round === "F" && c.match_number === 1);
   const champion = championMatch?.actual_winner;
 
@@ -251,7 +276,6 @@ export default function TournamentPage() {
         )}
       </header>
 
-      {/* Кнопки для выбора раунда */}
       <div className="flex space-x-2 mb-6">
         {rounds.map((round) => (
           <button
@@ -268,7 +292,6 @@ export default function TournamentPage() {
         ))}
       </div>
 
-      {/* Отображаем матчи только для выбранного раунда */}
       {selectedRound && (
         <section className="grid gap-4">
           <div>
@@ -279,6 +302,9 @@ export default function TournamentPage() {
                 const comparisonResult = comparison.find(
                   (c) => c.round === pick.round && c.match_number === pick.match_number
                 );
+
+                const displayPlayer1 = pick.player1 === "Q" || pick.player1 === "LL" ? pick.player1 : pick.player1 || 'TBD';
+                const displayPlayer2 = pick.player2 === "Q" || pick.player2 === "LL" ? pick.player2 : pick.player2 || 'TBD';
 
                 return (
                   <div key={`${pick.round}-${pick.match_number}`} className="bg-gray-800 p-4 rounded-lg shadow-md mb-2">
@@ -292,7 +318,7 @@ export default function TournamentPage() {
                             tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)
                           }
                         >
-                          {pick.player1 || 'TBD'}
+                          {displayPlayer1}
                         </p>
                         <p
                           className={`text-lg font-medium cursor-pointer ${
@@ -302,18 +328,25 @@ export default function TournamentPage() {
                             tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)
                           }
                         >
-                          {pick.player2 || 'TBD'}
+                          {displayPlayer2}
                         </p>
                       </div>
-                      {comparisonResult && (
-                        <div>
-                          <p className="text-gray-400">Прогноз: {comparisonResult.predicted_winner}</p>
-                          <p className="text-gray-400">Факт: {comparisonResult.actual_winner}</p>
-                          <p className={comparisonResult.correct ? 'text-green-400' : 'text-red-400'}>
-                            {comparisonResult.correct ? 'Правильно' : 'Неправильно'}
-                          </p>
-                        </div>
-                      )}
+                      <div className="flex space-x-4">
+                        {comparisonResult && (
+                          <div>
+                            <p className="text-gray-400">Прогноз: {comparisonResult.predicted_winner}</p>
+                            <p className="text-gray-400">Факт: {comparisonResult.actual_winner}</p>
+                            <p className={comparisonResult.correct ? 'text-green-400' : 'text-red-400'}>
+                              {comparisonResult.correct ? 'Правильно' : 'Неправильно'}
+                            </p>
+                          </div>
+                        )}
+                        {pick.winner && (
+                          <div>
+                            <p className="text-gray-400">W: {pick.winner}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
