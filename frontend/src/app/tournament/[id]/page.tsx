@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react'; // Добавляем useMemo
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Tournament } from '@/types';
@@ -34,9 +34,11 @@ export default function TournamentPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [userId, setUserId] = useState<number | null>(null);
   const [comparison, setComparison] = useState<ComparisonResult[]>([]);
-  const [selectedRound, setSelectedRound] = useState<string | null>(null); // Состояние для выбранного раунда
+  const [selectedRound, setSelectedRound] = useState<string | null>(null);
 
-  const rounds = ["R128", "R64", "R32", "R16", "QF", "SF", "F"];
+  // Мемоизируем allRounds, чтобы он не пересоздавался на каждом рендере
+  const allRounds = useMemo(() => ["R128", "R64", "R32", "R16", "QF", "SF", "F"], []);
+  const [rounds, setRounds] = useState<string[]>([]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -90,9 +92,19 @@ export default function TournamentPage() {
         }
 
         setTournament(found);
-        setSelectedRound(found.starting_round); // Устанавливаем начальный раунд
 
-        // 2. Загружаем матчи первого раунда и сразу инициализируем пики
+        // 2. Формируем массив раундов, начиная с starting_round
+        const startIndex = allRounds.indexOf(found.starting_round);
+        if (startIndex !== -1) {
+          const applicableRounds = allRounds.slice(startIndex);
+          setRounds(applicableRounds);
+          setSelectedRound(found.starting_round);
+        } else {
+          setRounds([]);
+          setSelectedRound(null);
+        }
+
+        // 3. Загружаем матчи первого раунда и сразу инициализируем пики
         const matchesRes = await fetch(`https://primechallenge.onrender.com/matches?tournament_id=${found.id}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
@@ -133,7 +145,7 @@ export default function TournamentPage() {
 
     initTelegram();
     fetchTournamentAndMatches();
-  }, [id, userId]);
+  }, [id, userId, allRounds]);
 
   const handlePick = (match: Pick, player: string) => {
     const newPicks = [...picks];
@@ -143,9 +155,9 @@ export default function TournamentPage() {
     newPicks[matchIndex].predicted_winner = player;
     setPicks(newPicks);
 
-    const currentRoundIdx = rounds.indexOf(match.round);
-    if (currentRoundIdx < rounds.length - 1) {
-      const nextRound = rounds[currentRoundIdx + 1];
+    const currentRoundIdx = allRounds.indexOf(match.round);
+    if (currentRoundIdx < allRounds.length - 1) {
+      const nextRound = allRounds[currentRoundIdx + 1];
       const nextMatchNumber = Math.ceil(match.match_number / 2);
       const existingNextMatch = newPicks.find(
         (p) => p.round === nextRound && p.match_number === nextMatchNumber
