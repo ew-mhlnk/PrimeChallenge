@@ -34,7 +34,7 @@ export default function TournamentPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [userId, setUserId] = useState<number | null>(null);
   const [comparison, setComparison] = useState<ComparisonResult[]>([]);
-  const [selectedRound, setSelectedRound] = useState<string | null>(null); // Новое состояние для выбранного раунда
+  const [selectedRound, setSelectedRound] = useState<string | null>(null); // Состояние для выбранного раунда
 
   const rounds = ["R128", "R64", "R32", "R16", "QF", "SF", "F"];
 
@@ -241,24 +241,19 @@ export default function TournamentPage() {
 
       {/* Кнопки для выбора раунда */}
       <div className="flex space-x-2 mb-6">
-        {rounds.map((round) => {
-          const roundPicks = picks.filter((p) => p.round === round);
-          if (!roundPicks.length) return null; // Показываем только раунды, где есть пики
-
-          return (
-            <button
-              key={round}
-              onClick={() => setSelectedRound(round)}
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                selectedRound === round
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-              }`}
-            >
-              {round}
-            </button>
-          );
-        })}
+        {rounds.map((round) => (
+          <button
+            key={round}
+            onClick={() => setSelectedRound(round)}
+            className={`px-3 py-1 rounded-full text-sm font-medium ${
+              selectedRound === round
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            {round}
+          </button>
+        ))}
       </div>
 
       {/* Отображаем матчи только для выбранного раунда */}
