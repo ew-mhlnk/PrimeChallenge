@@ -1,11 +1,17 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.sql import func
 import logging
 
 Base = declarative_base()
 logger = logging.getLogger(__name__)
 
 logger.info("Loading database models")
+
+class User(Base):
+    __tablename__ = "users"
+    user_id = Column(Integer, primary_key=True, index=True)
+    first_name = Column(String)
 
 class Tournament(Base):
     __tablename__ = "tournaments"
@@ -15,6 +21,8 @@ class Tournament(Base):
     status = Column(String)
     starting_round = Column(String)
     type = Column(String)
+    start = Column(String)  # Для даты начала
+    google_sheet_id = Column(String)  # Опционально, для поддержки нескольких Google Sheets
 
 class Match(Base):
     __tablename__ = "matches"
@@ -30,18 +38,29 @@ class Match(Base):
     set4 = Column(String, nullable=True)
     set5 = Column(String, nullable=True)
     winner = Column(String, nullable=True)
+    next_match_id = Column(Integer, nullable=True)
 
-class User(Base):
-    __tablename__ = "users"
-    user_id = Column(Integer, primary_key=True, index=True)
-    first_name = Column(String)
-
-class Pick(Base):
-    __tablename__ = "picks"
+class UserPick(Base):
+    __tablename__ = "user_picks"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), index=True)
-    match_id = Column(Integer, ForeignKey("matches.id"), index=True)
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
+    round = Column(String)
+    match_number = Column(Integer)
+    player1 = Column(String)
+    player2 = Column(String)
     predicted_winner = Column(String)
-    points = Column(Integer, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+class TrueDraw(Base):
+    __tablename__ = "true_draw"
+    id = Column(Integer, primary_key=True, index=True)
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
+    round = Column(String)
+    match_number = Column(Integer)
+    player1 = Column(String)
+    player2 = Column(String)
+    winner = Column(String)
 
 logger.info("Database models loaded successfully")
