@@ -5,7 +5,7 @@ from database.db import get_db
 from database.models import Tournament, Match, UserPick, TrueDraw
 import logging
 from datetime import datetime
-from .sheets_service import get_tournament_matches  # Добавляем импорт
+from .sheets_service import get_tournament_matches
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +28,11 @@ def sync_google_sheets_with_db():
         
         # Синхронизация турниров
         try:
-            worksheet = sheet.worksheet("Tournaments")
+            worksheet = sheet.worksheet("tournaments")  # Исправляем название листа
             data = worksheet.get_all_records()
             logger.info(f"Data from Google Sheets (tournaments): {data}")
         except gspread.exceptions.WorksheetNotFound:
-            logger.error("Worksheet 'Tournaments' not found in Google Sheets")
+            logger.error("Worksheet 'tournaments' not found in Google Sheets")
             return
         
         db = next(get_db())
@@ -77,12 +77,8 @@ def sync_google_sheets_with_db():
         for tournament in tournaments:
             matches = get_tournament_matches(tournament.name)
             
-            # Сохраняем матчи первого раунда (starting_round)
-            starting_round = tournament.starting_round
-            match_number = 1
+            # Сохраняем матчи для всех раундов
             for match in matches:
-                if match["Round"] != starting_round:
-                    continue
                 db_match = Match(
                     tournament_id=tournament.id,
                     round=match["Round"],
@@ -97,8 +93,7 @@ def sync_google_sheets_with_db():
                     winner=match["Winner"]
                 )
                 db.add(db_match)
-                logger.info(f"Added match to DB: {match_number} - {match['Player1']} vs {match['Player2']}")
-                match_number += 1
+                logger.info(f"Added match to DB: {match['Round']} - {match['Match Number']} - {match['Player1']} vs {match['Player2']}")
             db.commit()
             
             # Заполняем true_draw (все раунды)
