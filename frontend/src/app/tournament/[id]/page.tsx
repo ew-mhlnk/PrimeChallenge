@@ -3,11 +3,15 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Tournament } from '@/types';
+import { Tournament, Match } from '@/types';
+import useAuth from '@/hooks/useAuth';
+import useTournaments from '@/hooks/useTournaments';
+import useMatches from '@/hooks/useMatches';
 
 // Указываем, что страница должна быть динамической
 export const dynamic = 'force-dynamic';
 
+// Типы для данных
 interface Pick {
   round: string;
   match_number: number;
@@ -27,115 +31,154 @@ interface ComparisonResult {
   correct: boolean;
 }
 
+// Тип для matchesPerRound
+interface MatchesPerRound {
+  [key: string]: number;
+  R128: number;
+  R64: number;
+  R32: number;
+  R16: number;
+  QF: number;
+  SF: number;
+  F: number;
+  W: number;
+}
+
 export default function TournamentPage() {
   const { id } = useParams();
+  const tournamentId = Array.isArray(id) ? id[0] : id; // Приводим к строке
+
+  // Используем хуки
+  const { user, isLoading: authLoading, error: authError } = useAuth();
+  const { tournaments, error: tournamentsError } = useTournaments();
   const [tournament, setTournament] = useState<Tournament | null>(null);
+  useMatches(tournament); // Мы используем хук, но не используем его значения
+
   const [picks, setPicks] = useState<Pick[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [userId, setUserId] = useState<number | null>(null);
   const [comparison, setComparison] = useState<ComparisonResult[]>([]);
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
 
-  const allRounds = useMemo(() => ["R128", "R64", "R32", "R16", "QF", "SF", "F"], []);
+  const allRounds = useMemo(() => ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'W'], []);
   const [rounds, setRounds] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
+  // Количество матчей для каждого раунда
+  const matchesPerRound = useMemo<MatchesPerRound>(
+    () => ({
+      R128: 64, // 128 игроков -> 64 матча
+      R64: 32, // 64 игрока -> 32 матча
+      R32: 16, // 32 игрока -> 16 матчей
+      R16: 8, // 16 игроков -> 8 матчей
+      QF: 4, // 8 игроков -> 4 матча
+      SF: 2, // 4 игрока -> 2 матча
+      F: 1, // 2 игрока -> 1 матч
+      W: 1, // 1 чемпион
+    }),
+    []
+  );
 
-    if (!id) {
+  useEffect(() => {
+    if (!tournamentId) {
       setError('ID турнира не указан');
       setIsLoading(false);
       return;
     }
 
-    const initTelegram = async () => {
-      const webApp = window.Telegram?.WebApp;
-      if (webApp) {
-        webApp.ready();
-        const initData = webApp.initData;
-        const initDataUnsafe = webApp.initDataUnsafe;
-        const tgUser = initDataUnsafe?.user;
-
-        if (tgUser && initData) {
-          const response = await fetch('https://primechallenge.onrender.com/auth/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ initData }),
-          });
-          const data = await response.json();
-          if (response.ok && data.status === 'ok') {
-            setUserId(data.user_id);
-          } else {
-            setError('Ошибка авторизации. Попробуйте позже.');
-          }
-        } else {
-          setError('Не удалось инициализировать Telegram WebApp.');
-        }
-      }
-    };
-
-    const fetchTournament = async () => {
+    const initialize = async () => {
       try {
         setIsLoading(true);
 
-        // 1. Получаем турнир
-        const tournamentsRes = await fetch(`https://primechallenge.onrender.com/tournaments`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (!tournamentsRes.ok) {
-          throw new Error(`Ошибка при загрузке турниров: ${tournamentsRes.status}`);
+        // 1. Ждём завершения авторизации
+        if (authLoading) return;
+        if (authError) {
+          setError(authError);
+          setIsLoading(false);
+          return;
         }
-        const tournamentsData: Tournament[] = await tournamentsRes.json();
-        const found = tournamentsData.find((t) => t.id === parseInt(id as string));
-        if (!found) {
-          throw new Error(`Турнир с ID ${id} не найден`);
+        if (!user || user.id === 0) {
+          setError('Не удалось авторизовать пользователя');
+          setIsLoading(false);
+          return;
         }
 
+        // 2. Находим турнир
+        const found = tournaments.find((t) => t.id === parseInt(tournamentId));
+        if (!found) {
+          setError(`Турнир с ID ${tournamentId} не найден`);
+          setIsLoading(false);
+          return;
+        }
         setTournament(found);
 
-        // 2. Формируем массив раундов, начиная с starting_round, и добавляем W
+        // 3. Формируем массив раундов, начиная с starting_round, и добавляем W
         const startIndex = allRounds.indexOf(found.starting_round);
-        if (startIndex !== -1) {
-          const applicableRounds = [...allRounds.slice(startIndex), "W"];
-          setRounds(applicableRounds);
-          setSelectedRound(found.starting_round);
-        } else {
-          setRounds([]);
-          setSelectedRound(null);
+        if (startIndex === -1) {
+          setError(`Недопустимый начальный раунд: ${found.starting_round}`);
+          setIsLoading(false);
+          return;
+        }
+        const applicableRounds = allRounds.slice(startIndex);
+        setRounds(applicableRounds);
+        setSelectedRound(found.starting_round);
+
+        // 4. Загружаем начальные пики
+        const matchesRes = await fetch(
+          `https://primechallenge.onrender.com/picks/initial-matches?tournament_id=${found.id}&user_id=${user.id}`,
+          {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+        if (!matchesRes.ok) {
+          throw new Error(`Ошибка при загрузке начальных матчей: ${matchesRes.status}`);
+        }
+        const matchesData = (await matchesRes.json()) as Match[];
+
+        // 5. Инициализируем пики для всех раундов
+        const initialPicks: Pick[] = [];
+
+        // Начальный раунд: используем данные из true_draw (уже сохранённые в user_picks)
+        matchesData.forEach((match) => {
+          initialPicks.push({
+            round: match.round,
+            match_number: match.match_number,
+            player1: match.player1 || 'TBD',
+            player2: match.player2 || 'TBD',
+            predicted_winner: '',
+            winner: '',
+          });
+        });
+
+        // Добавляем пустые ячейки для остальных раундов
+        for (let i = startIndex + 1; i < allRounds.length; i++) {
+          const round = allRounds[i];
+          const numMatches = matchesPerRound[round];
+          for (let matchNumber = 1; matchNumber <= numMatches; matchNumber++) {
+            initialPicks.push({
+              round,
+              match_number: matchNumber,
+              player1: '',
+              player2: '',
+              predicted_winner: '',
+              winner: '',
+            });
+          }
         }
 
-        // 3. Инициализируем пики для первого раунда
-        // Здесь мы больше не загружаем матчи из /matches
-        // Вместо этого инициализируем пустую сетку на основе starting_round
-        const initialPicks: Pick[] = [];
-        const numMatches = Math.pow(2, allRounds.length - startIndex - 1); // Количество матчей в первом раунде
-        for (let i = 1; i <= numMatches; i++) {
-          initialPicks.push({
-            round: found.starting_round,
-            match_number: i,
-            player1: `TBD ${i*2-1}`, // Временные игроки, пока пользователь не выберет
-            player2: `TBD ${i*2}`,
-            predicted_winner: "",
-            winner: "",
-          });
-        }
         setPicks(initialPicks);
 
-        // Если турнир закрыт, загружаем сравнение
-        if (found.status === "CLOSED" && userId) {
+        // 6. Если турнир закрыт, загружаем сравнение
+        if (found.status === 'CLOSED') {
           const comparisonRes = await fetch(
-            `https://primechallenge.onrender.com/picks/compare?tournament_id=${found.id}&user_id=${userId}`,
+            `https://primechallenge.onrender.com/picks/compare?tournament_id=${found.id}&user_id=${user.id}`,
             {
               method: 'GET',
               headers: { 'Content-Type': 'application/json' },
             }
           );
           if (comparisonRes.ok) {
-            const comparisonData = await comparisonRes.json();
+            const comparisonData = (await comparisonRes.json()) as ComparisonResult[];
             setComparison(comparisonData);
           }
         }
@@ -146,9 +189,8 @@ export default function TournamentPage() {
       }
     };
 
-    initTelegram();
-    fetchTournament();
-  }, [id, userId, allRounds]);
+    initialize();
+  }, [tournamentId, user, authLoading, authError, tournaments, allRounds, matchesPerRound]);
 
   const handlePick = (match: Pick, player: string) => {
     const newPicks = [...picks];
@@ -166,36 +208,36 @@ export default function TournamentPage() {
         (p) => p.round === nextRound && p.match_number === nextMatchNumber
       );
 
-      const nextPlayer = player === "Q" || player === "LL" ? player : player;
+      const nextPlayer = player === 'Q' || player === 'LL' ? player : player;
 
       if (!existingNextMatch) {
         newPicks.push({
           round: nextRound,
           match_number: nextMatchNumber,
-          player1: match.match_number % 2 === 1 ? nextPlayer : "",
-          player2: match.match_number % 2 === 0 ? nextPlayer : "",
-          predicted_winner: "",
-          winner: "",
+          player1: match.match_number % 2 === 1 ? nextPlayer : '',
+          player2: match.match_number % 2 === 0 ? nextPlayer : '',
+          predicted_winner: '',
+          winner: '',
         });
       } else {
         if (match.match_number % 2 === 1) {
           existingNextMatch.player1 = nextPlayer;
-          existingNextMatch.predicted_winner = "";
+          existingNextMatch.predicted_winner = '';
         } else {
           existingNextMatch.player2 = nextPlayer;
-          existingNextMatch.predicted_winner = "";
+          existingNextMatch.predicted_winner = '';
         }
       }
-    } else if (match.round === "F") {
-      const winnerMatch = newPicks.find((p) => p.round === "W" && p.match_number === 1);
+    } else if (match.round === 'F') {
+      const winnerMatch = newPicks.find((p) => p.round === 'W' && p.match_number === 1);
       if (!winnerMatch) {
         newPicks.push({
-          round: "W",
+          round: 'W',
           match_number: 1,
           player1: player,
-          player2: "",
+          player2: '',
           predicted_winner: player,
-          winner: "",
+          winner: '',
         });
       } else {
         winnerMatch.player1 = player;
@@ -206,25 +248,25 @@ export default function TournamentPage() {
   };
 
   const savePicks = async () => {
-    if (!userId || !tournament) {
+    if (!user || !tournament) {
       alert('Ошибка: пользователь или турнир не определены.');
       return;
     }
 
     try {
       const picksToSave = picks
-        .filter((p) => p.predicted_winner)
+        .filter((p) => p.player1 || p.player2) // Сохраняем все матчи, где есть игроки
         .map((p) => ({
           round: p.round,
           match_number: p.match_number,
           player1: p.player1,
           player2: p.player2,
-          predicted_winner: p.predicted_winner,
+          predicted_winner: p.predicted_winner || '', // Сохраняем даже пустые предсказания
         }));
 
       const payload = {
         tournament_id: tournament.id,
-        user_id: userId,
+        user_id: user.id,
         picks: picksToSave,
       };
       console.log('Отправляемые данные:', JSON.stringify(payload, null, 2));
@@ -242,13 +284,17 @@ export default function TournamentPage() {
 
       alert('Пики успешно сохранены!');
     } catch (err) {
-      const error = err as Error;
-      console.error('Ошибка при сохранении:', error);
-      alert(`Ошибка при сохранении пиков: ${error.message}`);
+      if (err instanceof Error) {
+        console.error('Ошибка при сохранении:', err);
+        alert(`Ошибка при сохранении пиков: ${err.message}`);
+      } else {
+        console.error('Неизвестная ошибка:', err);
+        alert('Неизвестная ошибка при сохранении пиков.');
+      }
     }
   };
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <p className="text-xl">Загрузка...</p>
@@ -256,10 +302,10 @@ export default function TournamentPage() {
     );
   }
 
-  if (error) {
+  if (error || authError || tournamentsError) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <p className="text-xl text-red-400">{error}</p>
+        <p className="text-xl text-red-400">{error || authError || tournamentsError}</p>
       </div>
     );
   }
@@ -272,7 +318,7 @@ export default function TournamentPage() {
     );
   }
 
-  const championMatch = comparison.find((c) => c.round === "F" && c.match_number === 1);
+  const championMatch = comparison.find((c) => c.round === 'F' && c.match_number === 1);
   const champion = championMatch?.actual_winner;
 
   return (
@@ -290,7 +336,7 @@ export default function TournamentPage() {
         >
           {tournament.status === 'ACTIVE' ? 'Активен' : 'Завершён'}
         </span>
-        {champion && selectedRound !== "W" && (
+        {champion && selectedRound !== 'W' && (
           <p className="text-green-400 mt-2">Победитель: {champion}</p>
         )}
       </header>
@@ -321,14 +367,19 @@ export default function TournamentPage() {
                   (c) => c.round === pick.round && c.match_number === pick.match_number
                 );
 
-                const displayPlayer1 = pick.player1 === "Q" || pick.player1 === "LL" ? pick.player1 : pick.player1 || 'TBD';
-                const displayPlayer2 = pick.player2 === "Q" || pick.player2 === "LL" ? pick.player2 : pick.player2 || 'TBD';
+                const displayPlayer1 =
+                  pick.player1 === 'Q' || pick.player1 === 'LL' ? pick.player1 : pick.player1 || 'TBD';
+                const displayPlayer2 =
+                  pick.player2 === 'Q' || pick.player2 === 'LL' ? pick.player2 : pick.player2 || 'TBD';
 
                 return (
-                  <div key={`${pick.round}-${pick.match_number}`} className="bg-gray-800 p-4 rounded-lg shadow-md mb-2">
+                  <div
+                    key={`${pick.round}-${pick.match_number}`}
+                    className="bg-gray-800 p-4 rounded-lg shadow-md mb-2"
+                  >
                     <div className="flex justify-between items-center">
                       <div>
-                        {selectedRound === "W" ? (
+                        {selectedRound === 'W' ? (
                           <p className="text-lg font-medium text-green-400">
                             Победитель: {displayPlayer1}
                           </p>
@@ -339,7 +390,9 @@ export default function TournamentPage() {
                                 pick.predicted_winner === pick.player1 ? 'text-green-400' : ''
                               } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
                               onClick={() =>
-                                tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)
+                                tournament.status === 'ACTIVE' &&
+                                pick.player1 &&
+                                handlePick(pick, pick.player1)
                               }
                             >
                               {displayPlayer1}
@@ -349,7 +402,9 @@ export default function TournamentPage() {
                                 pick.predicted_winner === pick.player2 ? 'text-green-400' : ''
                               } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
                               onClick={() =>
-                                tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)
+                                tournament.status === 'ACTIVE' &&
+                                pick.player2 &&
+                                handlePick(pick, pick.player2)
                               }
                             >
                               {displayPlayer2}
@@ -358,7 +413,7 @@ export default function TournamentPage() {
                         )}
                       </div>
                       <div className="flex space-x-4">
-                        {comparisonResult && selectedRound !== "W" && (
+                        {comparisonResult && selectedRound !== 'W' && (
                           <div>
                             <p className="text-gray-400">Прогноз: {comparisonResult.predicted_winner}</p>
                             <p className="text-gray-400">Факт: {comparisonResult.actual_winner}</p>
@@ -367,7 +422,7 @@ export default function TournamentPage() {
                             </p>
                           </div>
                         )}
-                        {pick.winner && selectedRound !== "W" && (
+                        {pick.winner && selectedRound !== 'W' && (
                           <div>
                             <p className="text-gray-400">W: {pick.winner}</p>
                           </div>

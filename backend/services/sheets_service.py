@@ -15,6 +15,7 @@ def get_tournaments():
     try:
         sheet = client.open_by_key(GOOGLE_SHEET_ID).worksheet("Tournaments")
         data = sheet.get_all_records()
+        logger.info(f"Fetched tournaments: {data}")
         return data
     except gspread.exceptions.WorksheetNotFound as e:
         logger.error(f"Worksheet 'Tournaments' not found: {e}")
@@ -118,7 +119,6 @@ def get_tournament_matches(tournament_name: str):
                 match_number += 1
 
         return matches
-
     except gspread.exceptions.WorksheetNotFound as e:
         logger.error(f"Worksheet '{tournament_name}' not found: {e}")
         return []
