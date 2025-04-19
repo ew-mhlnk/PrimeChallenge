@@ -97,10 +97,10 @@ export default function TournamentPage() {
 
         setTournament(found);
 
-        // 2. Формируем массив раундов, начиная с starting_round
+        // 2. Формируем массив раундов, начиная с starting_round, и добавляем W
         const startIndex = allRounds.indexOf(found.starting_round);
         if (startIndex !== -1) {
-          const applicableRounds = allRounds.slice(startIndex);
+          const applicableRounds = [...allRounds.slice(startIndex), "W"]; // Добавляем W
           setRounds(applicableRounds);
           setSelectedRound(found.starting_round);
         } else {
@@ -176,14 +176,16 @@ export default function TournamentPage() {
           match_number: nextMatchNumber,
           player1: match.match_number % 2 === 1 ? nextPlayer : "",
           player2: match.match_number % 2 === 0 ? nextPlayer : "",
-          predicted_winner: "",
+          predicted_winner: "", // Устанавливаем пустое значение
           winner: "",
         });
       } else {
         if (match.match_number % 2 === 1) {
           existingNextMatch.player1 = nextPlayer;
+          existingNextMatch.predicted_winner = ""; // Сбрасываем выбор
         } else {
           existingNextMatch.player2 = nextPlayer;
+          existingNextMatch.predicted_winner = ""; // Сбрасываем выбор
         }
       }
       setPicks(newPicks);
@@ -222,7 +224,6 @@ export default function TournamentPage() {
 
       alert('Пики успешно сохранены!');
     } catch (err) {
-      // Приводим err к типу Error
       const error = err as Error;
       console.error('Ошибка при сохранении:', error);
       alert(`Ошибка при сохранении пиков: ${error.message}`);
@@ -271,11 +272,12 @@ export default function TournamentPage() {
         >
           {tournament.status === 'ACTIVE' ? 'Активен' : 'Завершён'}
         </span>
-        {champion && (
+        {champion && selectedRound !== "W" && (
           <p className="text-green-400 mt-2">Победитель: {champion}</p>
         )}
       </header>
 
+      {/* Кнопки для выбора раунда */}
       <div className="flex space-x-2 mb-6">
         {rounds.map((round) => (
           <button
@@ -292,65 +294,79 @@ export default function TournamentPage() {
         ))}
       </div>
 
+      {/* Отображаем содержимое в зависимости от выбранного раунда */}
       {selectedRound && (
         <section className="grid gap-4">
           <div>
-            <h2 className="text-2xl font-semibold mb-4">{selectedRound}</h2>
-            {picks
-              .filter((pick) => pick.round === selectedRound)
-              .map((pick) => {
-                const comparisonResult = comparison.find(
-                  (c) => c.round === pick.round && c.match_number === pick.match_number
-                );
+            {selectedRound === "W" ? (
+              // Отображение победителя для W
+              champion ? (
+                <div className="bg-gray-800 p-4 rounded-lg shadow-md">
+                  <p className="text-lg font-medium text-green-400">Победитель: {champion}</p>
+                </div>
+              ) : (
+                <div className="bg-gray-800 p-4 rounded-lg shadow-md">
+                  <p className="text-lg font-medium text-gray-400">Победитель ещё не определён</p>
+                </div>
+              )
+            ) : (
+              // Отображение матчей для остальных раундов
+              picks
+                .filter((pick) => pick.round === selectedRound)
+                .map((pick) => {
+                  const comparisonResult = comparison.find(
+                    (c) => c.round === pick.round && c.match_number === pick.match_number
+                  );
 
-                const displayPlayer1 = pick.player1 === "Q" || pick.player1 === "LL" ? pick.player1 : pick.player1 || 'TBD';
-                const displayPlayer2 = pick.player2 === "Q" || pick.player2 === "LL" ? pick.player2 : pick.player2 || 'TBD';
+                  const displayPlayer1 = pick.player1 === "Q" || pick.player1 === "LL" ? pick.player1 : pick.player1 || 'TBD';
+                  const displayPlayer2 = pick.player2 === "Q" || pick.player2 === "LL" ? pick.player2 : pick.player2 || 'TBD';
 
-                return (
-                  <div key={`${pick.round}-${pick.match_number}`} className="bg-gray-800 p-4 rounded-lg shadow-md mb-2">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p
-                          className={`text-lg font-medium cursor-pointer ${
-                            pick.predicted_winner === pick.player1 ? 'text-green-400' : ''
-                          } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
-                          onClick={() =>
-                            tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)
-                          }
-                        >
-                          {displayPlayer1}
-                        </p>
-                        <p
-                          className={`text-lg font-medium cursor-pointer ${
-                            pick.predicted_winner === pick.player2 ? 'text-green-400' : ''
-                          } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
-                          onClick={() =>
-                            tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)
-                          }
-                        >
-                          {displayPlayer2}
-                        </p>
-                      </div>
-                      <div className="flex space-x-4">
-                        {comparisonResult && (
-                          <div>
-                            <p className="text-gray-400">Прогноз: {comparisonResult.predicted_winner}</p>
-                            <p className="text-gray-400">Факт: {comparisonResult.actual_winner}</p>
-                            <p className={comparisonResult.correct ? 'text-green-400' : 'text-red-400'}>
-                              {comparisonResult.correct ? 'Правильно' : 'Неправильно'}
-                            </p>
-                          </div>
-                        )}
-                        {pick.winner && (
-                          <div>
-                            <p className="text-gray-400">W: {pick.winner}</p>
-                          </div>
-                        )}
+                  return (
+                    <div key={`${pick.round}-${pick.match_number}`} className="bg-gray-800 p-4 rounded-lg shadow-md mb-2">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p
+                            className={`text-lg font-medium cursor-pointer ${
+                              pick.predicted_winner === pick.player1 ? 'text-green-400' : ''
+                            } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
+                            onClick={() =>
+                              tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)
+                            }
+                          >
+                            {displayPlayer1}
+                          </p>
+                          <p
+                            className={`text-lg font-medium cursor-pointer ${
+                              pick.predicted_winner === pick.player2 ? 'text-green-400' : ''
+                            } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
+                            onClick={() =>
+                              tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)
+                            }
+                          >
+                            {displayPlayer2}
+                          </p>
+                        </div>
+                        <div className="flex space-x-4">
+                          {comparisonResult && (
+                            <div>
+                              <p className="text-gray-400">Прогноз: {comparisonResult.predicted_winner}</p>
+                              <p className="text-gray-400">Факт: {comparisonResult.actual_winner}</p>
+                              <p className={comparisonResult.correct ? 'text-green-400' : 'text-red-400'}>
+                                {comparisonResult.correct ? 'Правильно' : 'Неправильно'}
+                              </p>
+                            </div>
+                          )}
+                          {pick.winner && (
+                            <div>
+                              <p className="text-gray-400">W: {pick.winner}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+            )}
           </div>
         </section>
       )}
