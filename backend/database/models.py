@@ -1,22 +1,13 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.sql import func
-import logging
-
-Base = declarative_base()
-logger = logging.getLogger(__name__)
-
-logger.info("Loading database models")
-
-class User(Base):
-    __tablename__ = "users"
-    user_id = Column(Integer, primary_key=True, index=True)
-    first_name = Column(String)
+from sqlalchemy.orm import relationship
+from database.db import Base
+from datetime import datetime
 
 class Tournament(Base):
     __tablename__ = "tournaments"
+
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
+    name = Column(String)
     dates = Column(String)
     status = Column(String)
     starting_round = Column(String)
@@ -24,41 +15,50 @@ class Tournament(Base):
     start = Column(String)
     google_sheet_id = Column(String)
 
-class Match(Base):
-    __tablename__ = "matches"
-    id = Column(Integer, primary_key=True, index=True)
-    tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
-    round = Column(String)
-    match_number = Column(Integer)
-    player1 = Column(String)
-    player2 = Column(String)
-    set1 = Column(String, nullable=True)
-    set2 = Column(String, nullable=True)
-    set3 = Column(String, nullable=True)
-    set4 = Column(String, nullable=True)
-    set5 = Column(String, nullable=True)
-    winner = Column(String, nullable=True)
-    next_match_id = Column(Integer, nullable=True)
-
-class UserPick(Base):
-    __tablename__ = "user_picks"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), index=True)
-    tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
-    round = Column(String)
-    match_number = Column(Integer)
-    predicted_winner = Column(String)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    matches = relationship("TrueDraw", back_populates="tournament")
+    picks = relationship("UserPick", back_populates="tournament")
 
 class TrueDraw(Base):
     __tablename__ = "true_draw"
+
     id = Column(Integer, primary_key=True, index=True)
-    tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"))
     round = Column(String)
     match_number = Column(Integer)
     player1 = Column(String)
     player2 = Column(String)
     winner = Column(String)
+    set1 = Column(String)
+    set2 = Column(String)
+    set3 = Column(String)
+    set4 = Column(String)
+    set5 = Column(String)
 
-logger.info("Database models loaded successfully")
+    tournament = relationship("Tournament", back_populates="matches")
+
+class User(Base):
+    __tablename__ = "users"
+
+    user_id = Column(Integer, primary_key=True, index=True)
+    first_name = Column(String)
+    last_name = Column(String)
+    username = Column(String)
+
+    picks = relationship("UserPick", back_populates="user")
+
+class UserPick(Base):
+    __tablename__ = "user_picks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"))
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"))
+    round = Column(String)
+    match_number = Column(Integer)
+    player1 = Column(String)
+    player2 = Column(String)
+    predicted_winner = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="picks")
+    tournament = relationship("Tournament", back_populates="picks")

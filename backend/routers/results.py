@@ -1,51 +1,56 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List, Dict
 import logging
-from typing import List
 from database.db import get_db
-from database.models import Pick, Match, User
-from pydantic import BaseModel
-from services.auth_service import authenticate_user
+from database.models import UserPick, TrueDraw, Tournament
+from utils.auth import verify_telegram_data
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-class MatchResult(BaseModel):
-    match_id: int
-    round: str
-    player1: str
-    player2: str
-    set1: str | None
-    set2: str | None
-    set3: str | None
-    set4: str | None
-    set5: str | None
-    winner: str | None
-    predicted_winner: str
-    points: int
+@router.post("/{tournament_id}", response_model=List[Dict])
+async def get_results(tournament_id: int, request: Dict, db: Session = Depends(get_db)):
+    init_data = request.get("initData")
+    if not init_data:
+        logger.error("Missing initData in request")
+        raise HTTPException(status_code=400, detail="Missing initData")
 
-@router.get("/", response_model=List[MatchResult])
-async def get_results(request: Request, db: Session = Depends(get_db), user: User = Depends(authenticate_user)):
-    logger.info(f"Fetching results for user {user.user_id}")
-    picks = db.query(Pick).filter(Pick.user_id == user.user_id).all()
+    telegram_user = verify_telegram_data(init_data)
+    if not telegram_user:
+        logger.error("Invalid Telegram initData")
+        raise HTTPException(status_code=401, detail="Invalid Telegram initData")
+
+    user_id = telegram_user.get("id")
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        logger.error(f"Tournament with ID {tournament_id} not found")
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    if tournament.status != "CLOSED":
+        logger.warning(f"Tournament {tournament_id} is not closed")
+        raise HTTPException(status_code=400, detail="Tournament is not closed")
+
+    true_draws = db.query(TrueDraw).filter(TrueDraw.tournament_id == tournament_id).all()
+    user_picks = db.query(UserPick).filter(
+        UserPick.tournament_id == tournament_id,
+        UserPick.user_id == user_id
+    ).all()
+
     results = []
-
-    for pick in picks:
-        match = db.query(Match).filter(Match.id == pick.match_id).first()
-        if match:
+    for pick in user_picks:
+        true_match = next((td for td in true_draws if td.round == pick.round and td.match_number == pick.match_number), None)
+        if true_match and true_match.winner:
+            is_correct = true_match.winner == pick.predicted_winner
             results.append({
-                "match_id": match.id,
-                "round": match.round,
-                "player1": match.player1,
-                "player2": match.player2,
-                "set1": match.set1,
-                "set2": match.set2,
-                "set3": match.set3,
-                "set4": match.set4,
-                "set5": match.set5,
-                "winner": match.winner,
+                "match_number": pick.match_number,
+                "round": pick.round,
+                "player1": pick.player1,
+                "player2": pick.player2,
                 "predicted_winner": pick.predicted_winner,
-                "points": pick.points
+                "actual_winner": true_match.winner,
+                "is_correct": is_correct
             })
 
+    logger.info(f"Retrieved results for user {user_id} in tournament {tournament_id}")
     return results

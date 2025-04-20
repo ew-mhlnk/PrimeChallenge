@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Tournament, Match } from '@/types';
 
 interface MatchListProps {
@@ -11,9 +11,20 @@ interface MatchListProps {
   onBack: () => void;
 }
 
+interface MatchResult {
+  match_number: number;
+  round: string;
+  player1: string;
+  player2: string;
+  predicted_winner: string;
+  actual_winner: string;
+  is_correct: boolean;
+}
+
 export default function MatchList({ tournament, matches, currentRound, setCurrentRound, onBack }: MatchListProps) {
   const [picks, setPicks] = useState<{ [matchId: number]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [results, setResults] = useState<MatchResult[]>([]);
 
   const rounds = Array.from(new Set(matches.map((match) => match.round))).sort((a, b) => {
     const roundOrder = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F'];
@@ -31,12 +42,12 @@ export default function MatchList({ tournament, matches, currentRound, setCurren
 
   const handleSubmitPicks = async () => {
     setIsSubmitting(true);
-    const picksToSubmit = Object.entries(picks).map(([matchId, predicted_winner]) => ({
-      match_id: parseInt(matchId),
-      predicted_winner,
-    }));
-
     try {
+      const picksToSubmit = Object.entries(picks).map(([matchId, predicted_winner]) => ({
+        match_id: parseInt(matchId),
+        predicted_winner,
+      }));
+
       const response = await fetch('https://primechallenge.onrender.com/picks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -56,6 +67,31 @@ export default function MatchList({ tournament, matches, currentRound, setCurren
       setIsSubmitting(false);
     }
   };
+
+  const fetchResults = useCallback(async () => {
+    try {
+      const response = await fetch(`https://primechallenge.onrender.com/results/${tournament.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          initData: window.Telegram?.WebApp?.initData,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch results');
+      }
+      const data = await response.json();
+      setResults(data);
+    } catch (error) {
+      console.error('Ошибка при получении результатов:', error);
+    }
+  }, [tournament.id]); // Зависимости fetchResults: tournament.id
+
+  useEffect(() => {
+    if (tournament.status === 'CLOSED') {
+      fetchResults();
+    }
+  }, [tournament.status, fetchResults]); // fetchResults теперь стабилен благодаря useCallback
 
   const getScoreDisplay = (match: Match) => {
     const sets = [match.set1, match.set2, match.set3, match.set4, match.set5].filter(Boolean);
@@ -82,39 +118,49 @@ export default function MatchList({ tournament, matches, currentRound, setCurren
         </div>
       </div>
       <div className="space-y-4">
-        {currentRoundMatches.map((match) => (
-          <div key={match.id} className="p-4 bg-gray-800 rounded-lg">
-            <p className="text-sm text-gray-400">Матч #{match.match_number}</p>
-            <div className="flex justify-between items-center">
-              <div>
-                <p>{match.player1}</p>
-                <p>{match.player2}</p>
+        {currentRoundMatches.map((match) => {
+          const result = results.find(
+            (r) => r.round === match.round && r.match_number === match.match_number
+          );
+          return (
+            <div key={match.id} className="p-4 bg-gray-800 rounded-lg">
+              <p className="text-sm text-gray-400">Матч #{match.match_number}</p>
+              <div className="flex justify-between items-center">
+                <div>
+                  <p>{match.player1}</p>
+                  <p>{match.player2}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-400">Счёт: {getScoreDisplay(match)}</p>
+                  {match.winner && <p className="text-green-400">Победитель: {match.winner}</p>}
+                  {result && (
+                    <p className={result.is_correct ? "text-green-400" : "text-red-400"}>
+                      Ваш выбор: {result.predicted_winner} ({result.is_correct ? "Правильно" : "Неправильно"})
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-sm text-gray-400">Счёт: {getScoreDisplay(match)}</p>
-                {match.winner && <p className="text-green-400">Победитель: {match.winner}</p>}
-              </div>
+              {!match.winner && tournament.status !== "CLOSED" && (
+                <div className="mt-2 flex space-x-2">
+                  <button
+                    onClick={() => handlePick(match.id, match.player1!)}
+                    className={`px-3 py-1 rounded ${picks[match.id] === match.player1 ? 'bg-green-500' : 'bg-gray-600'}`}
+                  >
+                    {match.player1}
+                  </button>
+                  <button
+                    onClick={() => handlePick(match.id, match.player2!)}
+                    className={`px-3 py-1 rounded ${picks[match.id] === match.player2 ? 'bg-green-500' : 'bg-gray-600'}`}
+                  >
+                    {match.player2}
+                  </button>
+                </div>
+              )}
             </div>
-            {!match.winner && (
-              <div className="mt-2 flex space-x-2">
-                <button
-                  onClick={() => handlePick(match.id, match.player1)}
-                  className={`px-3 py-1 rounded ${picks[match.id] === match.player1 ? 'bg-green-500' : 'bg-gray-600'}`}
-                >
-                  {match.player1}
-                </button>
-                <button
-                  onClick={() => handlePick(match.id, match.player2)}
-                  className={`px-3 py-1 rounded ${picks[match.id] === match.player2 ? 'bg-green-500' : 'bg-gray-600'}`}
-                >
-                  {match.player2}
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
-      {currentRoundMatches.some((match) => !match.winner) && (
+      {currentRoundMatches.some((match) => !match.winner) && tournament.status !== "CLOSED" && (
         <div className="mt-6">
           <button
             onClick={handleSubmitPicks}

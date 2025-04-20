@@ -1,133 +1,80 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import func  # Импортируем func
+from typing import List, Dict
 import logging
-from typing import List
+from datetime import datetime
 from database.db import get_db
-from database.models import User, Match, UserPick, Tournament, TrueDraw  # Добавляем TrueDraw
-from pydantic import BaseModel
-from services.auth_service import authenticate_user
+from database.models import UserPick, User, TrueDraw, Tournament
+from ..utils.auth import verify_telegram_data  # Относительный импорт
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-class PickData(BaseModel):
-    round: str
-    match_number: int
-    predicted_winner: str
+@router.post("/", response_model=List[Dict])
+async def submit_picks(request: Dict, db: Session = Depends(get_db)):
+    init_data = request.get("initData")
+    picks = request.get("picks", [])
 
-class PickRequest(BaseModel):
-    tournament_id: int
-    user_id: int
-    picks: List[PickData]
+    if not init_data or not picks:
+        logger.error("Missing initData or picks in request")
+        raise HTTPException(status_code=400, detail="Missing initData or picks")
 
-class PickResponse(BaseModel):
-    id: int
-    round: str
-    match_number: int
-    predicted_winner: str
+    telegram_user = verify_telegram_data(init_data)
+    if not telegram_user:
+        logger.error("Invalid Telegram initData")
+        raise HTTPException(status_code=401, detail="Invalid Telegram initData")
 
-@router.post("/save", response_model=List[PickResponse])
-async def save_picks(request: PickRequest, db: Session = Depends(get_db)):
-    logger.info(f"Submitting picks for user {request.user_id} in tournament {request.tournament_id}")
+    user_id = telegram_user.get("id")
+    db_user = db.query(User).filter(User.user_id == user_id).first()
+    if not db_user:
+        logger.error(f"User with ID {user_id} not found")
+        raise HTTPException(status_code=404, detail="User not found")
+
     submitted_picks = []
+    for pick in picks:
+        match_id = pick.get("match_id")
+        predicted_winner = pick.get("predicted_winner")
 
-    # Проверяем, существует ли турнир
-    tournament = db.query(Tournament).filter(Tournament.id == request.tournament_id).first()
-    if not tournament:
-        raise HTTPException(status_code=404, detail=f"Tournament {request.tournament_id} not found")
-
-    # Проверяем, активен ли турнир
-    if tournament.status == "CLOSED":
-        raise HTTPException(status_code=400, detail="Cannot submit picks for a closed tournament")
-
-    for pick_data in request.picks:
-        round = pick_data.round
-        match_number = pick_data.match_number
-        predicted_winner = pick_data.predicted_winner
-
-        if not round or not match_number or not predicted_winner:
-            raise HTTPException(status_code=400, detail="Invalid pick data")
-
-        # Находим матч по tournament_id, round и match_number
-        match = db.query(Match).filter(
-            Match.tournament_id == request.tournament_id,
-            Match.round == round,
-            Match.match_number == match_number
-        ).first()
-
+        match = db.query(TrueDraw).filter(TrueDraw.id == match_id).first()
         if not match:
-            raise HTTPException(status_code=404, detail=f"Match {round} - {match_number} not found")
+            logger.warning(f"Match with ID {match_id} not found")
+            continue
 
-        if match.winner:
-            raise HTTPException(status_code=400, detail=f"Match {round} - {match_number} already has a winner")
+        tournament = db.query(Tournament).filter(Tournament.id == match.tournament_id).first()
+        if tournament.status == "CLOSED":
+            logger.warning(f"Cannot submit picks for closed tournament: {tournament.name}")
+            continue
 
-        if predicted_winner not in [match.player1, match.player2]:
-            raise HTTPException(status_code=400, detail="Predicted winner must be one of the players")
-
-        # Проверяем, есть ли уже пик для этого пользователя, раунда и матча
         existing_pick = db.query(UserPick).filter(
-            UserPick.user_id == request.user_id,
-            UserPick.tournament_id == request.tournament_id,
-            UserPick.round == round,
-            UserPick.match_number == match_number
+            UserPick.user_id == user_id,
+            UserPick.tournament_id == match.tournament_id,
+            UserPick.match_number == match.match_number,
+            UserPick.round == match.round
         ).first()
 
         if existing_pick:
             existing_pick.predicted_winner = predicted_winner
-            existing_pick.updated_at = func.now()  # Теперь func доступен
+            existing_pick.updated_at = datetime.utcnow()
+            logger.info(f"Updated pick for user {user_id}, match {match_id}")
         else:
             new_pick = UserPick(
-                user_id=request.user_id,
-                tournament_id=request.tournament_id,
-                round=round,
-                match_number=match_number,
+                user_id=user_id,
+                tournament_id=match.tournament_id,
+                round=match.round,
+                match_number=match.match_number,
+                player1=match.player1,
+                player2=match.player2,
                 predicted_winner=predicted_winner
             )
             db.add(new_pick)
-            submitted_picks.append(new_pick)
+            logger.info(f"Created new pick for user {user_id}, match {match_id}")
+
+        submitted_picks.append({
+            "match_id": match_id,
+            "predicted_winner": predicted_winner
+        })
 
     db.commit()
-
-    logger.info(f"Picks submitted successfully for user {request.user_id}")
-    return [{"id": pick.id, "round": pick.round, "match_number": pick.match_number, "predicted_winner": pick.predicted_winner} for pick in submitted_picks]
-
-@router.get("/compare")
-async def compare_picks(tournament_id: int, user_id: int, db: Session = Depends(get_db)):
-    logger.info(f"Comparing picks for user {user_id} in tournament {tournament_id}")
-    
-    # Получаем пики пользователя
-    user_picks = db.query(UserPick).filter(
-        UserPick.user_id == user_id,
-        UserPick.tournament_id == tournament_id
-    ).all()
-
-    if not user_picks:
-        raise HTTPException(status_code=404, detail="No picks found for this user in the tournament")
-
-    # Получаем истинные результаты из true_draw
-    true_draw = db.query(TrueDraw).filter(TrueDraw.tournament_id == tournament_id).all()
-    true_draw_dict = {(td.round, td.match_number): td.winner for td in true_draw if td.winner}
-
-    # Сравниваем пики с истинными результатами
-    comparison_results = []
-    for pick in user_picks:
-        actual_winner = true_draw_dict.get((pick.round, pick.match_number))
-        if actual_winner:
-            match = db.query(Match).filter(
-                Match.tournament_id == tournament_id,
-                Match.round == pick.round,
-                Match.match_number == pick.match_number
-            ).first()
-            
-            comparison_results.append({
-                "round": pick.round,
-                "match_number": pick.match_number,
-                "player1": match.player1 if match else "",
-                "player2": match.player2 if match else "",
-                "predicted_winner": pick.predicted_winner,
-                "actual_winner": actual_winner,
-                "correct": pick.predicted_winner == actual_winner
-            })
-
-    return comparison_results
+    logger.info(f"Successfully submitted {len(submitted_picks)} picks for user {user_id}")
+    return JSONResponse(content=submitted_picks)
