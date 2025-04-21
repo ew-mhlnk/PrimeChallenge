@@ -1,17 +1,21 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 import os
-from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-load_dotenv()
+# Используем переменную окружения DATABASE_URL, предоставляемую Render
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/dbname")
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
+# Создаём движок SQLAlchemy
 engine = create_engine(DATABASE_URL)
+
+# Создаём фабрику сессий
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Создаём базовый класс для моделей SQLAlchemy
+Base = declarative_base()
+
+# Функция для получения сессии базы данных
 def get_db():
     db = SessionLocal()
     try:
