@@ -8,9 +8,10 @@ from services.sync_service import sync_google_sheets_with_db
 
 app = FastAPI()
 
+# Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://prime-challenge.vercel.app", "http://localhost:3000"],  # Разрешаем запросы с Vercel и локального фронтенда
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
