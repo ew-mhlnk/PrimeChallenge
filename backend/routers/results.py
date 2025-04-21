@@ -4,7 +4,7 @@ from typing import List, Dict
 import logging
 from database.db import get_db
 from database.models import UserPick, TrueDraw, Tournament
-from utils.auth import verify_telegram_data
+from utils.auth import verify_telegram_data  # Абсолютный импорт
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
