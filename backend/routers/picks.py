@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from database.db import get_db
 from database.models import UserPick, User, TrueDraw, Tournament
-from utils.auth import verify_telegram_data  # Абсолютный импорт
+from utils.auth import verify_telegram_data
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

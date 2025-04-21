@@ -1,63 +1,33 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
-import logging
-from database.db import get_db
-from database.models import User
-from pydantic import BaseModel
+import os
 from init_data_py import InitData
-from config import TELEGRAM_BOT_TOKEN
 
-router = APIRouter()
-logger = logging.getLogger(__name__)
+def verify_telegram_data(init_data_raw: str) -> dict:
+    """
+    Проверяет подпись Telegram initData с помощью библиотеки init-data-py.
+    Возвращает данные пользователя, если подпись верна, иначе None.
+    """
+    # Получаем токен бота из переменной окружения
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not bot_token:
+        raise ValueError("TELEGRAM_BOT_TOKEN environment variable is not set")
 
-class AuthResponse(BaseModel):
-    status: str
-    user_id: int
-
-@router.post("/", response_model=AuthResponse)
-async def auth(request: Request, db: Session = Depends(get_db)):
-    logger.info("Auth endpoint accessed")
     try:
-        body = await request.json()
-        logger.debug(f"Request body: {body}")
-        init_data_raw = body.get("initData")
-        if not init_data_raw:
-            logger.error("No initData provided in request")
-            raise HTTPException(status_code=400, detail="No initData provided")
-
-        logger.info("Validating initData...")
-        try:
-            init_data = InitData.parse(init_data_raw)
-            init_data.validate(TELEGRAM_BOT_TOKEN, lifetime=3600)
-            logger.info("Init data validated successfully")
-        except Exception as e:
-            logger.error(f"Init data validation failed: {e}")
-            raise HTTPException(status_code=403, detail="Invalid Telegram auth")
-
+        # Парсим и валидируем initData
+        init_data = InitData.parse(init_data_raw)
+        init_data.validate(bot_token, lifetime=3600)  # Проверяем подпись, срок жизни 1 час
         user_data = init_data.user
         if not user_data:
-            logger.error("User not found in initData")
-            raise HTTPException(status_code=400, detail="User not found")
-
-        user_id = user_data.id
-        first_name = user_data.first_name or "Unknown"
-        logger.info(f"Authenticated user: {user_id}, {first_name}")
-
-        existing = db.query(User).filter(User.user_id == user_id).first()
-        if not existing:
-            logger.info(f"Creating new user: {user_id}, {first_name}")
-            db_user = User(user_id=user_id, first_name=first_name)
-            db.add(db_user)
-            db.commit()
-            db.refresh(db_user)
-        else:
-            logger.info(f"User already exists: {user_id}")
-            existing.first_name = first_name
-            db.commit()
-            db.refresh(existing)
-            db_user = existing
-
-        return {"status": "ok", "user_id": db_user.user_id}
-    except Exception as e:
-        logger.error(f"Unexpected error in auth endpoint: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+            return None
+        # Возвращаем данные пользователя в виде словаря
+        return {
+            "id": user_data.id,
+            "first_name": user_data.first_name or "Unknown",
+            "last_name": user_data.last_name or "",
+            "username": user_data.username or "",
+            "language_code": user_data.language_code or "",
+            "is_premium": user_data.is_premium or False,
+            "allows_write_to_pm": user_data.allows_write_to_pm or False,
+            "photo_url": user_data.photo_url or ""
+        }
+    except Exception:
+        return None
