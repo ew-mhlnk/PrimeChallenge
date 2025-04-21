@@ -11,7 +11,7 @@ app = FastAPI()
 # Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://prime-challenge.vercel.app", "http://localhost:3000"],  # Разрешаем запросы с Vercel и локального фронтенда
+    allow_origins=["https://prime-challenge.vercel.app", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,10 +25,10 @@ Base.metadata.create_all(bind=engine)
 scheduler = AsyncIOScheduler()
 scheduler.start()
 
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(tournaments.router, prefix="/tournaments", tags=["tournaments"])
-app.include_router(picks.router, prefix="/picks", tags=["picks"])
-app.include_router(results.router, prefix="/results", tags=["results"])
+app.include_router(auth, prefix="/auth", tags=["auth"])
+app.include_router(tournaments, prefix="/tournaments", tags=["tournaments"])
+app.include_router(picks, prefix="/picks", tags=["picks"])
+app.include_router(results, prefix="/results", tags=["results"])
 
 @app.on_event("startup")
 async def startup_event():
