@@ -1,67 +1,98 @@
-import logging
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from database.models import Tournament, TrueDraw
-from services.sheets_service import get_tournaments, sync_tournament_matches
+import logging
+import os
 
 logger = logging.getLogger(__name__)
 
-def sync_google_sheets_with_db(db: Session):
-    logger.info("Starting Google Sheets synchronization with DB")
+def get_google_sheets_client():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name(
+        "path/to/credentials.json", scope  # Замени на путь к твоему credentials.json
+    )
+    return gspread.authorize(creds)
 
-    # Синхронизация турниров
-    tournaments_data = get_tournaments()
-    if not tournaments_data:
-        logger.error("No tournament data retrieved from Google Sheets")
-        return
+def sync_google_sheets_with_db(engine):
+    logger.info("Starting sync with Google Sheets")
+    client = get_google_sheets_client()
 
-    for t_data in tournaments_data:
-        tournament = db.query(Tournament).filter(Tournament.name == t_data['Tournament']).first()
-        if not tournament:
-            tournament = Tournament(
-                name=t_data['Tournament'],
-                dates=t_data.get('Dates'),
-                status=t_data.get('Status'),
-                starting_round=t_data.get('Starting Round'),
-                type=t_data.get('Type'),
-                start=t_data.get('Start'),
-                google_sheet_id=t_data.get('List')
-            )
-            db.add(tournament)
-            db.commit()
-            db.refresh(tournament)
-            logger.info(f"Added new tournament: {tournament.name}")
-        else:
-            tournament.dates = t_data.get('Dates')
-            tournament.status = t_data.get('Status')
-            tournament.starting_round = t_data.get('Starting Round')
-            tournament.type = t_data.get('Type')
-            tournament.start = t_data.get('Start')
-            tournament.google_sheet_id = t_data.get('List')
-            db.commit()
-            logger.info(f"Updated tournament: {tournament.name}")
+    with Session(engine) as db:
+        tournaments = db.query(Tournament).all()
+        for tournament in tournaments:
+            if not tournament.google_sheet_id:
+                logger.warning(f"Tournament {tournament.name} has no Google Sheet ID, skipping")
+                continue
 
-        # Синхронизация матчей для турнира
-        if tournament.status != "CLOSED":
-            matches = sync_tournament_matches(tournament.name)
-            if matches:
-                # Удаляем старые записи true_draw для этого турнира
-                db.query(TrueDraw).filter(TrueDraw.tournament_id == tournament.id).delete()
-                for match in matches:
-                    true_draw = TrueDraw(
-                        tournament_id=tournament.id,
-                        round=match['Round'],
-                        match_number=match['Match Number'],
-                        player1=match['Player1'],
-                        player2=match['Player2'],
-                        winner=match['Winner'],
-                        set1=match['set1'],
-                        set2=match['set2'],
-                        set3=match['set3'],
-                        set4=match['set4'],
-                        set5=match['set5']
-                    )
-                    db.add(true_draw)
+            try:
+                sheet = client.open_by_key(tournament.google_sheet_id)
+                logger.info(f"Opened Google Sheet for tournament {tournament.name}")
+
+                # Синхронизируем турниры (лист "tournaments")
+                tournaments_sheet = sheet.worksheet("tournaments")
+                tournaments_data = tournaments_sheet.get_all_records()
+                for row in tournaments_data:
+                    if row["ID"] == tournament.id:
+                        tournament.name = row["Name"]
+                        tournament.dates = row["Date"]
+                        tournament.status = row["Status"]
+                        tournament.starting_round = row["Starting Round"]
+                        tournament.type = row["Type"]
+                        tournament.start = row["Start"]
+                        db.commit()
+                        logger.info(f"Updated tournament {tournament.name}")
+
+                # Синхронизируем матчи (листы с названием турнира, например "BMW_OPEN")
+                match_sheet = sheet.worksheet(tournament.name)
+                match_data = match_sheet.get_all_records()
+                for row in match_data:
+                    round_name = row.get("Round", "")
+                    match_number = row.get("Match Number", 0)
+                    if not round_name or not match_number:
+                        continue
+
+                    # Проверяем, существует ли матч
+                    existing_match = db.query(TrueDraw).filter(
+                        TrueDraw.tournament_id == tournament.id,
+                        TrueDraw.round == round_name,
+                        TrueDraw.match_number == match_number
+                    ).first()
+
+                    if existing_match:
+                        # Обновляем существующий матч
+                        existing_match.player1 = row.get("Player1", "")
+                        existing_match.player2 = row.get("Player2", "")
+                        existing_match.winner = row.get("Winner", "")
+                        existing_match.set1 = row.get("Set1", "")
+                        existing_match.set2 = row.get("Set2", "")
+                        existing_match.set3 = row.get("Set3", "")
+                        existing_match.set4 = row.get("Set4", "")
+                        existing_match.set5 = row.get("Set5", "")
+                        logger.info(f"Updated match {match_number} in round {round_name} for tournament {tournament.id}")
+                    else:
+                        # Создаём новый матч
+                        new_match = TrueDraw(
+                            tournament_id=tournament.id,
+                            round=round_name,
+                            match_number=match_number,
+                            player1=row.get("Player1", ""),
+                            player2=row.get("Player2", ""),
+                            winner=row.get("Winner", ""),
+                            set1=row.get("Set1", ""),
+                            set2=row.get("Set2", ""),
+                            set3=row.get("Set3", ""),
+                            set4=row.get("Set4", ""),
+                            set5=row.get("Set5", "")
+                        )
+                        db.add(new_match)
+                        logger.info(f"Added new match {match_number} in round {round_name} for tournament {tournament.id}")
+
                 db.commit()
-                logger.info(f"Synchronized {len(matches)} matches for tournament: {tournament.name}")
-            else:
-                logger.warning(f"No matches found for tournament: {tournament.name}")
+
+            except Exception as e:
+                logger.error(f"Error syncing tournament {tournament.name}: {str(e)}")
+                db.rollback()
+
+    logger.info("Finished sync with Google Sheets")

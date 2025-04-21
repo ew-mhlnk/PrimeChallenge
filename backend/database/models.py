@@ -1,11 +1,17 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.sql.sqltypes import DateTime
+from sqlalchemy.sql import func
 from database.db import Base
-from datetime import datetime
+
+class User(Base):
+    __tablename__ = "users"
+    user_id = Column(Integer, primary_key=True, index=True)
+    first_name = Column(String)
+    last_name = Column(String)
+    username = Column(String)
 
 class Tournament(Base):
     __tablename__ = "tournaments"
-
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
     dates = Column(String)
@@ -15,12 +21,8 @@ class Tournament(Base):
     start = Column(String)
     google_sheet_id = Column(String)
 
-    matches = relationship("TrueDraw", back_populates="tournament")
-    picks = relationship("UserPick", back_populates="tournament")
-
 class TrueDraw(Base):
     __tablename__ = "true_draw"
-
     id = Column(Integer, primary_key=True, index=True)
     tournament_id = Column(Integer, ForeignKey("tournaments.id"))
     round = Column(String)
@@ -34,31 +36,15 @@ class TrueDraw(Base):
     set4 = Column(String)
     set5 = Column(String)
 
-    tournament = relationship("Tournament", back_populates="matches")
-
-class User(Base):
-    __tablename__ = "users"
-
-    user_id = Column(Integer, primary_key=True, index=True)
-    first_name = Column(String)
-    last_name = Column(String)
-    username = Column(String)
-
-    picks = relationship("UserPick", back_populates="user")
-
 class UserPick(Base):
     __tablename__ = "user_picks"
-
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"))
+    user_id = Column(Integer)
     tournament_id = Column(Integer, ForeignKey("tournaments.id"))
     round = Column(String)
     match_number = Column(Integer)
     player1 = Column(String)
     player2 = Column(String)
     predicted_winner = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    user = relationship("User", back_populates="picks")
-    tournament = relationship("Tournament", back_populates="picks")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
