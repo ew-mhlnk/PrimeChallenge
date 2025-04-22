@@ -17,3 +17,13 @@ def init_db():
     # Импорт моделей здесь, чтобы избежать циклического импорта
     from database import models
     Base.metadata.create_all(bind=engine)
+
+def get_db():
+    """
+    Предоставляет сессию базы данных для FastAPI зависимостей.
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
