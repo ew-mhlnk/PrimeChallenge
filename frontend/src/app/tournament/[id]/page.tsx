@@ -36,6 +36,7 @@ export default function TournamentPage() {
   const [userId, setUserId] = useState<number | null>(null);
   const [comparison, setComparison] = useState<ComparisonResult[]>([]);
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
+  const [initData, setInitData] = useState<string | null>(null); // Храним initData для авторизации
 
   const allRounds = useMemo(() => ["R128", "R64", "R32", "R16", "QF", "SF", "F"], []);
   const [rounds, setRounds] = useState<string[]>([]);
@@ -60,6 +61,7 @@ export default function TournamentPage() {
         const tgUser = initDataUnsafe?.user;
 
         if (tgUser && initData) {
+          setInitData(initData); // Сохраняем initData для использования в savePicks
           const response = await fetch('https://primechallenge.onrender.com/auth/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -211,44 +213,51 @@ export default function TournamentPage() {
 
   const savePicks = async () => {
     if (!userId || !tournament) {
+      console.log('>>> [savePicks] userId or tournament is undefined', { userId, tournament });
       alert('Ошибка: пользователь или турнир не определены.');
+      return;
+    }
+
+    if (!initData) {
+      console.log('>>> [savePicks] initData is missing');
+      alert('Ошибка: данные Telegram не инициализированы.');
       return;
     }
 
     try {
       const picksToSave = picks
-        .filter((p) => p.predicted_winner)
+        .filter((p) => p.predicted_winner) // Отбираем только пики с выбранным победителем
         .map((p) => ({
+          tournament_id: tournament.id, // Добавляем tournament_id
           round: p.round,
           match_number: p.match_number,
+          player1: p.player1 || "", // Устанавливаем пустую строку, если player1 отсутствует
+          player2: p.player2 || "", // Устанавливаем пустую строку, если player2 отсутствует
           predicted_winner: p.predicted_winner,
         }));
 
-      console.log('Отправляемые данные:', {
-        tournament_id: tournament.id,
-        user_id: userId,
-        picks: picksToSave,
-      });
+      console.log('>>> [savePicks] Sending data:', picksToSave);
 
-      const response = await fetch('https://primechallenge.onrender.com/picks/save', {
+      const response = await fetch('https://primechallenge.onrender.com/picks/', { // Изменили URL на /picks/
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tournament_id: tournament.id,
-          user_id: userId,
-          picks: picksToSave,
-        }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Telegram-Init-Data': initData, // Добавляем заголовок для авторизации
+        },
+        body: JSON.stringify(picksToSave), // Отправляем массив пиков напрямую
       });
 
+      console.log('>>> [savePicks] Response status:', response.status);
       if (!response.ok) {
         const errorText = await response.text();
+        console.log('>>> [savePicks] Error response:', errorText);
         throw new Error(`Ошибка при сохранении пиков: ${response.status} - ${errorText}`);
       }
 
       alert('Пики успешно сохранены!');
     } catch (err) {
       const error = err as Error;
-      console.error('Ошибка при сохранении:', error);
+      console.error('>>> [savePicks] Error:', error);
       alert(`Ошибка при сохранении пиков: ${error.message}`);
     }
   };
