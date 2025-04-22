@@ -23,10 +23,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Подключаем маршруты
-app.include_router(tournaments.router, prefix="/tournaments", tags=["tournaments"])
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(picks.router, prefix="/picks", tags=["picks"])
-app.include_router(results.router, prefix="/results", tags=["results"])
+app.include_router(tournaments, prefix="/tournaments", tags=["tournaments"])  # Убрали .router
+app.include_router(auth, prefix="/auth", tags=["auth"])  # Убрали .router
+app.include_router(picks, prefix="/picks", tags=["picks"])  # Убрали .router
+app.include_router(results, prefix="/results", tags=["results"])  # Убрали .router
 
 # Инициализация базы данных
 def init_db():
@@ -51,6 +51,7 @@ async def shutdown_event():
     scheduler.shutdown()
     logger.info("Application shutdown complete")
 
+@app.get("/sync")  # Добавили GET для удобства
 @app.post("/sync")
 async def manual_sync():
     await sync_google_sheets_with_db(engine)
