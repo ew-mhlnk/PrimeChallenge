@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Enum, ForeignKey
+from sqlalchemy import Column, Integer, String, Enum, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from database.db import Base
 import enum
 
@@ -43,9 +44,10 @@ class TrueDraw(Base):
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, unique=True, index=True)
+    user_id = Column(Integer, primary_key=True, index=True)
     first_name = Column(String)
+    last_name = Column(String, nullable=True)
+    username = Column(String, nullable=True)
 
     user_picks = relationship("UserPick", back_populates="user")
 
@@ -60,6 +62,8 @@ class UserPick(Base):
     player1 = Column(String)
     player2 = Column(String)
     predicted_winner = Column(String)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     user = relationship("User", back_populates="user_picks")
     tournament = relationship("Tournament", back_populates="user_picks")

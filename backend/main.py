@@ -1,47 +1,66 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import logging
-from database.db import Base, engine
-from routers import auth, tournaments, picks, results
+from fastapi import FastAPI, Depends
+from fastapi.responses import JSONResponse
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from sqlalchemy.orm import Session
+from database.db import engine, SessionLocal, init_db
+from routers import tournaments, picks, results, auth
 from services.sync_service import sync_google_sheets_with_db
 
 app = FastAPI()
+scheduler = AsyncIOScheduler()
 
-# Настройка CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://prime-challenge.vercel.app", "http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-Base.metadata.create_all(bind=engine)
+# Инициализация базы данных
+init_db()
 
-scheduler = AsyncIOScheduler()
-scheduler.start()
+# Подключаем маршруты
+app.include_router(tournaments.router, prefix="/tournaments")
+app.include_router(picks.router, prefix="/picks")
+app.include_router(results.router, prefix="/results")
+app.include_router(auth.router, prefix="/auth")
 
-app.include_router(auth, prefix="/auth", tags=["auth"])
-app.include_router(tournaments, prefix="/tournaments", tags=["tournaments"])
-app.include_router(picks, prefix="/picks", tags=["picks"])
-app.include_router(results, prefix="/results", tags=["results"])
+# Dependency для получения сессии БД
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 @app.on_event("startup")
 async def startup_event():
     logger.info("Application startup")
+    await sync_google_sheets_with_db(engine)  # Немедленный вызов при старте
     scheduler.add_job(sync_google_sheets_with_db, 'interval', hours=24, args=[engine])
+    scheduler.start()
     logger.info("Initial sync completed on startup")
 
 @app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Shutting down the application and scheduler")
+def shutdown_event():
+    logger.info("Application shutdown")
     scheduler.shutdown()
-    logger.info("Application shutdown complete")
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+@app.post("/sync")
+async def manual_sync(db: Session = Depends(get_db)):
+    """
+    Эндпоинт для ручного запуска синхронизации Google Sheets с базой данных.
+    """
+    logger.info("Manual sync triggered via /sync endpoint")
+    try:
+        await sync_google_sheets_with_db(engine)
+        return JSONResponse(status_code=200, content={"message": "Sync completed successfully"})
+    except Exception as e:
+        logger.error(f"Error during manual sync: {str(e)}")
+        return JSONResponse(status_code=500, content={"message": f"Sync failed: {str(e)}"})
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -47,10 +47,11 @@ export default function useAuth() {
 
               if (response.ok && data.status === 'ok') {
                 console.log('>>> [auth] Authentication successful');
-                setUser({ id: data.user_id, firstName: tgUser.first_name });
+                setUser({ id: data.user_id, firstName: data.first_name });
               } else {
                 console.error('❌ Auth failed:', data);
                 setUser({ id: 0, firstName: 'Гость' });
+                setError('Не удалось авторизоваться. Попробуйте позже.');
               }
             } catch (error) {
               console.error('❌ Fetch error:', error);
@@ -60,6 +61,7 @@ export default function useAuth() {
           } else {
             console.warn('⚠️ No user or initData available');
             setUser({ id: 0, firstName: 'Гость' });
+            setError('Не удалось получить данные пользователя из Telegram.');
           }
           setIsLoading(false);
         } else if (attempts < maxAttempts) {
@@ -69,6 +71,7 @@ export default function useAuth() {
           console.log('>>> [init] Telegram WebApp not found after all attempts');
           setUser({ id: 0, firstName: 'Гость' });
           setIsLoading(false);
+          setError('Не удалось загрузить Telegram WebApp.');
         }
       };
 

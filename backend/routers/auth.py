@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 class AuthResponse(BaseModel):
     status: str
     user_id: int
+    first_name: str
 
 @router.post("/", response_model=AuthResponse)
 async def auth(request: Request, db: Session = Depends(get_db)):
@@ -32,23 +33,36 @@ async def auth(request: Request, db: Session = Depends(get_db)):
 
         user_id = user_data.get("id")
         first_name = user_data.get("first_name", "Unknown")
+        last_name = user_data.get("last_name", "")
+        username = user_data.get("username", "")
         logger.info(f"Authenticated user: {user_id}, {first_name}")
 
         existing = db.query(User).filter(User.user_id == user_id).first()
         if not existing:
             logger.info(f"Creating new user: {user_id}, {first_name}")
-            db_user = User(user_id=user_id, first_name=first_name)
+            db_user = User(
+                user_id=user_id,
+                first_name=first_name,
+                last_name=last_name,
+                username=username
+            )
             db.add(db_user)
             db.commit()
             db.refresh(db_user)
         else:
             logger.info(f"User already exists: {user_id}")
             existing.first_name = first_name
+            existing.last_name = last_name
+            existing.username = username
             db.commit()
             db.refresh(existing)
             db_user = existing
 
-        return {"status": "ok", "user_id": db_user.user_id}
+        return {
+            "status": "ok",
+            "user_id": db_user.user_id,
+            "first_name": db_user.first_name
+        }
     except Exception as e:
         logger.error(f"Unexpected error in auth endpoint: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
