@@ -8,6 +8,8 @@ from utils.auth import verify_telegram_data
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+logger.info("Loading picks router - version with status.value check")  # Добавляем временный лог
+
 @router.get("/")
 async def get_picks(tournament_id: int, request: Request, db: Session = Depends(get_db)):
     logger.info(f"Fetching picks for tournament {tournament_id}")
@@ -55,7 +57,7 @@ async def create_or_update_picks(
         logger.error(f"Tournament {tournament_id} not found")
         raise HTTPException(status_code=404, detail="Tournament not found")
     
-    if tournament.status != "ACTIVE":
+    if tournament.status.value != "ACTIVE":  # Используем .value для сравнения
         logger.error(f"Tournament {tournament_id} is not ACTIVE (status: {tournament.status})")
         raise HTTPException(status_code=400, detail="Cannot submit picks for a non-ACTIVE tournament")
 
