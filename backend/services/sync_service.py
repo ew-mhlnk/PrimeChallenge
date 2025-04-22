@@ -147,24 +147,9 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                 worksheet = sheet.worksheet(sheet_name)
                 data = worksheet.get_all_values()
                 
-                if not data:
+                if not data or len(data) < 2:
                     logger.warning(f"No data found in sheet {sheet_name} for tournament {tournament_id}")
                     continue
-
-                # Проверяем, есть ли колонка AQ (Champion)
-                champion = None
-                if len(data[0]) >= 43:  # Колонка AQ — 43-я (A=1, AQ=43)
-                    champion_cell = data[0][42]  # AQ1
-                    if champion_cell == "Champion":
-                        champion = data[1][42] if len(data) > 1 else None  # AQ2
-                        if champion:
-                            logger.info(f"Tournament {tournament_id} has a champion: {champion}")
-                            # Обновляем статус на COMPLETED
-                            conn.execute(
-                                text("UPDATE tournaments SET status = 'COMPLETED' WHERE id = :tournament_id"),
-                                {"tournament_id": tournament_id}
-                            )
-                            logger.info(f"Tournament {tournament_id} status updated to COMPLETED")
 
                 # Очищаем существующие записи true_draw для этого турнира
                 conn.execute(
@@ -172,36 +157,81 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     {"tournament_id": tournament_id}
                 )
 
-                # Парсим строки
+                # Определяем раунды из первой строки
+                headers = data[0]
+                round_columns = {}  # {индекс_колонки: название_раунда}
+                for col_idx, header in enumerate(headers):
+                    if header in ["R128", "R64", "R32", "R16", "QF", "SF", "F"]:
+                        round_columns[col_idx] = header
+
+                if not round_columns:
+                    logger.error(f"No valid round columns found in sheet {sheet_name}")
+                    continue
+
+                # Проверяем, есть ли колонка Champion (AQ = 43-я колонка, индекс 42)
+                champion = None
+                if len(headers) >= 43 and headers[42] == "Champion":
+                    champion = data[1][42] if len(data) > 1 and data[1][42] else None
+                    if champion:
+                        logger.info(f"Tournament {tournament_id} has a champion: {champion}")
+                        # Обновляем статус на COMPLETED
+                        conn.execute(
+                            text("UPDATE tournaments SET status = 'COMPLETED' WHERE id = :tournament_id"),
+                            {"tournament_id": tournament_id}
+                        )
+                        logger.info(f"Tournament {tournament_id} status updated to COMPLETED")
+                        continue  # Пропускаем дальнейшую синхронизацию
+
+                # Определяем starting_round
                 round_order = {"R128": 1, "R64": 2, "R32": 3, "R16": 4, "QF": 5, "SF": 6, "F": 7}
                 starting_round_order = round_order.get(starting_round, 1)
 
-                for row in data:
-                    if len(row) < 5:  # Убедимся, что строка содержит минимум данных
-                        logger.warning(f"Skipping incomplete row in sheet {sheet_name}: {row}")
-                        continue
+                # Парсим матчи попарно (начиная со второй строки)
+                row_idx = 1  # Начинаем со второй строки (после заголовков)
+                while row_idx < len(data) - 1:  # Обрабатываем пары строк
+                    player1_row = data[row_idx]
+                    player2_row = data[row_idx + 1]
 
-                    try:
-                        round_name = row[0]  # A: Round (например, R128)
-                        if not round_name or round_name not in round_order:
-                            logger.warning(f"Invalid round in sheet {sheet_name}: {row}")
-                            continue
-
+                    # Парсим каждый раунд
+                    for col_idx, round_name in round_columns.items():
                         # Пропускаем раунды до starting_round
                         if round_order[round_name] < starting_round_order:
                             logger.info(f"Skipping round {round_name} for tournament {tournament_id} (before starting round {starting_round})")
                             continue
 
-                        match_number = int(row[1])  # B: Match Number
-                        player1 = row[2]  # C: Player 1
-                        player2 = row[3]  # D: Player 2
-                        set1 = row[4] if len(row) > 4 and row[4] else None  # E: Set 1
-                        set2 = row[5] if len(row) > 5 and row[5] else None  # F: Set 2
-                        set3 = row[6] if len(row) > 6 and row[6] else None
-                        set4 = row[7] if len(row) > 7 and row[7] else None
-                        set5 = row[8] if len(row) > 8 and row[8] else None
-                        winner = row[9] if len(row) > 9 and row[9] else None
+                        # Проверяем, есть ли игроки в этом раунде
+                        player1 = player1_row[col_idx].strip()
+                        player2 = player2_row[col_idx].strip()
+                        if not player1 or not player2:
+                            continue  # Пропускаем, если нет игроков
 
+                        # Определяем номер матча (считаем матчи в этом раунде)
+                        match_number = sum(1 for r in range(1, row_idx, 2) if data[r][col_idx].strip() and data[r + 1][col_idx].strip()) + 1
+
+                        # Парсим результаты сетов (следующие 5 колонок после раунда)
+                        set1 = player1_row[col_idx + 1] if col_idx + 1 < len(player1_row) and player1_row[col_idx + 1] else None
+                        set2 = player1_row[col_idx + 2] if col_idx + 2 < len(player1_row) and player1_row[col_idx + 2] else None
+                        set3 = player1_row[col_idx + 3] if col_idx + 3 < len(player1_row) and player1_row[col_idx + 3] else None
+                        set4 = player1_row[col_idx + 4] if col_idx + 4 < len(player1_row) and player1_row[col_idx + 4] else None
+                        set5 = player1_row[col_idx + 5] if col_idx + 5 < len(player1_row) and player1_row[col_idx + 5] else None
+
+                        # Ищем победителя в колонке следующего раунда
+                        winner = None
+                        next_round_col = None
+                        for next_col_idx, next_round in round_columns.items():
+                            if round_order[next_round] == round_order[round_name] + 1:
+                                next_round_col = next_col_idx
+                                break
+
+                        if next_round_col is not None:
+                            next_player1 = player1_row[next_round_col].strip() if next_round_col < len(player1_row) else ""
+                            next_player2 = player2_row[next_round_col].strip() if next_round_col < len(player2_row) else ""
+                            if next_player1 in [player1, player2]:
+                                winner = next_player1
+                            elif next_player2 in [player1, player2]:
+                                winner = next_player2
+
+                        # Сохраняем матч в базу
                         conn.execute(
                             text("""
                                 INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, set1, set2, set3, set4, set5, winner)
@@ -221,9 +251,9 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                                 "winner": winner
                             }
                         )
-                    except Exception as e:
-                        logger.error(f"Error inserting row in sheet {sheet_name} for tournament {tournament_id}: {str(e)}")
-                        continue
+                        logger.info(f"Added match: {round_name} #{match_number} - {player1} vs {player2}")
+
+                    row_idx += 2  # Переходим к следующей паре игроков
                 
                 logger.info(f"Successfully synced sheet {sheet_name} for tournament {tournament_id}")
             
