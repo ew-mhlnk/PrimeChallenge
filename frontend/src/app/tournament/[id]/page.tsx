@@ -109,7 +109,7 @@ export default function TournamentPage() {
         }
 
         // 3. Загружаем матчи первого раунда и сразу инициализируем пики
-        const matchesRes = await fetch(`https://primechallenge.onrender.com/matches?tournament_id=${found.id}`, {
+        const matchesRes = await fetch(`https://primechallenge.onrender.com/tournaments/matches/by-id?tournament_id=${found.id}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
         });
@@ -141,8 +141,9 @@ export default function TournamentPage() {
             setComparison(comparisonData);
           }
         }
-      } catch {
-        setError('Ошибка при загрузке данных. Попробуйте позже.');
+      } catch (err) {
+        const error = err as Error;
+        setError(`Ошибка при загрузке данных: ${error.message}`);
       } finally {
         setIsLoading(false);
       }

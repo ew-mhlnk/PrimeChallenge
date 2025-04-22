@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 import logging
 from database.db import get_db
@@ -37,6 +37,21 @@ async def get_tournament_matches(id: int, db: Session = Depends(get_db)):
         logger.info(f"No matches found for tournament {id}")
         return []
     logger.info(f"Returning {len(matches)} matches for tournament {id}")
+    return matches
+
+@router.get("/matches/by-id")
+async def get_matches(tournament_id: int = Query(...), db: Session = Depends(get_db)):
+    logger.info(f"Fetching matches for tournament {tournament_id}")
+    tournament = db.query(models.Tournament).filter(models.Tournament.id == tournament_id).first()
+    if not tournament:
+        logger.error(f"Tournament with id {tournament_id} not found")
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    matches = db.query(models.TrueDraw).filter(models.TrueDraw.tournament_id == tournament_id).all()
+    if not matches:
+        logger.info(f"No matches found for tournament {tournament_id}")
+        return []
+    logger.info(f"Returning {len(matches)} matches for tournament {tournament_id}")
     return matches
 
 @router.get("/{id}/starting-matches")
