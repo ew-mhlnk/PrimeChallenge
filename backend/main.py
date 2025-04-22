@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends
 from fastapi.responses import JSONResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.orm import Session
-from database.db import engine, init_db, get_db  # Импортируем get_db из database.db
+from database.db import engine, init_db, get_db
 from routers import tournaments, picks, results, auth
 from services.sync_service import sync_google_sheets_with_db
 
@@ -18,10 +18,10 @@ logger = logging.getLogger(__name__)
 init_db()
 
 # Подключаем маршруты
-app.include_router(tournaments.router, prefix="/tournaments")
-app.include_router(picks.router, prefix="/picks")
-app.include_router(results.router, prefix="/results")
-app.include_router(auth.router, prefix="/auth")
+app.include_router(tournaments, prefix="/tournaments")
+app.include_router(picks, prefix="/picks")
+app.include_router(results, prefix="/results")
+app.include_router(auth, prefix="/auth")
 
 @app.on_event("startup")
 async def startup_event():
