@@ -2,18 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-
-interface User {
-  id: number;
-  firstName: string;
-}
-
-interface Tournament {
-  id: number;
-  name: string;
-  date: string;
-  active: boolean;
-}
+import { Tournament, User } from '@/types'; // Импортируем типы из types/index.ts
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -41,6 +30,9 @@ export default function Home() {
       })
       .then((data: Tournament[]) => {
         console.log('>>> [tournaments] Tournaments loaded:', data);
+        data.forEach((tournament) => {
+          console.log(`>>> [tournaments] Tournament ${tournament.id} status: ${tournament.status}`);
+        });
         setTournaments(data);
       })
       .catch((err) => console.error('>>> [tournaments] Ошибка загрузки турниров:', err))
@@ -158,21 +150,25 @@ export default function Home() {
 
       <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {tournaments.length > 0 ? (
-          tournaments.map((tournament) => (
-            <Link href={`/tournament/${tournament.id}`} key={tournament.id}>
-              <div className="bg-gray-800 p-4 rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer">
-                <h2 className="text-xl font-semibold text-white">{tournament.name}</h2>
-                <p className="text-gray-400">{tournament.date}</p>
-                <span
-                  className={`mt-2 inline-block px-2 py-1 rounded text-sm ${
-                    tournament.active ? 'bg-green-500' : 'bg-gray-500'
-                  }`}
-                >
-                  {tournament.active ? 'Активен' : 'Завершён'}
-                </span>
-              </div>
-            </Link>
-          ))
+          tournaments.map((tournament) => {
+            const isActive = tournament.status === 'ACTIVE'; // Проверяем статус
+            console.log(`>>> [tournaments] Rendering tournament ${tournament.id}, isActive: ${isActive}`);
+            return (
+              <Link href={`/tournament/${tournament.id}`} key={tournament.id}>
+                <div className="bg-gray-800 p-4 rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer">
+                  <h2 className="text-xl font-semibold text-white">{tournament.name}</h2>
+                  <p className="text-gray-400">{tournament.dates}</p> {/* Используем dates вместо date */}
+                  <span
+                    className={`mt-2 inline-block px-2 py-1 rounded text-sm ${
+                      isActive ? 'bg-green-500' : 'bg-gray-500'
+                    }`}
+                  >
+                    {isActive ? 'Активен' : 'Завершён'}
+                  </span>
+                </div>
+              </Link>
+            );
+          })
         ) : (
           <p className="text-gray-400">Нет доступных турниров</p>
         )}
