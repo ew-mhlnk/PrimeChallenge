@@ -2,7 +2,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
-from database.models import Base  # Импортируем Base из models
 
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -15,4 +14,6 @@ def init_db():
     """
     Создаёт все таблицы в базе данных, определённые в models.py.
     """
+    # Импорт моделей здесь, чтобы избежать циклического импорта
+    from database import models
     Base.metadata.create_all(bind=engine)
