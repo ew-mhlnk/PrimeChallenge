@@ -7,18 +7,19 @@ import enum
 class TournamentStatus(enum.Enum):
     ACTIVE = "ACTIVE"
     CLOSED = "CLOSED"
+    COMPLETED = "COMPLETED"  # Добавляем статус COMPLETED
 
 class Tournament(Base):
     __tablename__ = "tournaments"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    dates = Column(String)
-    status = Column(Enum(TournamentStatus), default=TournamentStatus.ACTIVE)
-    starting_round = Column(String)
-    type = Column(String)
-    start = Column(String)
-    google_sheet_id = Column(String, nullable=True)
+    id = Column(Integer, primary_key=True, index=True)  # A: ID
+    name = Column(String, index=True)  # B: Name
+    dates = Column(String)  # C: Date
+    status = Column(Enum(TournamentStatus), default=TournamentStatus.ACTIVE)  # D: Status
+    sheet_name = Column(String, nullable=True)  # E: List (имя листа, например, "BMW Open")
+    starting_round = Column(String)  # F: Starting Round
+    type = Column(String)  # G: Type
+    start = Column(String)  # H: Start (дата и время, когда турнир станет CLOSED)
 
     true_draws = relationship("TrueDraw", back_populates="tournament")
     user_picks = relationship("UserPick", back_populates="tournament")
