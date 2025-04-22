@@ -76,8 +76,9 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
             logger.error(f"Unexpected headers in 'tournaments' worksheet: {headers}")
             raise ValueError(f"Expected headers {expected_headers}, but got {headers}")
 
-        # Очищаем таблицу tournaments
-        conn.execute(text("DELETE FROM tournaments"))
+        # Очищаем связанные таблицы перед удалением турниров
+        conn.execute(text("DELETE FROM true_draw"))  # Сначала удаляем записи из true_draw
+        conn.execute(text("DELETE FROM tournaments"))  # Затем удаляем из tournaments
 
         # Парсим строки (начиная со второй, где данные)
         current_time = datetime.now()
