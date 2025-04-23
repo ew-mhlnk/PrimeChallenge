@@ -36,7 +36,7 @@ export default function TournamentPage() {
   const [userId, setUserId] = useState<number | null>(null);
   const [comparison, setComparison] = useState<ComparisonResult[]>([]);
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
-  const [initData, setInitData] = useState<string | null>(null); // Храним initData для авторизации
+  const [initData, setInitData] = useState<string | null>(null);
 
   const allRounds = useMemo(() => ["R128", "R64", "R32", "R16", "QF", "SF", "F"], []);
   const [rounds, setRounds] = useState<string[]>([]);
@@ -61,7 +61,7 @@ export default function TournamentPage() {
         const tgUser = initDataUnsafe?.user;
 
         if (tgUser && initData) {
-          setInitData(initData); // Сохраняем initData для использования в savePicks
+          setInitData(initData);
           const response = await fetch('https://primechallenge.onrender.com/auth/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -83,7 +83,6 @@ export default function TournamentPage() {
       try {
         setIsLoading(true);
 
-        // 1. Получаем турнир
         const tournamentsRes = await fetch(`https://primechallenge.onrender.com/tournaments`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
@@ -99,37 +98,69 @@ export default function TournamentPage() {
 
         setTournament(found);
 
-        // 2. Формируем массив раундов, начиная с starting_round, и добавляем W
         const startIndex = allRounds.indexOf(found.starting_round);
         if (startIndex !== -1) {
           const applicableRounds = [...allRounds.slice(startIndex), "W"];
           setRounds(applicableRounds);
           setSelectedRound(found.starting_round);
+
+          // Инициализируем пики для всех раундов
+          const initialPicks: Pick[] = [];
+          for (let roundIndex = startIndex; roundIndex < allRounds.length; roundIndex++) {
+            const round = allRounds[roundIndex];
+            const numMatches = Math.pow(2, allRounds.length - 1 - roundIndex);
+            for (let i = 1; i <= numMatches; i++) {
+              initialPicks.push({
+                round,
+                match_number: i,
+                player1: "",
+                player2: "",
+                predicted_winner: "",
+                winner: "",
+              });
+            }
+          }
+
+          const matchesRes = await fetch(`https://primechallenge.onrender.com/tournaments/matches/by-id?tournament_id=${found.id}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          if (!matchesRes.ok) {
+            throw new Error(`Ошибка при загрузке матчей: ${matchesRes.status}`);
+          }
+          const matchesData: { round: string; match_number: number; player1: string; player2: string; winner?: string }[] = await matchesRes.json();
+          matchesData.forEach((match) => {
+            const matchIndex = initialPicks.findIndex(
+              (p) => p.round === match.round && p.match_number === match.match_number
+            );
+            if (matchIndex !== -1) {
+              initialPicks[matchIndex] = {
+                round: match.round,
+                match_number: match.match_number,
+                player1: match.player1,
+                player2: match.player2,
+                predicted_winner: "",
+                winner: match.winner || "",
+              };
+            }
+          });
+
+          // Добавляем финального победителя (W)
+          initialPicks.push({
+            round: "W",
+            match_number: 1,
+            player1: "",
+            player2: "",
+            predicted_winner: "",
+            winner: "",
+          });
+
+          setPicks(initialPicks);
         } else {
           setRounds([]);
           setSelectedRound(null);
         }
 
-        // 3. Загружаем матчи первого раунда и сразу инициализируем пики
-        const matchesRes = await fetch(`https://primechallenge.onrender.com/tournaments/matches/by-id?tournament_id=${found.id}`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (!matchesRes.ok) {
-          throw new Error(`Ошибка при загрузке матчей: ${matchesRes.status}`);
-        }
-        const matchesData: { round: string; match_number: number; player1: string; player2: string; winner?: string }[] = await matchesRes.json();
-        const initialPicks = matchesData.map((match) => ({
-          round: match.round,
-          match_number: match.match_number,
-          player1: match.player1,
-          player2: match.player2,
-          predicted_winner: "",
-          winner: match.winner || "",
-        }));
-        setPicks(initialPicks);
-
-        // Если турнир закрыт, загружаем сравнение
         if (found.status === "CLOSED" && userId) {
           const comparisonRes = await fetch(
             `https://primechallenge.onrender.com/picks/compare?tournament_id=${found.id}&user_id=${userId}`,
@@ -161,7 +192,6 @@ export default function TournamentPage() {
       (p) => p.round === match.round && p.match_number === match.match_number
     );
     newPicks[matchIndex].predicted_winner = player;
-    setPicks(newPicks);
 
     const currentRoundIdx = allRounds.indexOf(match.round);
     if (currentRoundIdx < allRounds.length - 1) {
@@ -173,37 +203,17 @@ export default function TournamentPage() {
 
       const nextPlayer = player === "Q" || player === "LL" ? player : player;
 
-      if (!existingNextMatch) {
-        newPicks.push({
-          round: nextRound,
-          match_number: nextMatchNumber,
-          player1: match.match_number % 2 === 1 ? nextPlayer : "",
-          player2: match.match_number % 2 === 0 ? nextPlayer : "",
-          predicted_winner: "",
-          winner: "",
-        });
-      } else {
+      if (existingNextMatch) {
         if (match.match_number % 2 === 1) {
           existingNextMatch.player1 = nextPlayer;
-          existingNextMatch.predicted_winner = "";
         } else {
           existingNextMatch.player2 = nextPlayer;
-          existingNextMatch.predicted_winner = "";
         }
+        existingNextMatch.predicted_winner = "";
       }
     } else if (match.round === "F") {
-      // Если это финал (F), добавляем победителя в раунд W
       const winnerMatch = newPicks.find((p) => p.round === "W" && p.match_number === 1);
-      if (!winnerMatch) {
-        newPicks.push({
-          round: "W",
-          match_number: 1,
-          player1: player,
-          player2: "", // Второй игрок не нужен, так как это победитель
-          predicted_winner: player, // Автоматически устанавливаем победителя
-          winner: "",
-        });
-      } else {
+      if (winnerMatch) {
         winnerMatch.player1 = player;
         winnerMatch.predicted_winner = player;
       }
@@ -226,25 +236,25 @@ export default function TournamentPage() {
 
     try {
       const picksToSave = picks
-        .filter((p) => p.predicted_winner) // Отбираем только пики с выбранным победителем
+        .filter((p) => p.predicted_winner)
         .map((p) => ({
-          tournament_id: tournament.id, // Добавляем tournament_id
+          tournament_id: tournament.id,
           round: p.round,
           match_number: p.match_number,
-          player1: p.player1 || "", // Устанавливаем пустую строку, если player1 отсутствует
-          player2: p.player2 || "", // Устанавливаем пустую строку, если player2 отсутствует
+          player1: p.player1 || "",
+          player2: p.player2 || "",
           predicted_winner: p.predicted_winner,
         }));
 
       console.log('>>> [savePicks] Sending data:', picksToSave);
 
-      const response = await fetch('https://primechallenge.onrender.com/picks/', { // Изменили URL на /picks/
+      const response = await fetch('https://primechallenge.onrender.com/picks/', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'X-Telegram-Init-Data': initData, // Добавляем заголовок для авторизации
+          'X-Telegram-Init-Data': initData,
         },
-        body: JSON.stringify(picksToSave), // Отправляем массив пиков напрямую
+        body: JSON.stringify(picksToSave),
       });
 
       console.log('>>> [savePicks] Response status:', response.status);
@@ -264,7 +274,7 @@ export default function TournamentPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center">
         <p className="text-xl">Загрузка...</p>
       </div>
     );
@@ -272,7 +282,7 @@ export default function TournamentPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center">
         <p className="text-xl text-red-400">{error}</p>
       </div>
     );
@@ -280,7 +290,7 @@ export default function TournamentPage() {
 
   if (!tournament) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center">
         <p className="text-xl">Турнир не найден</p>
       </div>
     );
@@ -290,7 +300,7 @@ export default function TournamentPage() {
   const champion = championMatch?.actual_winner;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
+    <div className="min-h-screen bg-[#141414] text-white p-6">
       <header className="mb-8">
         <Link href="/" className="text-cyan-400 hover:underline">
           ← Назад
@@ -316,8 +326,8 @@ export default function TournamentPage() {
             onClick={() => setSelectedRound(round)}
             className={`px-3 py-1 rounded-full text-sm font-medium ${
               selectedRound === round
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? 'bg-gradient-to-r from-[#008CFF] to-[#0077FF] opacity-25 border border-[#00B2FF] text-[#CBCBCB]'
+                : 'bg-gray-700 text-[#5F6067] hover:bg-gray-600'
             }`}
           >
             {round}
@@ -327,28 +337,27 @@ export default function TournamentPage() {
 
       {selectedRound && (
         <section className="grid gap-4">
-          <div>
-            {picks
-              .filter((pick) => pick.round === selectedRound)
-              .map((pick) => {
-                const comparisonResult = comparison.find(
-                  (c) => c.round === pick.round && c.match_number === pick.match_number
-                );
+          {picks
+            .filter((pick) => pick.round === selectedRound)
+            .reduce((acc: Pick[][], curr, index) => {
+              if (index % 2 === 0) {
+                acc.push([curr]);
+              } else {
+                acc[acc.length - 1].push(curr);
+              }
+              return acc;
+            }, [])
+            .map((pair, pairIndex) => (
+              <div key={pairIndex} className="flex items-center mb-5">
+                <div className="pair flex flex-col items-start">
+                  {pair.map((pick, index) => {
+                    const displayPlayer1 = pick.player1 === "Q" || pick.player1 === "LL" ? pick.player1 : pick.player1 || 'TBD';
+                    const displayPlayer2 = pick.player2 === "Q" || pick.player2 === "LL" ? pick.player2 : pick.player2 || 'TBD';
 
-                const displayPlayer1 = pick.player1 === "Q" || pick.player1 === "LL" ? pick.player1 : pick.player1 || 'TBD';
-                const displayPlayer2 = pick.player2 === "Q" || pick.player2 === "LL" ? pick.player2 : pick.player2 || 'TBD';
-
-                return (
-                  <div key={`${pick.round}-${pick.match_number}`} className="bg-gray-800 p-4 rounded-lg shadow-md mb-2">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        {/* Для раунда W отображаем только одного игрока (победителя) */}
-                        {selectedRound === "W" ? (
-                          <p className="text-lg font-medium text-green-400">
-                            Победитель: {displayPlayer1}
-                          </p>
-                        ) : (
-                          <>
+                    return (
+                      <div key={`${pick.round}-${pick.match_number}`} className="match flex items-center">
+                        <div className="flex flex-col">
+                          <div className="bg-gradient-to-r from-[#1B1A1F] to-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[#999999] rounded-[10px] p-2 mb-2.5">
                             <p
                               className={`text-lg font-medium cursor-pointer ${
                                 pick.predicted_winner === pick.player1 ? 'text-green-400' : ''
@@ -359,47 +368,78 @@ export default function TournamentPage() {
                             >
                               {displayPlayer1}
                             </p>
-                            <p
-                              className={`text-lg font-medium cursor-pointer ${
-                                pick.predicted_winner === pick.player2 ? 'text-green-400' : ''
-                              } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
-                              onClick={() =>
-                                tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)
-                              }
-                            >
-                              {displayPlayer2}
-                            </p>
-                          </>
+                          </div>
+                          {selectedRound !== "W" && index === 0 && (
+                            <div className="bg-gradient-to-r from-[#1B1A1F] to-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[#999999] rounded-[10px] p-2">
+                              <p
+                                className={`text-lg font-medium cursor-pointer ${
+                                  pick.predicted_winner === pick.player2 ? 'text-green-400' : ''
+                                } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
+                                onClick={() =>
+                                  tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)
+                                }
+                              >
+                                {displayPlayer2}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        {selectedRound !== "W" && index === 0 && (
+                          <svg width="20" height="40" viewBox="0 0 20 40" className="ml-2">
+                            <path d="M0 0 L20 0 L20 40 L0 40" stroke="#434343" fill="none" strokeWidth="2" />
+                          </svg>
+                        )}
+                        {selectedRound === "W" && (
+                          <p className="text-lg font-medium text-green-400 ml-2">
+                            Победитель: {displayPlayer1}
+                          </p>
                         )}
                       </div>
-                      <div className="flex space-x-4">
-                        {comparisonResult && selectedRound !== "W" && (
-                          <div>
+                    );
+                  })}
+                </div>
+                {pair.length === 2 && selectedRound !== "W" && (
+                  <svg width="40" height="80" viewBox="0 0 40 80" className="ml-2">
+                    <path d="M0 0 L40 0 L40 80 L0 80" stroke="#434343" fill="none" strokeWidth="2" />
+                    <rect x="10" y="30" width="20" height="20" rx="15" fill="#D9D9D9" />
+                  </svg>
+                )}
+                <div className="flex space-x-4 ml-4">
+                  {pair.map((pick) =>
+                    selectedRound !== "W" ? (
+                      (() => {
+                        const comparisonResult = comparison.find(
+                          (c) => c.round === pick.round && c.match_number === pick.match_number
+                        );
+                        return comparisonResult ? (
+                          <div key={`${pick.round}-${pick.match_number}`}>
                             <p className="text-gray-400">Прогноз: {comparisonResult.predicted_winner}</p>
                             <p className="text-gray-400">Факт: {comparisonResult.actual_winner}</p>
                             <p className={comparisonResult.correct ? 'text-green-400' : 'text-red-400'}>
                               {comparisonResult.correct ? 'Правильно' : 'Неправильно'}
                             </p>
                           </div>
-                        )}
-                        {pick.winner && selectedRound !== "W" && (
-                          <div>
-                            <p className="text-gray-400">W: {pick.winner}</p>
-                          </div>
-                        )}
+                        ) : null;
+                      })()
+                    ) : null
+                  )}
+                  {pair.map((pick) => (
+                    pick.winner && selectedRound !== "W" && (
+                      <div key={`${pick.round}-${pick.match_number}`}>
+                        <p className="text-gray-400">W: {pick.winner}</p>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
+                    )
+                  ))}
+                </div>
+              </div>
+            ))}
         </section>
       )}
 
       {tournament.status === 'ACTIVE' && (
         <button
           onClick={savePicks}
-          className="mt-6 px-4 py-2 bg-cyan-500 text-white rounded hover:bg-cyan-600"
+          className="mt-6 px-4 py-2 bg-gradient-to-r from-[#008CFF] to-[#0077FF] opacity-25 border border-[#00B2FF] text-[#CBCBCB] rounded-full"
         >
           Сохранить сетку
         </button>
