@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Tournament } from '@/types';
+import { motion } from 'framer-motion';
 
 // Указываем, что страница должна быть динамической
 export const dynamic = 'force-dynamic';
@@ -104,7 +105,6 @@ export default function TournamentPage() {
           setRounds(applicableRounds);
           setSelectedRound(found.starting_round);
 
-          // Инициализируем пики для всех раундов
           const initialPicks: Pick[] = [];
           for (let roundIndex = startIndex; roundIndex < allRounds.length; roundIndex++) {
             const round = allRounds[roundIndex];
@@ -145,7 +145,6 @@ export default function TournamentPage() {
             }
           });
 
-          // Добавляем финального победителя (W)
           initialPicks.push({
             round: "W",
             match_number: 1,
@@ -300,13 +299,13 @@ export default function TournamentPage() {
   const champion = championMatch?.actual_winner;
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white p-6">
-      <header className="mb-8">
+    <div className="min-h-screen bg-[#141414] text-white p-4">
+      <header className="mb-4">
         <Link href="/" className="text-cyan-400 hover:underline">
           ← Назад
         </Link>
-        <h1 className="text-4xl font-bold mt-4">{tournament.name}</h1>
-        <p className="text-gray-400 mt-2">{tournament.dates}</p>
+        <h1 className="text-3xl font-bold mt-2">{tournament.name}</h1>
+        <p className="text-gray-400 mt-1">{tournament.dates}</p>
         <span
           className={`mt-2 inline-block px-2 py-1 rounded text-sm ${
             tournament.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-500'
@@ -314,132 +313,117 @@ export default function TournamentPage() {
         >
           {tournament.status === 'ACTIVE' ? 'Активен' : 'Завершён'}
         </span>
-        {champion && selectedRound !== "W" && (
+        {champion && (
           <p className="text-green-400 mt-2">Победитель: {champion}</p>
         )}
       </header>
 
-      <div className="flex space-x-2 mb-6">
-        {rounds.map((round) => (
-          <button
-            key={round}
-            onClick={() => setSelectedRound(round)}
-            className={`px-3 py-1 rounded-full text-sm font-medium ${
-              selectedRound === round
-                ? 'bg-gradient-to-r from-[#008CFF] to-[#0077FF] opacity-25 border border-[#00B2FF] text-[#CBCBCB]'
-                : 'bg-gray-700 text-[#5F6067] hover:bg-gray-600'
-            }`}
-          >
-            {round}
-          </button>
-        ))}
+      <div className="overflow-x-auto mb-4">
+        <div className="flex gap-2 whitespace-nowrap">
+          {rounds.map((round) => (
+            <button
+              key={round}
+              onClick={() => setSelectedRound(round)}
+              className={`w-[53px] h-9 rounded-[25.5px] text-sm font-medium ${
+                selectedRound === round
+                  ? 'bg-gradient-to-r from-[rgba(0,140,255,0.26)] to-[rgba(0,119,255,0.26)] border-2 border-[#00B2FF] text-[#CBCBCB]'
+                  : 'bg-gray-700 text-[#5F6067] hover:bg-gray-600'
+              }`}
+            >
+              {round}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {selectedRound && (
-        <section className="grid gap-4">
-          {picks
-            .filter((pick) => pick.round === selectedRound)
-            .reduce((acc: Pick[][], curr, index) => {
-              if (index % 2 === 0) {
-                acc.push([curr]);
-              } else {
-                acc[acc.length - 1].push(curr);
-              }
-              return acc;
-            }, [])
-            .map((pair, pairIndex) => (
-              <div key={pairIndex} className="flex items-center mb-5">
-                <div className="pair flex flex-col items-start">
-                  {pair.map((pick, index) => {
+      <section className="overflow-x-auto">
+        <div className="flex gap-4 min-w-fit">
+          {rounds.map((round) => (
+            <div key={round} className="w-[320px] min-w-[320px]">
+              <h2 className="text-center text-sm font-semibold mb-2">{round}</h2>
+              <div className="flex flex-col gap-2">
+                {picks
+                  .filter((pick) => pick.round === round)
+                  .map((pick) => {
+                    const comparisonResult = comparison.find(
+                      (c) => c.round === pick.round && c.match_number === pick.match_number
+                    );
+
                     const displayPlayer1 = pick.player1 === "Q" || pick.player1 === "LL" ? pick.player1 : pick.player1 || 'TBD';
                     const displayPlayer2 = pick.player2 === "Q" || pick.player2 === "LL" ? pick.player2 : pick.player2 || 'TBD';
 
                     return (
-                      <div key={`${pick.round}-${pick.match_number}`} className="match flex items-center">
-                        <div className="flex flex-col">
-                          <div className="bg-gradient-to-r from-[#1B1A1F] to-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[#999999] rounded-[10px] p-2 mb-2.5">
+                      <motion.div
+                        key={`${pick.round}-${pick.match_number}`}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="w-full max-w-[320px] p-4 rounded-lg"
+                      >
+                        <div className="flex flex-col gap-2">
+                          <div
+                            className="w-[280px] h-10 bg-gradient-to-r from-[#1B1A1F] to-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[#999999] rounded-[10px] flex items-center px-4"
+                            onClick={() =>
+                              tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)
+                            }
+                          >
                             <p
-                              className={`text-lg font-medium cursor-pointer ${
+                              className={`text-base font-medium cursor-pointer ${
                                 pick.predicted_winner === pick.player1 ? 'text-green-400' : ''
                               } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
-                              onClick={() =>
-                                tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)
-                              }
                             >
                               {displayPlayer1}
                             </p>
                           </div>
-                          {selectedRound !== "W" && index === 0 && (
-                            <div className="bg-gradient-to-r from-[#1B1A1F] to-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[#999999] rounded-[10px] p-2">
+                          {round !== "W" && (
+                            <div
+                              className="w-[280px] h-10 bg-gradient-to-r from-[#1B1A1F] to-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[#999999] rounded-[10px] flex items-center px-4"
+                              onClick={() =>
+                                tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)
+                              }
+                            >
                               <p
-                                className={`text-lg font-medium cursor-pointer ${
+                                className={`text-base font-medium cursor-pointer ${
                                   pick.predicted_winner === pick.player2 ? 'text-green-400' : ''
                                 } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
-                                onClick={() =>
-                                  tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)
-                                }
                               >
                                 {displayPlayer2}
                               </p>
                             </div>
                           )}
+                          {round === "W" && (
+                            <p className="text-base font-medium text-green-400">
+                              Победитель: {displayPlayer1}
+                            </p>
+                          )}
+                          {round !== "W" && comparisonResult && (
+                            <div className="text-sm mt-2">
+                              <p className="text-gray-400">Прогноз: {comparisonResult.predicted_winner}</p>
+                              <p className="text-gray-400">Факт: {comparisonResult.actual_winner}</p>
+                              <p className={comparisonResult.correct ? 'text-green-400' : 'text-red-400'}>
+                                {comparisonResult.correct ? 'Правильно' : 'Неправильно'}
+                              </p>
+                            </div>
+                          )}
+                          {round !== "W" && pick.winner && (
+                            <div className="text-sm mt-2">
+                              <p className="text-gray-400">W: {pick.winner}</p>
+                            </div>
+                          )}
                         </div>
-                        {selectedRound !== "W" && index === 0 && (
-                          <svg width="20" height="40" viewBox="0 0 20 40" className="ml-2">
-                            <path d="M0 0 L20 0 L20 40 L0 40" stroke="#434343" fill="none" strokeWidth="2" />
-                          </svg>
-                        )}
-                        {selectedRound === "W" && (
-                          <p className="text-lg font-medium text-green-400 ml-2">
-                            Победитель: {displayPlayer1}
-                          </p>
-                        )}
-                      </div>
+                      </motion.div>
                     );
                   })}
-                </div>
-                {pair.length === 2 && selectedRound !== "W" && (
-                  <svg width="40" height="80" viewBox="0 0 40 80" className="ml-2">
-                    <path d="M0 0 L40 0 L40 80 L0 80" stroke="#434343" fill="none" strokeWidth="2" />
-                    <rect x="10" y="30" width="20" height="20" rx="15" fill="#D9D9D9" />
-                  </svg>
-                )}
-                <div className="flex space-x-4 ml-4">
-                  {pair.map((pick) =>
-                    selectedRound !== "W" ? (
-                      (() => {
-                        const comparisonResult = comparison.find(
-                          (c) => c.round === pick.round && c.match_number === pick.match_number
-                        );
-                        return comparisonResult ? (
-                          <div key={`${pick.round}-${pick.match_number}`}>
-                            <p className="text-gray-400">Прогноз: {comparisonResult.predicted_winner}</p>
-                            <p className="text-gray-400">Факт: {comparisonResult.actual_winner}</p>
-                            <p className={comparisonResult.correct ? 'text-green-400' : 'text-red-400'}>
-                              {comparisonResult.correct ? 'Правильно' : 'Неправильно'}
-                            </p>
-                          </div>
-                        ) : null;
-                      })()
-                    ) : null
-                  )}
-                  {pair.map((pick) => (
-                    pick.winner && selectedRound !== "W" && (
-                      <div key={`${pick.round}-${pick.match_number}`}>
-                        <p className="text-gray-400">W: {pick.winner}</p>
-                      </div>
-                    )
-                  ))}
-                </div>
               </div>
-            ))}
-        </section>
-      )}
+            </div>
+          ))}
+        </div>
+      </section>
 
       {tournament.status === 'ACTIVE' && (
         <button
           onClick={savePicks}
-          className="mt-6 px-4 py-2 bg-gradient-to-r from-[#008CFF] to-[#0077FF] opacity-25 border border-[#00B2FF] text-[#CBCBCB] rounded-full"
+          className="mt-4 w-full max-w-[320px] h-9 bg-gradient-to-r from-[rgba(0,140,255,0.26)] to-[rgba(0,119,255,0.26)] border-2 border-[#00B2FF] text-[#CBCBCB] rounded-[25.5px] text-sm font-medium"
         >
           Сохранить сетку
         </button>
