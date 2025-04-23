@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Tournament } from '@/types';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Указываем, что страница должна быть динамической
 export const dynamic = 'force-dynamic';
@@ -324,10 +324,10 @@ export default function TournamentPage() {
             <button
               key={round}
               onClick={() => setSelectedRound(round)}
-              className={`w-[53px] h-9 rounded-[25.5px] text-sm font-medium ${
+              className={`w-[53px] h-9 rounded-[25.5px] text-sm font-medium flex items-center justify-center ${
                 selectedRound === round
                   ? 'bg-gradient-to-r from-[rgba(0,140,255,0.26)] to-[rgba(0,119,255,0.26)] border-2 border-[#00B2FF] text-[#CBCBCB]'
-                  : 'bg-gray-700 text-[#5F6067] hover:bg-gray-600'
+                  : 'text-[#5F6067]'
               }`}
             >
               {round}
@@ -336,14 +336,21 @@ export default function TournamentPage() {
         </div>
       </div>
 
-      <section className="overflow-x-auto">
-        <div className="flex gap-4 min-w-fit">
-          {rounds.map((round) => (
-            <div key={round} className="w-[320px] min-w-[320px]">
-              <h2 className="text-center text-sm font-semibold mb-2">{round}</h2>
+      <section>
+        <AnimatePresence mode="wait">
+          {selectedRound && (
+            <motion.div
+              key={selectedRound}
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -100 }}
+              transition={{ duration: 0.3 }}
+              className="w-full max-w-[320px] mx-auto"
+            >
+              <h2 className="text-center text-sm font-semibold mb-2">{selectedRound}</h2>
               <div className="flex flex-col gap-2">
                 {picks
-                  .filter((pick) => pick.round === round)
+                  .filter((pick) => pick.round === selectedRound)
                   .map((pick) => {
                     const comparisonResult = comparison.find(
                       (c) => c.round === pick.round && c.match_number === pick.match_number
@@ -362,28 +369,28 @@ export default function TournamentPage() {
                       >
                         <div className="flex flex-col gap-2">
                           <div
-                            className="w-[280px] h-10 bg-gradient-to-r from-[#1B1A1F] to-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[#999999] rounded-[10px] flex items-center px-4"
+                            className="w-[280px] h-10 bg-gradient-to-r from-[#1B1A1F] to-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[rgba(153,153,153,0)] rounded-[10px] flex items-center px-4"
                             onClick={() =>
                               tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)
                             }
                           >
                             <p
-                              className={`text-base font-medium cursor-pointer ${
+                              className={`text-base font-medium cursor-pointer text-[#5F6067] ${
                                 pick.predicted_winner === pick.player1 ? 'text-green-400' : ''
                               } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
                             >
                               {displayPlayer1}
                             </p>
                           </div>
-                          {round !== "W" && (
+                          {selectedRound !== "W" && (
                             <div
-                              className="w-[280px] h-10 bg-gradient-to-r from-[#1B1A1F] to-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[#999999] rounded-[10px] flex items-center px-4"
+                              className="w-[280px] h-10 bg-gradient-to-r from-[#1B1A1F] to-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[rgba(153,153,153,0)] rounded-[10px] flex items-center px-4"
                               onClick={() =>
                                 tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)
                               }
                             >
                               <p
-                                className={`text-base font-medium cursor-pointer ${
+                                className={`text-base font-medium cursor-pointer text-[#5F6067] ${
                                   pick.predicted_winner === pick.player2 ? 'text-green-400' : ''
                                 } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
                               >
@@ -391,12 +398,12 @@ export default function TournamentPage() {
                               </p>
                             </div>
                           )}
-                          {round === "W" && (
+                          {selectedRound === "W" && (
                             <p className="text-base font-medium text-green-400">
                               Победитель: {displayPlayer1}
                             </p>
                           )}
-                          {round !== "W" && comparisonResult && (
+                          {selectedRound !== "W" && comparisonResult && (
                             <div className="text-sm mt-2">
                               <p className="text-gray-400">Прогноз: {comparisonResult.predicted_winner}</p>
                               <p className="text-gray-400">Факт: {comparisonResult.actual_winner}</p>
@@ -405,7 +412,7 @@ export default function TournamentPage() {
                               </p>
                             </div>
                           )}
-                          {round !== "W" && pick.winner && (
+                          {selectedRound !== "W" && pick.winner && (
                             <div className="text-sm mt-2">
                               <p className="text-gray-400">W: {pick.winner}</p>
                             </div>
@@ -415,9 +422,9 @@ export default function TournamentPage() {
                     );
                   })}
               </div>
-            </div>
-          ))}
-        </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
 
       {tournament.status === 'ACTIVE' && (
