@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Tournament } from '@/types';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 
 // Указываем, что страница должна быть динамической
 export const dynamic = 'force-dynamic';
@@ -41,6 +41,33 @@ export default function TournamentPage() {
 
   const allRounds = useMemo(() => ["R128", "R64", "R32", "R16", "QF", "SF", "F"], []);
   const [rounds, setRounds] = useState<string[]>([]);
+
+  // Логика для свайпа
+  const handleSwipe = (direction: 'left' | 'right') => {
+    if (!selectedRound || !rounds.length) return;
+
+    const currentIndex = rounds.indexOf(selectedRound);
+    if (direction === 'left' && currentIndex < rounds.length - 1) {
+      setSelectedRound(rounds[currentIndex + 1]);
+    } else if (direction === 'right' && currentIndex > 0) {
+      setSelectedRound(rounds[currentIndex - 1]);
+    }
+  };
+
+  // Обработчики для свайпа
+  const dragHandlers = {
+    drag: "x" as const,
+    dragConstraints: { left: 0, right: 0 },
+    dragElastic: 0.2,
+    onDragEnd: (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+      const offset = info.offset.x;
+      if (offset > 50) {
+        handleSwipe('right');
+      } else if (offset < -50) {
+        handleSwipe('left');
+      }
+    },
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -341,13 +368,13 @@ export default function TournamentPage() {
           {selectedRound && (
             <motion.div
               key={selectedRound}
-              initial={{ opacity: 0, x: 100 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -100 }}
+              initial={{ x: 100 }}
+              animate={{ x: 0 }}
+              exit={{ x: -100 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-[320px] mx-auto"
+              className="w-full max-w-[320px]"
+              {...dragHandlers}
             >
-              <h2 className="text-center text-sm font-semibold mb-2">{selectedRound}</h2>
               <div className="flex flex-col gap-2">
                 {picks
                   .filter((pick) => pick.round === selectedRound)
@@ -362,14 +389,14 @@ export default function TournamentPage() {
                     return (
                       <motion.div
                         key={`${pick.round}-${pick.match_number}`}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        initial={{ y: 20 }}
+                        animate={{ y: 0 }}
                         transition={{ duration: 0.3 }}
                         className="w-full max-w-[320px] p-4 rounded-lg"
                       >
                         <div className="flex flex-col gap-2">
                           <div
-                            className="w-[280px] h-10 bg-gradient-to-r from-[#1B1A1F] to-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[rgba(153,153,153,0)] rounded-[10px] flex items-center px-4"
+                            className="w-[280px] h-10 bg-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[rgba(153,153,153,0)] rounded-[10px] flex items-center px-4 border-opacity-15"
                             onClick={() =>
                               tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)
                             }
@@ -384,7 +411,7 @@ export default function TournamentPage() {
                           </div>
                           {selectedRound !== "W" && (
                             <div
-                              className="w-[280px] h-10 bg-gradient-to-r from-[#1B1A1F] to-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[rgba(153,153,153,0)] rounded-[10px] flex items-center px-4"
+                              className="w-[280px] h-10 bg-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[rgba(153,153,153,0)] rounded-[10px] flex items-center px-4 border-opacity-15"
                               onClick={() =>
                                 tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)
                               }
@@ -428,12 +455,14 @@ export default function TournamentPage() {
       </section>
 
       {tournament.status === 'ACTIVE' && (
-        <button
-          onClick={savePicks}
-          className="mt-4 w-full max-w-[320px] h-9 bg-gradient-to-r from-[rgba(0,140,255,0.26)] to-[rgba(0,119,255,0.26)] border-2 border-[#00B2FF] text-[#CBCBCB] rounded-[25.5px] text-sm font-medium"
-        >
-          Сохранить сетку
-        </button>
+        <div className="flex justify-center">
+          <button
+            onClick={savePicks}
+            className="mt-4 w-full max-w-[320px] h-9 bg-gradient-to-r from-[rgba(0,140,255,0.26)] to-[rgba(0,119,255,0.26)] border-2 border-[#00B2FF] text-[#CBCBCB] rounded-[25.5px] text-sm font-medium"
+          >
+            Сохранить сетку
+          </button>
+        </div>
       )}
     </div>
   );
