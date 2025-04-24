@@ -396,13 +396,35 @@ export default function TournamentPage() {
                       >
                         <div className="flex flex-col gap-2">
                           <div
-                            className="w-[280px] h-10 bg-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[rgba(153,153,153,0)] rounded-[10px] flex items-center px-4 border-opacity-15"
+                            style={{
+                              position: 'relative',
+                              background: 'linear-gradient(180deg, #1B1A1F 0%, #161616 100%)',
+                              borderRadius: '12px',
+                              padding: '12px',
+                              color: 'white',
+                              zIndex: 1,
+                            }}
                             onClick={() =>
                               tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)
                             }
                           >
+                            <div
+                              style={{
+                                content: '""',
+                                position: 'absolute',
+                                inset: 0,
+                                padding: '1px',
+                                background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(153,153,153,0) 100%)',
+                                borderRadius: 'inherit',
+                                WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                                WebkitMaskComposite: 'xor',
+                                maskComposite: 'exclude',
+                                zIndex: -1,
+                                pointerEvents: 'none',
+                              }}
+                            />
                             <p
-                              className={`text-base font-medium cursor-pointer text-[#5F6067] ${
+                              className={`text-base font-medium cursor-pointer ${
                                 pick.predicted_winner === pick.player1 ? 'text-green-400' : ''
                               } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
                             >
@@ -411,13 +433,35 @@ export default function TournamentPage() {
                           </div>
                           {selectedRound !== "W" && (
                             <div
-                              className="w-[280px] h-10 bg-[#161616] border border-gradient-to-r from-[rgba(255,255,255,0.25)] to-[rgba(153,153,153,0)] rounded-[10px] flex items-center px-4 border-opacity-15"
+                              style={{
+                                position: 'relative',
+                                background: 'linear-gradient(180deg, #1B1A1F 0%, #161616 100%)',
+                                borderRadius: '12px',
+                                padding: '12px',
+                                color: 'white',
+                                zIndex: 1,
+                              }}
                               onClick={() =>
                                 tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)
                               }
                             >
+                              <div
+                                style={{
+                                  content: '""',
+                                  position: 'absolute',
+                                  inset: 0,
+                                  padding: '1px',
+                                  background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(153,153,153,0) 100%)',
+                                  borderRadius: 'inherit',
+                                  WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                                  WebkitMaskComposite: 'xor',
+                                  maskComposite: 'exclude',
+                                  zIndex: -1,
+                                  pointerEvents: 'none',
+                                }}
+                              />
                               <p
-                                className={`text-base font-medium cursor-pointer text-[#5F6067] ${
+                                className={`text-base font-medium cursor-pointer ${
                                   pick.predicted_winner === pick.player2 ? 'text-green-400' : ''
                                 } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
                               >
@@ -426,9 +470,35 @@ export default function TournamentPage() {
                             </div>
                           )}
                           {selectedRound === "W" && (
-                            <p className="text-base font-medium text-green-400">
-                              Победитель: {displayPlayer1}
-                            </p>
+                            <div
+                              style={{
+                                position: 'relative',
+                                background: 'linear-gradient(180deg, #1B1A1F 0%, #161616 100%)',
+                                borderRadius: '12px',
+                                padding: '12px',
+                                color: 'white',
+                                zIndex: 1,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  content: '""',
+                                  position: 'absolute',
+                                  inset: 0,
+                                  padding: '1px',
+                                  background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(153,153,153,0) 100%)',
+                                  borderRadius: 'inherit',
+                                  WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                                  WebkitMaskComposite: 'xor',
+                                  maskComposite: 'exclude',
+                                  zIndex: -1,
+                                  pointerEvents: 'none',
+                                }}
+                              />
+                              <p className="text-base font-medium text-green-400">
+                                Победитель: {displayPlayer1}
+                              </p>
+                            </div>
                           )}
                           {selectedRound !== "W" && comparisonResult && (
                             <div className="text-sm mt-2">
