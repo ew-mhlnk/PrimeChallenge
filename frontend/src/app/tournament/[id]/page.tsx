@@ -290,7 +290,7 @@ export default function TournamentPage() {
         match_number: p.match_number,
         player1: p.player1 || "",
         player2: p.player2 || "",
-        predicted_winner: p.predicted_winner || "", // Сохраняем даже пустые predicted_winner
+        predicted_winner: p.predicted_winner || "",
       }));
 
       console.log('>>> [savePicks] Sending data:', picksToSave);
@@ -312,11 +312,12 @@ export default function TournamentPage() {
       }
 
       const responseData = await response.json();
+      console.log('>>> [savePicks] Response data:', responseData); // Добавляем логирование ответа
+
       if (responseData.status !== 'success') {
         throw new Error('Сохранение пиков не удалось');
       }
 
-      // Загружаем сохранённые пики после успешного сохранения
       const picksRes = await fetch(
         `https://primechallenge.onrender.com/picks/?tournament_id=${tournament.id}`,
         {

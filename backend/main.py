@@ -12,10 +12,13 @@ app = FastAPI()
 # Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://prime-challenge.vercel.app"],  # Разрешаем запросы с фронтенда
+    allow_origins=[
+        "https://prime-challenge.vercel.app",
+        "https://primechallenge.onrender.com",  # Добавляем домен фронтенда
+    ],
     allow_credentials=True,
-    allow_methods=["*"],  # Разрешаем все методы (GET, POST, OPTIONS и т.д.)
-    allow_headers=["*"],  # Разрешаем все заголовки
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Настройка логирования
@@ -23,10 +26,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Подключаем маршруты
-app.include_router(tournaments.router, prefix="/tournaments", tags=["tournaments"])  # Добавили .router
-app.include_router(auth.router, prefix="/auth", tags=["auth"])  # Добавили .router
-app.include_router(picks.router, prefix="/picks", tags=["picks"])  # Добавили .router
-app.include_router(results.router, prefix="/results", tags=["results"])  # Добавили .router
+app.include_router(tournaments.router, prefix="/tournaments", tags=["tournaments"])
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(picks.router, prefix="/picks", tags=["picks"])
+app.include_router(results.router, prefix="/results", tags=["results"])
 
 # Инициализация базы данных
 def init_db():
@@ -51,7 +54,7 @@ async def shutdown_event():
     scheduler.shutdown()
     logger.info("Application shutdown complete")
 
-@app.get("/sync")  # Добавили GET для удобства
+@app.get("/sync")
 @app.post("/sync")
 async def manual_sync():
     await sync_google_sheets_with_db(engine)
