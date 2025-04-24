@@ -312,7 +312,7 @@ export default function TournamentPage() {
       }
 
       const responseData = await response.json();
-      console.log('>>> [savePicks] Response data:', responseData); // Добавляем логирование ответа
+      console.log('>>> [savePicks] Response data:', responseData);
 
       if (responseData.status !== 'success') {
         throw new Error('Сохранение пиков не удалось');

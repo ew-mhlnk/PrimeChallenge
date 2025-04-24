@@ -90,7 +90,7 @@ async def create_or_update_picks(
         
         db.commit()
         logger.info(f"Saved {len(db_picks)} picks for user {user_id} in tournament {tournament_id}")
-        return {"status": "success"}  # Изменили возврат на словарь
+        return {"status": "success"}
     except HTTPException as e:
         raise e
     except Exception as e:
