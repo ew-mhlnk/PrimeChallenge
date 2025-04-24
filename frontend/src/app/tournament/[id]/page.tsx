@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { Tournament } from '@/types';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 
-// Указываем, что страница должна быть динамической
 export const dynamic = 'force-dynamic';
 
 interface Pick {
@@ -42,7 +41,6 @@ export default function TournamentPage() {
   const allRounds = useMemo(() => ["R128", "R64", "R32", "R16", "QF", "SF", "F"], []);
   const [rounds, setRounds] = useState<string[]>([]);
 
-  // Логика для свайпа
   const handleSwipe = (direction: 'left' | 'right') => {
     if (!selectedRound || !rounds.length) return;
 
@@ -54,7 +52,6 @@ export default function TournamentPage() {
     }
   };
 
-  // Обработчики для свайпа
   const dragHandlers = {
     drag: "x" as const,
     dragConstraints: { left: 0, right: 0 },
@@ -172,6 +169,32 @@ export default function TournamentPage() {
             }
           });
 
+          if (userId) {
+            const picksRes = await fetch(
+              `https://primechallenge.onrender.com/picks/?tournament_id=${found.id}`,
+              {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Telegram-Init-Data': initData || '',
+                },
+              }
+            );
+            if (picksRes.ok) {
+              const userPicks: Pick[] = await picksRes.json();
+              userPicks.forEach((userPick) => {
+                const matchIndex = initialPicks.findIndex(
+                  (p) => p.round === userPick.round && p.match_number === userPick.match_number
+                );
+                if (matchIndex !== -1) {
+                  initialPicks[matchIndex].predicted_winner = userPick.predicted_winner || "";
+                }
+              });
+            } else {
+              console.error('>>> [fetchTournamentAndMatches] Не удалось загрузить пики:', picksRes.status);
+            }
+          }
+
           initialPicks.push({
             round: "W",
             match_number: 1,
@@ -210,7 +233,7 @@ export default function TournamentPage() {
 
     initTelegram();
     fetchTournamentAndMatches();
-  }, [id, userId, allRounds]);
+  }, [id, userId, allRounds, initData]);
 
   const handlePick = (match: Pick, player: string) => {
     const newPicks = [...picks];
@@ -261,16 +284,14 @@ export default function TournamentPage() {
     }
 
     try {
-      const picksToSave = picks
-        .filter((p) => p.predicted_winner)
-        .map((p) => ({
-          tournament_id: tournament.id,
-          round: p.round,
-          match_number: p.match_number,
-          player1: p.player1 || "",
-          player2: p.player2 || "",
-          predicted_winner: p.predicted_winner,
-        }));
+      const picksToSave = picks.map((p) => ({
+        tournament_id: tournament.id,
+        round: p.round,
+        match_number: p.match_number,
+        player1: p.player1 || "",
+        player2: p.player2 || "",
+        predicted_winner: p.predicted_winner || "", // Сохраняем даже пустые predicted_winner
+      }));
 
       console.log('>>> [savePicks] Sending data:', picksToSave);
 
@@ -288,6 +309,38 @@ export default function TournamentPage() {
         const errorText = await response.text();
         console.log('>>> [savePicks] Error response:', errorText);
         throw new Error(`Ошибка при сохранении пиков: ${response.status} - ${errorText}`);
+      }
+
+      const responseData = await response.json();
+      if (responseData.status !== 'success') {
+        throw new Error('Сохранение пиков не удалось');
+      }
+
+      // Загружаем сохранённые пики после успешного сохранения
+      const picksRes = await fetch(
+        `https://primechallenge.onrender.com/picks/?tournament_id=${tournament.id}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Telegram-Init-Data': initData,
+          },
+        }
+      );
+      if (picksRes.ok) {
+        const userPicks: Pick[] = await picksRes.json();
+        const updatedPicks = [...picks];
+        userPicks.forEach((userPick) => {
+          const matchIndex = updatedPicks.findIndex(
+            (p) => p.round === userPick.round && p.match_number === userPick.match_number
+          );
+          if (matchIndex !== -1) {
+            updatedPicks[matchIndex].predicted_winner = userPick.predicted_winner || "";
+          }
+        });
+        setPicks(updatedPicks);
+      } else {
+        console.error('>>> [savePicks] Не удалось загрузить пики после сохранения:', picksRes.status);
       }
 
       alert('Пики успешно сохранены!');

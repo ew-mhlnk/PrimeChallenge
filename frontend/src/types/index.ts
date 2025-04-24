@@ -26,3 +26,22 @@ export interface Match {
   winner?: string;
   predicted_winner: string;
 }
+
+export interface Pick {
+  round: string;
+  match_number: number;
+  player1: string;
+  player2: string;
+  predicted_winner: string;
+  winner?: string;
+}
+
+export interface ComparisonResult {
+  round: string;
+  match_number: number;
+  player1: string;
+  player2: string;
+  predicted_winner: string;
+  actual_winner: string;
+  correct: boolean;
+}
