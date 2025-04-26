@@ -293,7 +293,21 @@ export default function TournamentPage() {
         predicted_winner: p.predicted_winner || "",
       }));
 
-      console.log('>>> [savePicks] Sending data:', picksToSave);
+      // Логируем полный JSON, который отправляем
+      console.log('>>> [savePicks] Sending JSON:', JSON.stringify(picksToSave, null, 2));
+
+      // Логируем пики по раундам для удобства
+      const picksByRound = picksToSave.reduce((acc, pick) => {
+        if (!acc[pick.round]) {
+          acc[pick.round] = [];
+        }
+        acc[pick.round].push({
+          match_number: pick.match_number,
+          predicted_winner: pick.predicted_winner,
+        });
+        return acc;
+      }, {} as Record<string, Array<{ match_number: number; predicted_winner: string }>>);
+      console.log('>>> [savePicks] Picks by round:', picksByRound);
 
       const response = await fetch('https://primechallenge.onrender.com/picks/', {
         method: 'POST',
