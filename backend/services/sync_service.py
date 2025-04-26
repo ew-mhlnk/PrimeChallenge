@@ -76,13 +76,16 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
             logger.error(f"Unexpected headers in 'tournaments' worksheet: {headers}")
             raise ValueError(f"Expected headers {expected_headers}, but got {headers}")
 
-        # Очищаем связанные таблицы перед удалением турниров
-        conn.execute(text("DELETE FROM true_draw"))  # Сначала удаляем записи из true_draw
-        conn.execute(text("DELETE FROM tournaments"))  # Затем удаляем из tournaments
+        # Получаем текущие турниры из базы данных
+        existing_tournaments = conn.execute(text("SELECT id, status FROM tournaments")).fetchall()
+        existing_tournament_ids = {row[0] for row in existing_tournaments}
+        existing_tournament_status = {row[0]: row[1] for row in existing_tournaments}
 
-        # Парсим строки (начиная со второй, где данные)
+        # Парсим данные из Google Sheets
         current_time = datetime.now()
         tournaments_to_sync = []
+        new_tournament_ids = set()
+
         for row in tournament_data[1:]:
             if len(row) < 8:  # Убедимся, что строка содержит все данные
                 logger.warning(f"Skipping incomplete row in 'tournaments': {row}")
@@ -98,6 +101,8 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                 tournament_type = row[6]  # G: Type
                 start_time = row[7]  # H: Start
 
+                new_tournament_ids.add(tournament_id)
+
                 # Проверяем и обновляем статус на основе даты
                 try:
                     start_datetime = parse_datetime(start_time)
@@ -112,11 +117,19 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     logger.warning(f"Invalid status for tournament {tournament_id}: {status}")
                     continue
 
-                # Сохраняем турнир в базу
+                # Обновляем или добавляем турнир
                 conn.execute(
                     text("""
                         INSERT INTO tournaments (id, name, dates, status, sheet_name, starting_round, type, start)
                         VALUES (:id, :name, :dates, :status, :sheet_name, :starting_round, :type, :start)
+                        ON CONFLICT (id) DO UPDATE
+                        SET name = EXCLUDED.name,
+                            dates = EXCLUDED.dates,
+                            status = EXCLUDED.status,
+                            sheet_name = EXCLUDED.sheet_name,
+                            starting_round = EXCLUDED.starting_round,
+                            type = EXCLUDED.type,
+                            start = EXCLUDED.start
                     """),
                     {
                         "id": tournament_id,
@@ -130,18 +143,38 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     }
                 )
 
-                # Если турнир не COMPLETED, добавляем его в список для синхронизации true_draw
-                if status != "COMPLETED":
+                # Определяем, нужно ли синхронизировать true_draw
+                # Синхронизируем только для ACTIVE турниров
+                if status == "ACTIVE":
                     tournaments_to_sync.append((tournament_id, sheet_name, starting_round))
                 else:
-                    logger.info(f"Skipping sync for tournament {tournament_id} as it is COMPLETED")
+                    logger.info(f"Skipping sync for tournament {tournament_id} as it is {status}")
 
-                logger.info(f"Added tournament {tournament_id}: {name}")
+                logger.info(f"Synced tournament {tournament_id}: {name}")
             except Exception as e:
                 logger.error(f"Error processing tournament row {row}: {str(e)}")
                 continue
 
-        # Шаг 2: Парсим турнирные сетки из листов, указанных в sheet_name
+        # Удаляем турниры, которых больше нет в Google Sheets
+        tournaments_to_delete = existing_tournament_ids - new_tournament_ids
+        if tournaments_to_delete:
+            logger.info(f"Deleting tournaments not in Google Sheets: {tournaments_to_delete}")
+            for tournament_id in tournaments_to_delete:
+                # Удаляем связанные записи из true_draw и user_picks
+                conn.execute(
+                    text("DELETE FROM true_draw WHERE tournament_id = :tournament_id"),
+                    {"tournament_id": tournament_id}
+                )
+                conn.execute(
+                    text("DELETE FROM user_picks WHERE tournament_id = :tournament_id"),
+                    {"tournament_id": tournament_id}
+                )
+                conn.execute(
+                    text("DELETE FROM tournaments WHERE id = :tournament_id"),
+                    {"tournament_id": tournament_id}
+                )
+
+        # Шаг 2: Парсим турнирные сетки из листов, указанных в sheet_name, только для ACTIVE турниров
         for tournament_id, sheet_name, starting_round in tournaments_to_sync:
             try:
                 logger.info(f"Processing tournament {tournament_id} with sheet name {sheet_name}")
@@ -152,11 +185,17 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     logger.warning(f"No data found in sheet {sheet_name} for tournament {tournament_id}")
                     continue
 
-                # Очищаем существующие записи true_draw для этого турнира
-                conn.execute(
-                    text("DELETE FROM true_draw WHERE tournament_id = :tournament_id"),
+                # Получаем текущие записи true_draw для этого турнира
+                existing_matches = conn.execute(
+                    text("""
+                        SELECT round, match_number
+                        FROM true_draw
+                        WHERE tournament_id = :tournament_id
+                    """),
                     {"tournament_id": tournament_id}
-                )
+                ).fetchall()
+                existing_match_keys = {(row[0], row[1]) for row in existing_matches}
+                new_match_keys = set()
 
                 # Определяем раунды из первой строки
                 headers = data[0]
@@ -208,6 +247,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
 
                         # Определяем номер матча (считаем матчи в этом раунде)
                         match_number = sum(1 for r in range(1, row_idx, 2) if data[r][col_idx].strip() and data[r + 1][col_idx].strip()) + 1
+                        new_match_keys.add((round_name, match_number))
 
                         # Парсим результаты сетов (следующие 5 колонок после раунда)
                         set1 = player1_row[col_idx + 1] if col_idx + 1 < len(player1_row) and player1_row[col_idx + 1] else None
@@ -232,11 +272,20 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             elif next_player2 in [player1, player2]:
                                 winner = next_player2
 
-                        # Сохраняем матч в базу
+                        # Сохраняем матч в базу (обновляем или добавляем)
                         conn.execute(
                             text("""
                                 INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, set1, set2, set3, set4, set5, winner)
                                 VALUES (:tournament_id, :round, :match_number, :player1, :player2, :set1, :set2, :set3, :set4, :set5, :winner)
+                                ON CONFLICT (tournament_id, round, match_number) DO UPDATE
+                                SET player1 = EXCLUDED.player1,
+                                    player2 = EXCLUDED.player2,
+                                    set1 = EXCLUDED.set1,
+                                    set2 = EXCLUDED.set2,
+                                    set3 = EXCLUDED.set3,
+                                    set4 = EXCLUDED.set4,
+                                    set5 = EXCLUDED.set5,
+                                    winner = EXCLUDED.winner
                             """),
                             {
                                 "tournament_id": tournament_id,
@@ -252,10 +301,28 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                                 "winner": winner
                             }
                         )
-                        logger.info(f"Added match: {round_name} #{match_number} - {player1} vs {player2}")
+                        logger.info(f"Synced match: {round_name} #{match_number} - {player1} vs {player2}")
 
                     row_idx += 2  # Переходим к следующей паре игроков
-                
+
+                # Удаляем матчи, которых больше нет в Google Sheets
+                matches_to_delete = existing_match_keys - new_match_keys
+                for round, match_number in matches_to_delete:
+                    conn.execute(
+                        text("""
+                            DELETE FROM true_draw
+                            WHERE tournament_id = :tournament_id
+                            AND round = :round
+                            AND match_number = :match_number
+                        """),
+                        {
+                            "tournament_id": tournament_id,
+                            "round": round,
+                            "match_number": match_number
+                        }
+                    )
+                    logger.info(f"Deleted match: {round} #{match_number} for tournament {tournament_id}")
+
                 logger.info(f"Successfully synced sheet {sheet_name} for tournament {tournament_id}")
             
             except gspread.exceptions.WorksheetNotFound:
