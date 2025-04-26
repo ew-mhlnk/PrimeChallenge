@@ -8,7 +8,7 @@ from utils.auth import verify_telegram_data
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-logger.info("Loading picks router - version with status.value check (v2)")
+logger.info("Loading picks router - version with status.value check (v3)")
 
 @router.get("/")
 async def get_picks(tournament_id: int, request: Request, db: Session = Depends(get_db)):
@@ -64,32 +64,53 @@ async def create_or_update_picks(
             raise HTTPException(status_code=400, detail="Cannot submit picks for a non-ACTIVE tournament")
 
         # Удаляем существующие пики пользователя для этого турнира
-        db.query(models.UserPick).filter(
+        deleted_count = db.query(models.UserPick).filter(
             models.UserPick.user_id == user_id,
             models.UserPick.tournament_id == tournament_id
         ).delete()
+        logger.info(f"Deleted {deleted_count} existing picks for user {user_id} in tournament {tournament_id}")
 
-        # Создаём новые пики
+        # Создаём новые пики, только если predicted_winner не пустой
         db_picks = []
         for pick in picks:
             if pick["tournament_id"] != tournament_id:
                 logger.error(f"Inconsistent tournament_id in picks: {pick['tournament_id']}")
                 raise HTTPException(status_code=400, detail="All picks must belong to the same tournament")
             
+            # Логируем каждый пик перед обработкой
+            logger.info(f"Processing pick: round={pick['round']}, match_number={pick['match_number']}, predicted_winner={pick['predicted_winner']}")
+            
+            # Пропускаем пики с пустым predicted_winner
+            if not pick["predicted_winner"]:
+                logger.info(f"Skipping pick for round {pick['round']} match {pick['match_number']} - predicted_winner is empty")
+                continue
+            
             db_pick = models.UserPick(
                 user_id=user_id,
                 tournament_id=pick["tournament_id"],
                 round=pick["round"],
                 match_number=pick["match_number"],
-                player1=pick["player1"],
-                player2=pick["player2"],
+                player1=pick["player1"] or "",  # Обрабатываем пустые строки
+                player2=pick["player2"] or "",  # Обрабатываем пустые строки
                 predicted_winner=pick["predicted_winner"]
             )
             db.add(db_pick)
             db_picks.append(db_pick)
+            logger.info(f"Added pick to session: round={pick['round']}, match_number={pick['match_number']}")
         
+        # Коммитим изменения
         db.commit()
-        logger.info(f"Saved {len(db_picks)} picks for user {user_id} in tournament {tournament_id}")
+        logger.info(f"Committed {len(db_picks)} picks for user {user_id} in tournament {tournament_id}")
+
+        # Проверяем, что пики действительно сохранены в базе
+        saved_picks = db.query(models.UserPick).filter(
+            models.UserPick.user_id == user_id,
+            models.UserPick.tournament_id == tournament_id
+        ).all()
+        logger.info(f"After commit, found {len(saved_picks)} picks in database")
+        for saved_pick in saved_picks:
+            logger.info(f"Saved pick: round={saved_pick.round}, match_number={saved_pick.match_number}, predicted_winner={saved_pick.predicted_winner}")
+
         return {"status": "success"}
     except HTTPException as e:
         raise e
