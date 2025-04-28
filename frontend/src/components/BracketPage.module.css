@@ -1,0 +1,32 @@
+.playerCell {
+    position: relative;
+    width: 280px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+  }
+  
+  .playerCell::after {
+    content: "";
+    position: absolute;
+    right: -20px;
+    top: 50%;
+    width: 20px;
+    height: 2px;
+    background: #5F6067;
+  }
+  
+  .matchContainer {
+    position: relative;
+    padding-right: 30px; /* Место для линий */
+  }
+  
+  .verticalLine {
+    position: absolute;
+    right: 10px;
+    top: 20px;
+    width: 2px;
+    height: 52px; /* 40px (высота ячейки) + 12px (отступ между ячейками) */
+    background: #5F6067;
+  }
