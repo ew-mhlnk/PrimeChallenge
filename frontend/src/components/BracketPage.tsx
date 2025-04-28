@@ -108,7 +108,7 @@ export default function BracketPage() {
 
       <section>
         <AnimatePresence mode="wait">
-          {selectedRound && (
+          {selectedRound ? (
             <motion.div
               key={selectedRound}
               initial={{ x: 100 }}
@@ -118,146 +118,140 @@ export default function BracketPage() {
               className="w-full max-w-[320px]"
               {...dragHandlers}
             >
-              <div className="flex flex-col gap-2">
-                {picks
-                  .filter((pick) => pick.round === selectedRound)
-                  .map((pick) => {
-                    const comparisonResult = comparison.find(
-                      (c) => c.round === pick.round && c.match_number === pick.match_number
-                    );
-                    const displayPlayer1 = pick.player1 === "Q" || pick.player1 === "LL" ? pick.player1 : pick.player1 || 'TBD';
-                    const displayPlayer2 = pick.player2 === "Q" || pick.player2 === "LL" ? pick.player2 : pick.player2 || 'TBD';
+              {picks.length === 0 ? (
+                <p className="text-red-400">Матчи не найдены для раунда {selectedRound}</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {picks
+                    .filter((pick) => pick.round === selectedRound)
+                    .map((pick) => {
+                      const comparisonResult = comparison.find(
+                        (c) => c.round === pick.round && c.match_number === pick.match_number
+                      );
+                      const displayPlayer1 = pick.player1 === "Q" || pick.player1 === "LL" ? pick.player1 : pick.player1 || 'TBD';
+                      const displayPlayer2 = pick.player2 === "Q" || pick.player2 === "LL" ? pick.player2 : pick.player2 || 'TBD';
 
-                    return (
-                      <motion.div
-                        key={`${pick.round}-${pick.match_number}`}
-                        initial={{ y: 20 }}
-                        animate={{ y: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="w-full max-w-[320px] p-4 rounded-lg"
-                      >
-                        <div className="flex flex-col gap-2">
-                          <div
-                            style={{
-                              position: 'relative',
-                              background: 'linear-gradient(180deg, #1B1A1F 0%, #161616 100%)',
-                              borderRadius: '12px',
-                              padding: '12px',
-                              color: 'white',
-                              zIndex: 1,
-                            }}
-                            onClick={() => tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)}
-                          >
+                      const isPlayer1Selected = pick.predicted_winner === pick.player1;
+                      const isPlayer2Selected = pick.predicted_winner === pick.player2;
+
+                      return (
+                        <motion.div
+                          key={`${pick.round}-${pick.match_number}`}
+                          initial={{ y: 20 }}
+                          animate={{ y: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="w-full max-w-[320px] p-4 rounded-lg"
+                        >
+                          <div className="flex flex-col gap-2">
+                            {/* Ячейка для первого игрока */}
                             <div
+                              data-layer="Rectangle 549"
+                              className="Rectangle549 flex items-center"
                               style={{
-                                content: '""',
-                                position: 'absolute',
-                                inset: 0,
-                                padding: '1px',
-                                background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(153,153,153,0) 100%)',
-                                borderRadius: 'inherit',
-                                WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-                                WebkitMaskComposite: 'xor',
-                                maskComposite: 'exclude',
-                                zIndex: -1,
-                                pointerEvents: 'none',
+                                width: '280px',
+                                height: '40px',
+                                background: isPlayer1Selected
+                                  ? 'linear-gradient(90deg, #102F51 0%, #102E51 100%)'
+                                  : 'linear-gradient(90deg, #161616 0%, #161616 100%)',
+                                borderRadius: '10px',
+                                border: isPlayer1Selected
+                                  ? '1px solid rgba(0, 178, 255, 0.18)'
+                                  : '1px solid rgba(255, 255, 255, 0.18)',
                               }}
-                            />
-                            <p
-                              className={`text-base font-medium cursor-pointer ${
-                                pick.predicted_winner === pick.player1 ? 'text-green-400' : ''
-                              } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
+                              onClick={() => tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)}
                             >
-                              {displayPlayer1}
-                            </p>
-                          </div>
-                          {selectedRound !== "W" && (
-                            <div
-                              style={{
-                                position: 'relative',
-                                background: 'linear-gradient(180deg, #1B1A1F 0%, #161616 100%)',
-                                borderRadius: '12px',
-                                padding: '12px',
-                                color: 'white',
-                                zIndex: 1,
-                              }}
-                              onClick={() => tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)}
-                            >
-                              <div
-                                style={{
-                                  content: '""',
-                                  position: 'absolute',
-                                  inset: 0,
-                                  padding: '1px',
-                                  background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(153,153,153,0) 100%)',
-                                  borderRadius: 'inherit',
-                                  WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-                                  WebkitMaskComposite: 'xor',
-                                  maskComposite: 'exclude',
-                                  zIndex: -1,
-                                  pointerEvents: 'none',
-                                }}
-                              />
                               <p
-                                className={`text-base font-medium cursor-pointer ${
-                                  pick.predicted_winner === pick.player2 ? 'text-green-400' : ''
-                                } ${tournament.status === 'ACTIVE' ? 'hover:underline' : ''}`}
-                              >
-                                {displayPlayer2}
-                              </p>
-                            </div>
-                          )}
-                          {selectedRound === "W" && (
-                            <div
-                              style={{
-                                position: 'relative',
-                                background: 'linear-gradient(180deg, #1B1A1F 0%, #161616 100%)',
-                                borderRadius: '12px',
-                                padding: '12px',
-                                color: 'white',
-                                zIndex: 1,
-                              }}
-                            >
-                              <div
+                                className={`text-[14px] font-semibold break-words ${isPlayer1Selected ? 'text-[#CBCBCB]' : 'text-[#5F6067]'} ${tournament.status === 'ACTIVE' ? 'cursor-pointer hover:underline' : ''}`}
                                 style={{
-                                  content: '""',
-                                  position: 'absolute',
-                                  inset: 0,
-                                  padding: '1px',
-                                  background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(153,153,153,0) 100%)',
-                                  borderRadius: 'inherit',
-                                  WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-                                  WebkitMaskComposite: 'xor',
-                                  maskComposite: 'exclude',
-                                  zIndex: -1,
-                                  pointerEvents: 'none',
+                                  paddingLeft: '15px',
+                                  lineHeight: '40px',
                                 }}
-                              />
-                              <p className="text-base font-medium text-green-400">
-                                Победитель: {displayPlayer1}
+                              >
+                                {displayPlayer1}
                               </p>
                             </div>
-                          )}
-                          {selectedRound !== "W" && comparisonResult && (
-                            <div className="text-sm mt-2">
-                              <p className="text-gray-400">Прогноз: {comparisonResult.predicted_winner}</p>
-                              <p className="text-gray-400">Факт: {comparisonResult.actual_winner}</p>
-                              <p className={comparisonResult.correct ? 'text-green-400' : 'text-red-400'}>
-                                {comparisonResult.correct ? 'Правильно' : 'Неправильно'}
-                              </p>
-                            </div>
-                          )}
-                          {selectedRound !== "W" && pick.winner && (
-                            <div className="text-sm mt-2">
-                              <p className="text-gray-400">W: {pick.winner}</p>
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-              </div>
+
+                            {/* Ячейка для второго игрока (если не финальный раунд "W") */}
+                            {selectedRound !== "W" && (
+                              <div
+                                data-layer="Rectangle 550"
+                                className="Rectangle550 flex items-center"
+                                style={{
+                                  width: '280px',
+                                  height: '40px',
+                                  background: isPlayer2Selected
+                                    ? 'linear-gradient(90deg, #102F51 0%, #102E51 100%)'
+                                    : 'linear-gradient(90deg, #161616 0%, #161616 100%)',
+                                  borderRadius: '10px',
+                                  border: isPlayer2Selected
+                                    ? '1px solid rgba(0, 178, 255, 0.18)'
+                                    : '1px solid rgba(255, 255, 255, 0.18)',
+                                }}
+                                onClick={() => tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)}
+                              >
+                                <p
+                                  className={`text-[14px] font-semibold break-words ${isPlayer2Selected ? 'text-[#CBCBCB]' : 'text-[#5F6067]'} ${tournament.status === 'ACTIVE' ? 'cursor-pointer hover:underline' : ''}`}
+                                  style={{
+                                    paddingLeft: '15px',
+                                    lineHeight: '40px',
+                                  }}
+                                >
+                                  {displayPlayer2}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Ячейка для победителя (раунд "W") */}
+                            {selectedRound === "W" && (
+                              <div
+                                data-layer="Rectangle 549"
+                                className="Rectangle549 flex items-center"
+                                style={{
+                                  width: '280px',
+                                  height: '40px',
+                                  background: 'linear-gradient(90deg, #161616 0%, #161616 100%)',
+                                  borderRadius: '10px',
+                                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                                }}
+                              >
+                                <p
+                                  className="text-[14px] font-semibold break-words text-green-400"
+                                  style={{
+                                    paddingLeft: '15px',
+                                    lineHeight: '40px',
+                                  }}
+                                >
+                                  Победитель: {displayPlayer1}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Результаты сравнения (если есть) */}
+                            {selectedRound !== "W" && comparisonResult && (
+                              <div className="text-sm mt-2">
+                                <p className="text-gray-400">Прогноз: {comparisonResult.predicted_winner}</p>
+                                <p className="text-gray-400">Факт: {comparisonResult.actual_winner}</p>
+                                <p className={comparisonResult.correct ? 'text-green-400' : 'text-red-400'}>
+                                  {comparisonResult.correct ? 'Правильно' : 'Неправильно'}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Фактический победитель матча (если есть) */}
+                            {selectedRound !== "W" && pick.winner && (
+                              <div className="text-sm mt-2">
+                                <p className="text-gray-400">W: {pick.winner}</p>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                </div>
+              )}
             </motion.div>
+          ) : (
+            <p className="text-red-400">Раунд не выбран</p>
           )}
         </AnimatePresence>
       </section>
@@ -265,8 +259,8 @@ export default function BracketPage() {
       {tournament.status === 'ACTIVE' && (
         <div className="flex justify-center">
           <button
-            onClick={savePicks}
             className="mt-4 w-full max-w-[320px] h-9 bg-gradient-to-r from-[rgba(0,140,255,0.26)] to-[rgba(0,119,255,0.26)] border-2 border-[#00B2FF] text-[#CBCBCB] rounded-[25.5px] text-sm font-medium"
+            onClick={savePicks}
           >
             Сохранить сетку
           </button>
