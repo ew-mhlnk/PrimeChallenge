@@ -4,40 +4,30 @@
     border-radius: 10px;
     display: flex;
     align-items: center;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0%, rgba(153, 153, 153, 0) 100%);
   }
   
   .matchContainer {
     position: relative;
-    padding-right: 60px; /* Увеличим место для линий, чтобы они могли соединяться с следующим уровнем */
+    padding-right: 60px; /* Место для линий */
   }
   
-  .horizontalLine {
+  .matchContainer::after {
+    content: "";
+    display: block;
     position: absolute;
-    right: 0;
-    width: 30px; /* Длина горизонтальной линии */
-    height: 2px;
-    background: #5F6067;
-  }
-  
-  .verticalLine {
-    position: absolute;
-    right: 30px; /* Отступ от правого края ячейки */
-    width: 2px;
-    height: 52px; /* 40px (высота ячейки) + 12px (отступ между ячейками) */
-    background: #5F6067;
-  }
-  
-  .connectorLine {
-    position: absolute;
-    right: 0; /* Начинается там, где заканчивается вертикальная линия */
-    width: 30px; /* Длина линии, ведущей к следующему уровню */
-    height: 2px;
-    background: #5F6067;
+    left: -30px; /* Расстояние от левого края ячейки */
+    width: 30px; /* Длина горизонтальной части линии */
+    border-right: 1px solid #7a7a7a;
+    border-top: 1px solid #7a7a7a;
+    border-bottom: 1px solid #7a7a7a;
+    border-top-right-radius: 16px;
+    border-bottom-right-radius: 16px;
+    top: 25%;
+    height: 50%; /* Высота линии = 50% от контейнера (92px / 2 = 46px) */
   }
   
   /* Для финального раунда линии не нужны */
-  .noLines .horizontalLine,
-  .noLines .verticalLine,
-  .noLines .connectorLine {
+  .noLines::after {
     display: none;
   }

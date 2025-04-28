@@ -161,7 +161,7 @@ export default function BracketPage() {
 
                         // Определяем стили ячеек
                         const getCellStyle = (isSelected: boolean, isCorrect: boolean | null, isWinner: boolean) => {
-                          let background = 'linear-gradient(90deg, #161616 0%, #161616 100%)';
+                          let background = 'linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0%, rgba(153, 153, 153, 0) 100%)';
                           let border = '1px solid rgba(255, 255, 255, 0.18)';
                           let color = '#5F6067';
                           let textDecoration = 'none';
@@ -235,11 +235,6 @@ export default function BracketPage() {
                                     )}
                                   </div>
                                 </div>
-                                {/* Горизонтальная линия для первого игрока */}
-                                <div
-                                  className={styles.horizontalLine}
-                                  style={{ top: '20px' }} // Центр ячейки по высоте
-                                />
                               </div>
 
                               {/* Ячейка для второго игрока (если не финальный раунд "W") */}
@@ -275,23 +270,7 @@ export default function BracketPage() {
                                       )}
                                     </div>
                                   </div>
-                                  {/* Горизонтальная линия для второго игрока */}
-                                  <div
-                                    className={styles.horizontalLine}
-                                    style={{ top: '20px' }} // Центр ячейки по высоте
-                                  />
                                 </div>
-                              )}
-
-                              {/* Вертикальная соединяющая линия и соединительная линия к следующему уровню */}
-                              {selectedRound !== "W" && (
-                                <>
-                                  <div className={styles.verticalLine} />
-                                  <div
-                                    className={styles.connectorLine}
-                                    style={{ top: '46px' }} // Центр между двумя ячейками: (40px + 12px + 40px) / 2
-                                  />
-                                </>
                               )}
 
                               {/* Ячейка для победителя (раунд "W") */}
