@@ -1,5 +1,7 @@
+'use client';
+
 import { useEffect, useState } from 'react';
-import { Tournament, Pick, ComparisonResult } from '@/types'; // Правильный импорт
+import { Tournament, Pick, ComparisonResult } from '@/types'; // Теперь ссылаемся на types.ts
 
 interface UseTournamentLogicProps {
   id: string | undefined;

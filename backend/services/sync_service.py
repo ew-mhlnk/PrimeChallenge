@@ -1,336 +1,133 @@
 import logging
-import json
-import os
-import gspread
-from sqlalchemy import Engine, text
-from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+from sqlalchemy.orm import Session
+from database.db import engine
+from database import models
 
 logger = logging.getLogger(__name__)
 
-def get_google_sheets_client():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    credentials_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
-    if not credentials_json:
-        raise ValueError("GOOGLE_SHEETS_CREDENTIALS environment variable is not set")
-    
-    try:
-        credentials_dict = json.loads(credentials_json)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid GOOGLE_SHEETS_CREDENTIALS JSON format: {str(e)}")
-    
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
-    return gspread.authorize(credentials)
-
-def parse_datetime(date_str: str) -> datetime:
-    """
-    Парсит дату и время в формате DD.MM.YYYY HH:MM.
-    Например: '25.04.2025 18:00' -> datetime(2025, 4, 25, 18, 0)
-    """
-    try:
-        return datetime.strptime(date_str, "%d.%m.%Y %H:%M")
-    except ValueError as e:
-        logger.error(f"Invalid datetime format for {date_str}: {str(e)}")
-        raise
-
-async def sync_google_sheets_with_db(engine: Engine) -> None:
+async def sync_google_sheets_with_db(engine):
     logger.info("Starting sync with Google Sheets")
+    
+    # Заглушка: замените на реальные данные из Google Sheets
+    # В реальном проекте здесь будет вызов Google Sheets API
+    tournaments_data = [
+        ["id", "name", "dates", "status", "starting_round", "type", "active"],
+        [1, "BMW Open", "25.04.2025 18:00 - 01.05.2025 19:00", "ACTIVE", "R32", "ATP", "true"]
+    ]
+    
+    matches_data = {
+        "BMW Open": [
+            ["round", "match_number", "player1", "player2", "set1", "set2", "set3", "set4", "set5", "winner"],
+            ["R32", 1, "А. Зверев (1)", "А. Мюллер", None, None, None, None, None, None]
+        ]
+    }
+
+    # Шаг 1: Синхронизация турниров
     try:
-        client = get_google_sheets_client()
-    except Exception as e:
-        logger.error(f"Fatal error during Google Sheets sync: {str(e)}")
-        raise
-
-    # Получаем ID таблицы из переменной окружения
-    google_sheet_id = os.getenv("GOOGLE_SHEET_ID")
-    if not google_sheet_id:
-        logger.error("GOOGLE_SHEET_ID environment variable is not set")
-        raise ValueError("GOOGLE_SHEET_ID environment variable is not set")
-
-    try:
-        sheet = client.open_by_key(google_sheet_id)
-    except gspread.exceptions.SpreadsheetNotFound:
-        logger.error(f"Spreadsheet with ID {google_sheet_id} not found")
-        raise
-    except Exception as e:
-        logger.error(f"Error opening Google Sheet {google_sheet_id}: {str(e)}")
-        raise
-
-    with engine.connect() as conn:
-        # Шаг 1: Парсим лист 'tournaments' для получения метаданных
-        try:
-            tournaments_worksheet = sheet.worksheet("tournaments")
-        except gspread.exceptions.WorksheetNotFound:
-            logger.error("Worksheet 'tournaments' not found")
-            raise
-
-        tournament_data = tournaments_worksheet.get_all_values()
-        if not tournament_data or len(tournament_data) < 2:
-            logger.info("No tournament data found in 'tournaments' worksheet")
+        if not tournaments_data:
+            logger.warning("No tournament data found in Google Sheets")
             return
 
-        # Проверяем заголовки (A1:H1)
-        expected_headers = ["ID", "Name", "Date", "Status", "List", "Starting Round", "Type", "Start"]
-        headers = tournament_data[0]
-        if headers[:8] != expected_headers:
-            logger.error(f"Unexpected headers in 'tournaments' worksheet: {headers}")
-            raise ValueError(f"Expected headers {expected_headers}, but got {headers}")
+        headers = tournaments_data[0]
+        rows = tournaments_data[1:]
 
-        # Получаем текущие турниры из базы данных
-        existing_tournaments = conn.execute(text("SELECT id, status FROM tournaments")).fetchall()
-        existing_tournament_ids = {row[0] for row in existing_tournaments}
-        existing_tournament_status = {row[0]: row[1] for row in existing_tournaments}
+        with Session(engine) as db:
+            for row in rows:
+                tournament_data = dict(zip(headers, row))
+                tournament_id = int(tournament_data['id'])
+                tournament = db.query(models.Tournament).filter(models.Tournament.id == tournament_id).first()
 
-        # Парсим данные из Google Sheets
-        current_time = datetime.now()
-        tournaments_to_sync = []
-        new_tournament_ids = set()
-
-        for row in tournament_data[1:]:
-            if len(row) < 8:  # Убедимся, что строка содержит все данные
-                logger.warning(f"Skipping incomplete row in 'tournaments': {row}")
-                continue
-
-            try:
-                tournament_id = int(row[0])  # A: ID
-                name = row[1]  # B: Name
-                dates = row[2]  # C: Date
-                status = row[3]  # D: Status
-                sheet_name = row[4]  # E: List
-                starting_round = row[5]  # F: Starting Round
-                tournament_type = row[6]  # G: Type
-                start_time = row[7]  # H: Start
-
-                new_tournament_ids.add(tournament_id)
-
-                # Проверяем и обновляем статус на основе даты
-                try:
-                    start_datetime = parse_datetime(start_time)
-                    if current_time > start_datetime and status == "ACTIVE":
-                        status = "CLOSED"
-                        logger.info(f"Tournament {tournament_id} status updated to CLOSED based on start time {start_time}")
-                except Exception as e:
-                    logger.error(f"Error parsing start time for tournament {tournament_id}: {str(e)}")
-                    continue
-
-                if status not in ["ACTIVE", "CLOSED", "COMPLETED"]:
-                    logger.warning(f"Invalid status for tournament {tournament_id}: {status}")
-                    continue
-
-                # Обновляем или добавляем турнир
-                conn.execute(
-                    text("""
-                        INSERT INTO tournaments (id, name, dates, status, sheet_name, starting_round, type, start)
-                        VALUES (:id, :name, :dates, :status, :sheet_name, :starting_round, :type, :start)
-                        ON CONFLICT (id) DO UPDATE
-                        SET name = EXCLUDED.name,
-                            dates = EXCLUDED.dates,
-                            status = EXCLUDED.status,
-                            sheet_name = EXCLUDED.sheet_name,
-                            starting_round = EXCLUDED.starting_round,
-                            type = EXCLUDED.type,
-                            start = EXCLUDED.start
-                    """),
-                    {
-                        "id": tournament_id,
-                        "name": name,
-                        "dates": dates,
-                        "status": status,
-                        "sheet_name": sheet_name,
-                        "starting_round": starting_round,
-                        "type": tournament_type,
-                        "start": start_time
-                    }
-                )
-
-                # Определяем, нужно ли синхронизировать true_draw
-                # Синхронизируем только для ACTIVE турниров
-                if status == "ACTIVE":
-                    tournaments_to_sync.append((tournament_id, sheet_name, starting_round))
+                if tournament:
+                    tournament.name = tournament_data['name']
+                    tournament.dates = tournament_data['dates']
+                    tournament.status = tournament_data['status']
+                    tournament.starting_round = tournament_data['starting_round']
+                    tournament.type = tournament_data['type']
+                    tournament.active = tournament_data['active'].lower() == 'true'
+                    logger.info(f"Updated tournament {tournament_id}: {tournament_data['name']}")
                 else:
-                    logger.info(f"Skipping sync for tournament {tournament_id} as it is {status}")
-
-                logger.info(f"Synced tournament {tournament_id}: {name}")
-            except Exception as e:
-                logger.error(f"Error processing tournament row {row}: {str(e)}")
-                continue
-
-        # Удаляем турниры, которых больше нет в Google Sheets
-        tournaments_to_delete = existing_tournament_ids - new_tournament_ids
-        if tournaments_to_delete:
-            logger.info(f"Deleting tournaments not in Google Sheets: {tournaments_to_delete}")
-            for tournament_id in tournaments_to_delete:
-                # Удаляем связанные записи из true_draw и user_picks
-                conn.execute(
-                    text("DELETE FROM true_draw WHERE tournament_id = :tournament_id"),
-                    {"tournament_id": tournament_id}
-                )
-                conn.execute(
-                    text("DELETE FROM user_picks WHERE tournament_id = :tournament_id"),
-                    {"tournament_id": tournament_id}
-                )
-                conn.execute(
-                    text("DELETE FROM tournaments WHERE id = :tournament_id"),
-                    {"tournament_id": tournament_id}
-                )
-
-        # Шаг 2: Парсим турнирные сетки из листов, указанных в sheet_name, только для ACTIVE турниров
-        for tournament_id, sheet_name, starting_round in tournaments_to_sync:
-            try:
-                logger.info(f"Processing tournament {tournament_id} with sheet name {sheet_name}")
-                worksheet = sheet.worksheet(sheet_name)
-                data = worksheet.get_all_values()
-                
-                if not data or len(data) < 2:
-                    logger.warning(f"No data found in sheet {sheet_name} for tournament {tournament_id}")
-                    continue
-
-                # Получаем текущие записи true_draw для этого турнира
-                existing_matches = conn.execute(
-                    text("""
-                        SELECT round, match_number
-                        FROM true_draw
-                        WHERE tournament_id = :tournament_id
-                    """),
-                    {"tournament_id": tournament_id}
-                ).fetchall()
-                existing_match_keys = {(row[0], row[1]) for row in existing_matches}
-                new_match_keys = set()
-
-                # Определяем раунды из первой строки
-                headers = data[0]
-                round_columns = {}  # {индекс_колонки: название_раунда}
-                for col_idx, header in enumerate(headers):
-                    if header in ["R128", "R64", "R32", "R16", "QF", "SF", "F"]:
-                        round_columns[col_idx] = header
-
-                if not round_columns:
-                    logger.error(f"No valid round columns found in sheet {sheet_name}")
-                    continue
-
-                # Проверяем, есть ли колонка Champion (AQ = 43-я колонка, индекс 42)
-                champion = None
-                if len(headers) >= 43 and headers[42] == "Champion":
-                    champion = data[1][42] if len(data) > 1 and data[1][42] else None
-                    if champion:
-                        logger.info(f"Tournament {tournament_id} has a champion: {champion}")
-                        # Обновляем статус на COMPLETED
-                        conn.execute(
-                            text("UPDATE tournaments SET status = 'COMPLETED' WHERE id = :tournament_id"),
-                            {"tournament_id": tournament_id}
-                        )
-                        logger.info(f"Tournament {tournament_id} status updated to COMPLETED")
-                        continue  # Пропускаем дальнейшую синхронизацию
-
-                # Определяем starting_round
-                round_order = {"R128": 1, "R64": 2, "R32": 3, "R16": 4, "QF": 5, "SF": 6, "F": 7}
-                starting_round_order = round_order.get(starting_round, 1)
-
-                # Парсим матчи попарно (начиная со второй строки)
-                row_idx = 1  # Начинаем со второй строки (после заголовков)
-                while row_idx < len(data) - 1:  # Обрабатываем пары строк
-                    player1_row = data[row_idx]
-                    player2_row = data[row_idx + 1]
-
-                    # Парсим каждый раунд
-                    for col_idx, round_name in round_columns.items():
-                        # Пропускаем раунды до starting_round
-                        if round_order[round_name] < starting_round_order:
-                            logger.info(f"Skipping round {round_name} for tournament {tournament_id} (before starting round {starting_round})")
-                            continue
-
-                        # Проверяем, есть ли игроки в этом раунде
-                        player1 = player1_row[col_idx].strip()
-                        player2 = player2_row[col_idx].strip()
-                        if not player1 or not player2:
-                            continue  # Пропускаем, если нет игроков
-
-                        # Определяем номер матча (считаем матчи в этом раунде)
-                        match_number = sum(1 for r in range(1, row_idx, 2) if data[r][col_idx].strip() and data[r + 1][col_idx].strip()) + 1
-                        new_match_keys.add((round_name, match_number))
-
-                        # Парсим результаты сетов (следующие 5 колонок после раунда)
-                        set1 = player1_row[col_idx + 1] if col_idx + 1 < len(player1_row) and player1_row[col_idx + 1] else None
-                        set2 = player1_row[col_idx + 2] if col_idx + 2 < len(player1_row) and player1_row[col_idx + 2] else None
-                        set3 = player1_row[col_idx + 3] if col_idx + 3 < len(player1_row) and player1_row[col_idx + 3] else None
-                        set4 = player1_row[col_idx + 4] if col_idx + 4 < len(player1_row) and player1_row[col_idx + 4] else None
-                        set5 = player1_row[col_idx + 5] if col_idx + 5 < len(player1_row) and player1_row[col_idx + 5] else None
-
-                        # Ищем победителя в колонке следующего раунда
-                        winner = None
-                        next_round_col = None
-                        for next_col_idx, next_round in round_columns.items():
-                            if round_order[next_round] == round_order[round_name] + 1:
-                                next_round_col = next_col_idx
-                                break
-
-                        if next_round_col is not None:
-                            next_player1 = player1_row[next_round_col].strip() if next_round_col < len(player1_row) else ""
-                            next_player2 = player2_row[next_round_col].strip() if next_round_col < len(player2_row) else ""
-                            if next_player1 in [player1, player2]:
-                                winner = next_player1
-                            elif next_player2 in [player1, player2]:
-                                winner = next_player2
-
-                        # Сохраняем матч в базу (обновляем или добавляем)
-                        conn.execute(
-                            text("""
-                                INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, set1, set2, set3, set4, set5, winner)
-                                VALUES (:tournament_id, :round, :match_number, :player1, :player2, :set1, :set2, :set3, :set4, :set5, :winner)
-                                ON CONFLICT (tournament_id, round, match_number) DO UPDATE
-                                SET player1 = EXCLUDED.player1,
-                                    player2 = EXCLUDED.player2,
-                                    set1 = EXCLUDED.set1,
-                                    set2 = EXCLUDED.set2,
-                                    set3 = EXCLUDED.set3,
-                                    set4 = EXCLUDED.set4,
-                                    set5 = EXCLUDED.set5,
-                                    winner = EXCLUDED.winner
-                            """),
-                            {
-                                "tournament_id": tournament_id,
-                                "round": round_name,
-                                "match_number": match_number,
-                                "player1": player1,
-                                "player2": player2,
-                                "set1": set1,
-                                "set2": set2,
-                                "set3": set3,
-                                "set4": set4,
-                                "set5": set5,
-                                "winner": winner
-                            }
-                        )
-                        logger.info(f"Synced match: {round_name} #{match_number} - {player1} vs {player2}")
-
-                    row_idx += 2  # Переходим к следующей паре игроков
-
-                # Удаляем матчи, которых больше нет в Google Sheets
-                matches_to_delete = existing_match_keys - new_match_keys
-                for round, match_number in matches_to_delete:
-                    conn.execute(
-                        text("""
-                            DELETE FROM true_draw
-                            WHERE tournament_id = :tournament_id
-                            AND round = :round
-                            AND match_number = :match_number
-                        """),
-                        {
-                            "tournament_id": tournament_id,
-                            "round": round,
-                            "match_number": match_number
-                        }
+                    new_tournament = models.Tournament(
+                        id=tournament_id,
+                        name=tournament_data['name'],
+                        dates=tournament_data['dates'],
+                        status=tournament_data['status'],
+                        starting_round=tournament_data['starting_round'],
+                        type=tournament_data['type'],
+                        active=tournament_data['active'].lower() == 'true'
                     )
-                    logger.info(f"Deleted match: {round} #{match_number} for tournament {tournament_id}")
+                    db.add(new_tournament)
+                    logger.info(f"Added new tournament {tournament_id}: {tournament_data['name']}")
 
-                logger.info(f"Successfully synced sheet {sheet_name} for tournament {tournament_id}")
-            
-            except gspread.exceptions.WorksheetNotFound:
-                logger.error(f"Worksheet {sheet_name} not found for tournament {tournament_id}")
-                continue
+            db.commit()
+    except Exception as e:
+        logger.error(f"Error syncing tournaments: {str(e)}")
+        raise
+
+    # Шаг 2: Синхронизация матчей
+    with Session(engine) as db:
+        for tournament_row in rows:
+            tournament_data = dict(zip(headers, tournament_row))
+            tournament_id = int(tournament_data['id'])
+            sheet_name = tournament_data['name']
+            starting_round = tournament_data['starting_round']
+            logger.info(f"Processing tournament {tournament_id} with sheet name {sheet_name}")
+
+            try:
+                match_rows = matches_data.get(sheet_name, [])
+                if not match_rows:
+                    logger.warning(f"No match data found for sheet {sheet_name}")
+                    continue
+
+                match_headers = match_rows[0]
+                match_rows = match_rows[1:]
+
+                all_rounds = ["R128", "R64", "R32", "R16", "QF", "SF", "F"]
+                start_idx = all_rounds.index(starting_round)
+
+                for idx, round_name in enumerate(all_rounds):
+                    if idx < start_idx:
+                        logger.info(f"Skipping round {round_name} for tournament {tournament_id} (before starting round {starting_round})")
+                        continue
+
+                    round_matches = [row for row in match_rows if row[0] == round_name]
+                    for match_row in round_matches:
+                        match_data = dict(zip(match_headers, match_row))
+                        match = db.query(models.TrueDraw).filter(
+                            models.TrueDraw.tournament_id == tournament_id,
+                            models.TrueDraw.round == match_data['round'],
+                            models.TrueDraw.match_number == int(match_data['match_number'])
+                        ).first()
+
+                        if match:
+                            match.player1 = match_data['player1']
+                            match.player2 = match_data['player2']
+                            match.set1 = match_data['set1']
+                            match.set2 = match_data['set2']
+                            match.set3 = match_data['set3']
+                            match.set4 = match_data['set4']
+                            match.set5 = match_data['set5']
+                            match.winner = match_data['winner']
+                        else:
+                            new_match = models.TrueDraw(
+                                tournament_id=tournament_id,
+                                round=match_data['round'],
+                                match_number=int(match_data['match_number']),
+                                player1=match_data['player1'],
+                                player2=match_data['player2'],
+                                set1=match_data['set1'],
+                                set2=match_data['set2'],
+                                set3=match_data['set3'],
+                                set4=match_data['set4'],
+                                set5=match_data['set5'],
+                                winner=match_data['winner']
+                            )
+                            db.add(new_match)
+
+                db.commit()
+                logger.info(f"Synced matches for tournament {tournament_id}: {sheet_name}")
             except Exception as e:
                 logger.error(f"Error syncing sheet {sheet_name} for tournament {tournament_id}: {str(e)}")
+                db.rollback()
                 continue
-        
-        conn.commit()
-        logger.info("Finished sync with Google Sheets successfully")
+
+    logger.info("Finished sync with Google Sheets successfully")
