@@ -72,11 +72,16 @@ export default function BracketPage() {
 
   return (
     <div className="min-h-screen bg-[#141414] text-white p-4">
-      <header className="mb-4">
-        <Link href="/" className="text-cyan-400 hover:underline">
+      <header>
+        {/* 1. Кнопка "Назад" */}
+        <Link href="/" className="text-[#5F6067] text-[16px]">
           ← Назад
         </Link>
-        <h1 className="text-3xl font-bold mt-2">{tournament.name}</h1>
+
+        {/* 2. Название турнира */}
+        <h1 className="mt-[40px] text-[14px] font-bold text-[#FFFFFF]">
+          {tournament.name}
+        </h1>
         <p className="text-gray-400 mt-1">{tournament.dates}</p>
         <span
           className={`mt-2 inline-block px-2 py-1 rounded text-sm ${
@@ -88,7 +93,20 @@ export default function BracketPage() {
         {champion && <p className="text-green-400 mt-2">Победитель: {champion}</p>}
       </header>
 
-      <div className="overflow-x-auto mb-4">
+      {/* 4. Бенто баннер (заглушка) */}
+      <div
+        data-layer="Rectangle 541"
+        className="Rectangle541 mt-[40px]"
+        style={{
+          width: '337px',
+          height: '124px',
+          background: '#D9D9D9',
+          borderRadius: '29px',
+        }}
+      ></div>
+
+      {/* 5. Кнопки с раундами */}
+      <div className="overflow-x-auto mt-[40px] mb-4">
         <div className="flex gap-2 whitespace-nowrap">
           {rounds.map((round) => (
             <button
@@ -106,7 +124,8 @@ export default function BracketPage() {
         </div>
       </div>
 
-      <section>
+      {/* 7-11. Сетка */}
+      <section className="mt-[40px]">
         <AnimatePresence mode="wait">
           {selectedRound ? (
             <motion.div
@@ -121,7 +140,7 @@ export default function BracketPage() {
               {picks.length === 0 ? (
                 <p className="text-red-400">Матчи не найдены для раунда {selectedRound}</p>
               ) : (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-[20px]">
                   {picks
                     .filter((pick) => pick.round === selectedRound)
                     .map((pick) => {
@@ -134,70 +153,120 @@ export default function BracketPage() {
                       const isPlayer1Selected = pick.predicted_winner === pick.player1;
                       const isPlayer2Selected = pick.predicted_winner === pick.player2;
 
+                      // Проверяем, кто фактический победитель
+                      const isPlayer1Winner = comparisonResult?.actual_winner === pick.player1;
+                      const isPlayer2Winner = comparisonResult?.actual_winner === pick.player2;
+
+                      // Определяем стили ячеек
+                      const getCellStyle = (isSelected: boolean, isCorrect: boolean | null, isWinner: boolean) => {
+                        let background = 'linear-gradient(90deg, #161616 0%, #161616 100%)';
+                        let border = '1px solid rgba(255, 255, 255, 0.18)';
+                        let color = '#5F6067';
+                        let textDecoration = 'none';
+
+                        if (isSelected && !comparisonResult) {
+                          // 8. Ячейка при нажатии (до сравнения)
+                          background = 'linear-gradient(90deg, #102F51 0%, #102E51 100%)';
+                          border = '1px solid rgba(0, 178, 255, 0.18)';
+                          color = '#CBCBCB';
+                        } else if (comparisonResult) {
+                          if (isWinner) {
+                            // 9. Правильная ячейка (фактический победитель)
+                            background = 'linear-gradient(90deg, #1D1F1A 0%, #161616 100%)';
+                            color = '#5B7E60';
+                          } else {
+                            // 10. Неправильная ячейка (не победитель)
+                            background = 'linear-gradient(90deg, #201212 0%, #161616 100%)';
+                            color = '#7E5B5B';
+                            textDecoration = 'line-through';
+                          }
+                        }
+
+                        return {
+                          width: '280px',
+                          height: '40px',
+                          background,
+                          borderRadius: '10px',
+                          border,
+                          display: 'flex',
+                          alignItems: 'center',
+                          color,
+                          textDecoration,
+                        };
+                      };
+
                       return (
                         <motion.div
                           key={`${pick.round}-${pick.match_number}`}
                           initial={{ y: 20 }}
                           animate={{ y: 0 }}
                           transition={{ duration: 0.3 }}
-                          className="w-full max-w-[320px] p-4 rounded-lg"
+                          className="w-full max-w-[320px]"
                         >
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-[12px]">
                             {/* Ячейка для первого игрока */}
                             <div
                               data-layer="Rectangle 549"
-                              className="Rectangle549 flex items-center"
-                              style={{
-                                width: '280px',
-                                height: '40px',
-                                background: isPlayer1Selected
-                                  ? 'linear-gradient(90deg, #102F51 0%, #102E51 100%)'
-                                  : 'linear-gradient(90deg, #161616 0%, #161616 100%)',
-                                borderRadius: '10px',
-                                border: isPlayer1Selected
-                                  ? '1px solid rgba(0, 178, 255, 0.18)'
-                                  : '1px solid rgba(255, 255, 255, 0.18)',
-                              }}
+                              className="Rectangle549"
+                              style={getCellStyle(isPlayer1Selected, comparisonResult?.correct, isPlayer1Winner)}
                               onClick={() => tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)}
                             >
-                              <p
-                                className={`text-[14px] font-semibold break-words ${isPlayer1Selected ? 'text-[#CBCBCB]' : 'text-[#5F6067]'} ${tournament.status === 'ACTIVE' ? 'cursor-pointer hover:underline' : ''}`}
-                                style={{
-                                  paddingLeft: '15px',
-                                  lineHeight: '40px',
-                                }}
-                              >
-                                {displayPlayer1}
-                              </p>
+                              <div className="flex items-center">
+                                <p
+                                  className="text-[14px]"
+                                  style={{
+                                    paddingLeft: '15px',
+                                    lineHeight: '40px',
+                                  }}
+                                >
+                                  {displayPlayer1}
+                                </p>
+                                {/* 10. Правильная фамилия рядом, если игрок проиграл */}
+                                {comparisonResult && !isPlayer1Winner && (
+                                  <p
+                                    className="text-[14px] text-[#5F6067]"
+                                    style={{
+                                      marginLeft: '10px',
+                                      lineHeight: '40px',
+                                    }}
+                                  >
+                                    {comparisonResult.actual_winner}
+                                  </p>
+                                )}
+                              </div>
                             </div>
 
                             {/* Ячейка для второго игрока (если не финальный раунд "W") */}
                             {selectedRound !== "W" && (
                               <div
                                 data-layer="Rectangle 550"
-                                className="Rectangle550 flex items-center"
-                                style={{
-                                  width: '280px',
-                                  height: '40px',
-                                  background: isPlayer2Selected
-                                    ? 'linear-gradient(90deg, #102F51 0%, #102E51 100%)'
-                                    : 'linear-gradient(90deg, #161616 0%, #161616 100%)',
-                                  borderRadius: '10px',
-                                  border: isPlayer2Selected
-                                    ? '1px solid rgba(0, 178, 255, 0.18)'
-                                    : '1px solid rgba(255, 255, 255, 0.18)',
-                                }}
+                                className="Rectangle550"
+                                style={getCellStyle(isPlayer2Selected, comparisonResult?.correct, isPlayer2Winner)}
                                 onClick={() => tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)}
                               >
-                                <p
-                                  className={`text-[14px] font-semibold break-words ${isPlayer2Selected ? 'text-[#CBCBCB]' : 'text-[#5F6067]'} ${tournament.status === 'ACTIVE' ? 'cursor-pointer hover:underline' : ''}`}
-                                  style={{
-                                    paddingLeft: '15px',
-                                    lineHeight: '40px',
-                                  }}
-                                >
-                                  {displayPlayer2}
-                                </p>
+                                <div className="flex items-center">
+                                  <p
+                                    className="text-[14px]"
+                                    style={{
+                                      paddingLeft: '15px',
+                                      lineHeight: '40px',
+                                    }}
+                                  >
+                                    {displayPlayer2}
+                                  </p>
+                                  {/* 10. Правильная фамилия рядом, если игрок проиграл */}
+                                  {comparisonResult && !isPlayer2Winner && (
+                                    <p
+                                      className="text-[14px] text-[#5F6067]"
+                                      style={{
+                                        marginLeft: '10px',
+                                        lineHeight: '40px',
+                                      }}
+                                    >
+                                      {comparisonResult.actual_winner}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                             )}
 
@@ -205,17 +274,19 @@ export default function BracketPage() {
                             {selectedRound === "W" && (
                               <div
                                 data-layer="Rectangle 549"
-                                className="Rectangle549 flex items-center"
+                                className="Rectangle549"
                                 style={{
                                   width: '280px',
                                   height: '40px',
-                                  background: 'linear-gradient(90deg, #161616 0%, #161616 100%)',
+                                  background: 'linear-gradient(90deg, #1D1F1A 0%, #161616 100%)',
                                   borderRadius: '10px',
                                   border: '1px solid rgba(255, 255, 255, 0.18)',
+                                  display: 'flex',
+                                  alignItems: 'center',
                                 }}
                               >
                                 <p
-                                  className="text-[14px] font-semibold break-words text-green-400"
+                                  className="text-[14px] text-[#5B7E60]"
                                   style={{
                                     paddingLeft: '15px',
                                     lineHeight: '40px',
@@ -223,24 +294,6 @@ export default function BracketPage() {
                                 >
                                   Победитель: {displayPlayer1}
                                 </p>
-                              </div>
-                            )}
-
-                            {/* Результаты сравнения (если есть) */}
-                            {selectedRound !== "W" && comparisonResult && (
-                              <div className="text-sm mt-2">
-                                <p className="text-gray-400">Прогноз: {comparisonResult.predicted_winner}</p>
-                                <p className="text-gray-400">Факт: {comparisonResult.actual_winner}</p>
-                                <p className={comparisonResult.correct ? 'text-green-400' : 'text-red-400'}>
-                                  {comparisonResult.correct ? 'Правильно' : 'Неправильно'}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Фактический победитель матча (если есть) */}
-                            {selectedRound !== "W" && pick.winner && (
-                              <div className="text-sm mt-2">
-                                <p className="text-gray-400">W: {pick.winner}</p>
                               </div>
                             )}
                           </div>
@@ -256,13 +309,33 @@ export default function BracketPage() {
         </AnimatePresence>
       </section>
 
+      {/* 13-14. Кнопка "Сохранить" */}
       {tournament.status === 'ACTIVE' && (
-        <div className="flex justify-center">
+        <div className="flex justify-center mt-4">
           <button
-            className="mt-4 w-full max-w-[320px] h-9 bg-gradient-to-r from-[rgba(0,140,255,0.26)] to-[rgba(0,119,255,0.26)] border-2 border-[#00B2FF] text-[#CBCBCB] rounded-[25.5px] text-sm font-medium"
             onClick={savePicks}
+            className="Rectangle532"
+            style={{
+              width: '135px',
+              height: '32px',
+              background: picks.some(pick => pick.predicted_winner)
+                ? '#0E325A'
+                : 'linear-gradient(90deg, #1B1A1F 0%, #161616 100%)',
+              borderRadius: picks.some(pick => pick.predicted_winner) ? '25.5px' : '20px',
+              border: picks.some(pick => pick.predicted_winner)
+                ? '1px solid #00B2FF'
+                : '1px solid rgba(255, 255, 255, 0.18)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            Сохранить сетку
+            <span
+              className="text-[16px] text-[#CBCBCB]"
+              style={{ lineHeight: '32px' }}
+            >
+              Сохранить сетку
+            </span>
           </button>
         </div>
       )}
