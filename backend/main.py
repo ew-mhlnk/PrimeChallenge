@@ -1,11 +1,18 @@
-import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database.db import engine, Base
-from routers import tournaments, auth, picks, results
+import logging
+import asyncio
+from database.db import init_db, engine
+from routers import auth, tournaments, picks, results
 from services.sync_service import sync_google_sheets_with_db
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-import asyncio
+
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -14,52 +21,38 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://prime-challenge.vercel.app",
-        "https://primechallenge.onrender.com",  # Добавляем домен фронтенда
+        "https://primechallenge.onrender.com",
+        "http://localhost:3000",  # Для локальной разработки
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Подключаем маршруты
-app.include_router(tournaments.router, prefix="/tournaments", tags=["tournaments"])
+# Подключение маршрутов
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(tournaments.router, prefix="/tournaments", tags=["tournaments"])
 app.include_router(picks.router, prefix="/picks", tags=["picks"])
 app.include_router(results.router, prefix="/results", tags=["results"])
 
-# Инициализация базы данных
-def init_db():
-    Base.metadata.create_all(bind=engine)
-
-# Планировщик для синхронизации
+# Инициализация планировщика задач
 scheduler = AsyncIOScheduler()
 
+# Функция, выполняемая при запуске приложения
 @app.on_event("startup")
 async def startup_event():
     logger.info("Application startup")
-    init_db()
+    init_db()  # Инициализация базы данных
+    # Добавляем задачу синхронизации каждые 5 минут
     scheduler.add_job(sync_google_sheets_with_db, "interval", minutes=5, args=[engine])
     scheduler.start()
-    # Выполняем начальную синхронизацию
+    # Выполняем первоначальную синхронизацию
     await sync_google_sheets_with_db(engine)
     logger.info("Initial sync completed on startup")
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Shutting down the application and scheduler")
-    scheduler.shutdown()
-    logger.info("Application shutdown complete")
-
+# Эндпоинт для ручной синхронизации
 @app.get("/sync")
 @app.post("/sync")
 async def manual_sync():
     await sync_google_sheets_with_db(engine)
     return {"message": "Sync completed successfully"}
-
-@app.get("/")
-async def root():
-    return {"message": "Welcome to Prime Challenge API"}

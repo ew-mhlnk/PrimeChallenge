@@ -6,25 +6,21 @@ export default function useTournaments() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('>>> [tournaments] Loading tournaments...');
-    fetch('https://primechallenge.onrender.com/tournaments', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP error! Status: ${res.status}, Message: ${await res.text()}`);
+    const fetchTournaments = async () => {
+      try {
+        const response = await fetch('https://primechallenge.onrender.com/tournaments/');
+        if (!response.ok) {
+          throw new Error('Ошибка при загрузке турниров');
         }
-        return res.json();
-      })
-      .then((data: Tournament[]) => {
-        console.log('>>> [tournaments] Tournaments loaded:', data);
+        const data: Tournament[] = await response.json();
         setTournaments(data);
-      })
-      .catch((err) => {
-        console.error('>>> [tournaments] Ошибка загрузки турниров:', err);
-        setError('Не удалось загрузить турниры. Попробуйте позже.');
-      });
+      } catch (err: unknown) { // Заменяем any на unknown
+        const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
+        setError(message);
+      }
+    };
+
+    fetchTournaments();
   }, []);
 
   return { tournaments, error };

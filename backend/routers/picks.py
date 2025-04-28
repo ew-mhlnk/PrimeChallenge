@@ -1,120 +1,199 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-import logging
 from database.db import get_db
 from database import models
-from utils.auth import verify_telegram_data
+from utils.auth import get_current_user
+import logging
 
 router = APIRouter()
+
 logger = logging.getLogger(__name__)
 
-logger.info("Loading picks router - version with status.value check (v3)")
-
+# Получение пиков пользователя для турнира
 @router.get("/")
-async def get_picks(tournament_id: int, request: Request, db: Session = Depends(get_db)):
-    logger.info(f"Fetching picks for tournament {tournament_id}")
-    
-    user_data = verify_telegram_data(request.headers.get("X-Telegram-Init-Data"))
-    if not user_data:
-        logger.error("Invalid Telegram auth data")
-        raise HTTPException(status_code=403, detail="Invalid Telegram auth")
-    
-    user_id = user_data.get("id")
-    logger.info(f"Authenticated user: {user_id}")
-
-    picks = db.query(models.UserPick).filter(
-        models.UserPick.user_id == user_id,
-        models.UserPick.tournament_id == tournament_id
-    ).all()
-    
-    if not picks:
-        logger.info(f"No picks found for user {user_id} in tournament {tournament_id}")
-        return []
-    
-    logger.info(f"Returning {len(picks)} picks for user {user_id} in tournament {tournament_id}")
-    return picks
-
-@router.post("/")
-async def create_or_update_picks(
-    picks: list[dict], request: Request, db: Session = Depends(get_db)
+async def get_picks(
+    tournament_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user),
 ):
+    logger.info(f"Fetching picks for user_id={user_id}, tournament_id={tournament_id}")
+    picks = (
+        db.query(models.UserPick)
+        .filter(
+            models.UserPick.user_id == user_id,
+            models.UserPick.tournament_id == tournament_id,
+        )
+        .all()
+    )
+    return [p.__dict__ for p in picks]
+
+# Сохранение пиков пользователя
+@router.post("/")
+async def save_picks(
+    picks: list[dict],
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user),
+):
+    logger.info(f"Saving picks for user_id={user_id}")
     try:
-        user_data = verify_telegram_data(request.headers.get("X-Telegram-Init-Data"))
-        if not user_data:
-            logger.error("Invalid Telegram auth data")
-            raise HTTPException(status_code=403, detail="Invalid Telegram auth")
+        # Получаем ID турнира из первого пика
+        tournament_id = picks[0]["tournament_id"]
         
-        user_id = user_data.get("id")
-        logger.info(f"Authenticated user: {user_id}")
-
-        tournament_id = picks[0]["tournament_id"] if picks else None
-        if not tournament_id:
-            logger.error("No tournament_id provided in picks")
-            raise HTTPException(status_code=400, detail="Tournament ID is required")
-
         # Проверяем статус турнира
         tournament = db.query(models.Tournament).filter(models.Tournament.id == tournament_id).first()
         if not tournament:
-            logger.error(f"Tournament {tournament_id} not found")
             raise HTTPException(status_code=404, detail="Tournament not found")
-        
-        logger.info(f"Tournament {tournament_id} status: {tournament.status}, value: {tournament.status.value}")
-        if tournament.status.value != "ACTIVE":
-            logger.error(f"Tournament {tournament_id} is not ACTIVE (status: {tournament.status})")
-            raise HTTPException(status_code=400, detail="Cannot submit picks for a non-ACTIVE tournament")
+        if tournament.status != models.TournamentStatus.ACTIVE:
+            raise HTTPException(status_code=403, detail="Cannot modify picks: tournament is not active")
 
-        # Удаляем существующие пики пользователя для этого турнира
-        deleted_count = db.query(models.UserPick).filter(
+        # Удаляем старые пики пользователя для этого турнира
+        db.query(models.UserPick).filter(
             models.UserPick.user_id == user_id,
-            models.UserPick.tournament_id == tournament_id
+            models.UserPick.tournament_id == tournament_id,
         ).delete()
-        logger.info(f"Deleted {deleted_count} existing picks for user {user_id} in tournament {tournament_id}")
 
-        # Создаём новые пики, только если predicted_winner не пустой
-        db_picks = []
+        # Сохраняем новые пики
         for pick in picks:
-            if pick["tournament_id"] != tournament_id:
-                logger.error(f"Inconsistent tournament_id in picks: {pick['tournament_id']}")
-                raise HTTPException(status_code=400, detail="All picks must belong to the same tournament")
-            
-            # Логируем каждый пик перед обработкой
-            logger.info(f"Processing pick: round={pick['round']}, match_number={pick['match_number']}, predicted_winner={pick['predicted_winner']}")
-            
-            # Пропускаем пики с пустым predicted_winner
-            if not pick["predicted_winner"]:
-                logger.info(f"Skipping pick for round {pick['round']} match {pick['match_number']} - predicted_winner is empty")
-                continue
-            
-            db_pick = models.UserPick(
+            new_pick = models.UserPick(
                 user_id=user_id,
                 tournament_id=pick["tournament_id"],
                 round=pick["round"],
                 match_number=pick["match_number"],
-                player1=pick["player1"] or "",  # Обрабатываем пустые строки
-                player2=pick["player2"] or "",  # Обрабатываем пустые строки
-                predicted_winner=pick["predicted_winner"]
+                player1=pick["player1"],
+                player2=pick["player2"],
+                predicted_winner=pick["predicted_winner"],
             )
-            db.add(db_pick)
-            db_picks.append(db_pick)
-            logger.info(f"Added pick to session: round={pick['round']}, match_number={pick['match_number']}")
+            db.add(new_pick)
         
-        # Коммитим изменения
         db.commit()
-        logger.info(f"Committed {len(db_picks)} picks for user {user_id} in tournament {tournament_id}")
-
-        # Проверяем, что пики действительно сохранены в базе
-        saved_picks = db.query(models.UserPick).filter(
-            models.UserPick.user_id == user_id,
-            models.UserPick.tournament_id == tournament_id
-        ).all()
-        logger.info(f"After commit, found {len(saved_picks)} picks in database")
-        for saved_pick in saved_picks:
-            logger.info(f"Saved pick: round={saved_pick.round}, match_number={saved_pick.match_number}, predicted_winner={saved_pick.predicted_winner}")
-
+        
+        # Пересчитываем очки для пользователя
+        calculate_user_scores(tournament_id, user_id, db)
+        
         return {"status": "success"}
-    except HTTPException as e:
-        raise e
     except Exception as e:
-        logger.error(f"Error saving picks for user {user_id}: {str(e)}")
         db.rollback()
+        logger.error(f"Error saving picks: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error saving picks: {str(e)}")
+
+# Сравнение пиков пользователя с реальными результатами
+@router.get("/compare")
+async def compare_picks(
+    tournament_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+):
+    logger.info(f"Comparing picks for user_id={user_id}, tournament_id={tournament_id}")
+    user_picks = (
+        db.query(models.UserPick)
+        .filter(
+            models.UserPick.user_id == user_id,
+            models.UserPick.tournament_id == tournament_id,
+        )
+        .all()
+    )
+    true_draws = (
+        db.query(models.TrueDraw)
+        .filter(models.TrueDraw.tournament_id == tournament_id)
+        .all()
+    )
+
+    comparison = []
+    for pick in user_picks:
+        true_match = next(
+            (td for td in true_draws if td.round == pick.round and td.match_number == pick.match_number),
+            None,
+        )
+        if true_match and true_match.winner:
+            comparison.append({
+                "round": pick.round,
+                "match_number": pick.match_number,
+                "player1": pick.player1,
+                "player2": pick.player2,
+                "predicted_winner": pick.predicted_winner,
+                "actual_winner": true_match.winner,
+                "correct": pick.predicted_winner == true_match.winner,
+            })
+
+    return comparison
+
+# Функция для подсчета очков пользователя
+def calculate_user_scores(tournament_id: int, user_id: int, db: Session):
+    logger.info(f"Calculating scores for user_id={user_id}, tournament_id={tournament_id}")
+    
+    # Получаем турнир
+    tournament = db.query(models.Tournament).filter(models.Tournament.id == tournament_id).first()
+    if not tournament:
+        logger.error(f"Tournament {tournament_id} not found")
+        return
+
+    # Определяем систему начисления очков в зависимости от типа турнира
+    scoring_system = {
+        "ATP 250": {"R16": 2, "QF": 3, "SF": 4, "F": 6},
+        "WTA 250": {"R16": 2, "QF": 3, "SF": 4, "F": 6},
+        "ATP 500": {"R16": 2, "QF": 3, "SF": 4, "F": 6},
+        "WTA 500": {"R16": 2, "QF": 3, "SF": 4, "F": 6},
+        "ATP 1000": {"R32": 2, "R16": 4, "QF": 8, "SF": 12, "F": 16},
+        "WTA 1000": {"R32": 2, "R16": 4, "QF": 8, "SF": 12, "F": 16},
+        "Grand Slam": {"R64": 1, "R32": 4, "R16": 8, "QF": 12, "SF": 16, "F": 20},
+    }
+
+    tournament_type = tournament.type
+    if tournament_type not in scoring_system:
+        logger.warning(f"Unknown tournament type {tournament_type}, defaulting to ATP 250 scoring")
+        tournament_type = "ATP 250"
+
+    # Получаем пики пользователя и реальные результаты
+    user_picks = (
+        db.query(models.UserPick)
+        .filter(
+            models.UserPick.user_id == user_id,
+            models.UserPick.tournament_id == tournament_id,
+        )
+        .all()
+    )
+    true_draws = (
+        db.query(models.TrueDraw)
+        .filter(models.TrueDraw.tournament_id == tournament_id)
+        .all()
+    )
+
+    total_score = 0
+    correct_picks = 0
+
+    # Сравниваем пики с реальными результатами
+    for pick in user_picks:
+        true_match = next(
+            (td for td in true_draws if td.round == pick.round and td.match_number == pick.match_number),
+            None,
+        )
+        if true_match and true_match.winner and pick.predicted_winner:
+            if pick.predicted_winner == true_match.winner:
+                # Пик верный, начисляем баллы
+                round_score = scoring_system[tournament_type].get(pick.round, 0)
+                total_score += round_score
+                correct_picks += 1
+
+    # Обновляем или создаем запись в user_scores
+    user_score = (
+        db.query(models.UserScore)
+        .filter(
+            models.UserScore.user_id == user_id,
+            models.UserScore.tournament_id == tournament_id,
+        )
+        .first()
+    )
+    if user_score:
+        user_score.score = total_score
+        user_score.correct_picks = correct_picks
+    else:
+        user_score = models.UserScore(
+            user_id=user_id,
+            tournament_id=tournament_id,
+            score=total_score,
+            correct_picks=correct_picks,
+        )
+        db.add(user_score)
+    
+    db.commit()
+    logger.info(f"Updated scores for user_id={user_id}, tournament_id={tournament_id}: score={total_score}, correct_picks={correct_picks}")

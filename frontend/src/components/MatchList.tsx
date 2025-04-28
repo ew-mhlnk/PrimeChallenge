@@ -1,176 +1,83 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Tournament, Match } from '@/types';
+import { UserPick, ComparisonResult } from '@/types'; // Используем UserPick
 
 interface MatchListProps {
-  tournament: Tournament;
-  matches: Match[];
-  currentRound: string;
-  setCurrentRound: (round: string) => void;
-  onBack: () => void;
-}
-
-interface MatchResult {
-  match_number: number;
+  picks: UserPick[]; // Используем UserPick
   round: string;
-  player1: string;
-  player2: string;
-  predicted_winner: string;
-  actual_winner: string;
-  is_correct: boolean;
+  comparison: ComparisonResult[];
+  handlePick: (match: UserPick, player: string | null) => void; // Используем UserPick
+  canEdit: boolean; // Флаг, можно ли редактировать пики
 }
 
-export default function MatchList({ tournament, matches, currentRound, setCurrentRound, onBack }: MatchListProps) {
-  const [picks, setPicks] = useState<{ [matchId: number]: string }>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [results, setResults] = useState<MatchResult[]>([]);
-
-  const rounds = Array.from(new Set(matches.map((match) => match.round))).sort((a, b) => {
-    const roundOrder = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F'];
-    return roundOrder.indexOf(a) - roundOrder.indexOf(b);
-  });
-
-  const currentRoundMatches = matches.filter((match) => match.round === currentRound);
-
-  const handlePick = (matchId: number, player: string) => {
-    setPicks((prev) => ({
-      ...prev,
-      [matchId]: player,
-    }));
-  };
-
-  const handleSubmitPicks = async () => {
-    setIsSubmitting(true);
-    try {
-      const picksToSubmit = Object.entries(picks).map(([matchId, predicted_winner]) => ({
-        match_id: parseInt(matchId),
-        predicted_winner,
-      }));
-
-      const response = await fetch('https://primechallenge.onrender.com/picks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          initData: window.Telegram?.WebApp?.initData,
-          picks: picksToSubmit,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to submit picks');
-      }
-      alert('Пики успешно сохранены!');
-    } catch (error) {
-      console.error('Ошибка при сохранении пиков:', error);
-      alert('Ошибка при сохранении пиков. Попробуйте снова.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const fetchResults = useCallback(async () => {
-    try {
-      const response = await fetch(`https://primechallenge.onrender.com/results/${tournament.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          initData: window.Telegram?.WebApp?.initData,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch results');
-      }
-      const data = await response.json();
-      setResults(data);
-    } catch (error) {
-      console.error('Ошибка при получении результатов:', error);
-    }
-  }, [tournament.id]); // Зависимости fetchResults: tournament.id
-
-  useEffect(() => {
-    if (tournament.status === 'CLOSED') {
-      fetchResults();
-    }
-  }, [tournament.status, fetchResults]); // fetchResults теперь стабилен благодаря useCallback
-
-  const getScoreDisplay = (match: Match) => {
-    const sets = [match.set1, match.set2, match.set3, match.set4, match.set5].filter(Boolean);
-    return sets.length > 0 ? sets.join(', ') : 'Нет счёта';
-  };
+export default function MatchList({ picks, round, comparison, handlePick, canEdit }: MatchListProps) {
+  const matches = picks.filter((pick) => pick.round === round);
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <button onClick={onBack} className="text-blue-400 hover:underline">
-          Назад к турнирам
-        </button>
-        <h2 className="text-2xl font-bold">{tournament.name}</h2>
-        <div>
-          {rounds.map((round) => (
-            <button
-              key={round}
-              onClick={() => setCurrentRound(round)}
-              className={`px-3 py-1 mx-1 rounded ${currentRound === round ? 'bg-blue-500' : 'bg-gray-700'}`}
-            >
-              {round}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="space-y-4">
-        {currentRoundMatches.map((match) => {
-          const result = results.find(
-            (r) => r.round === match.round && r.match_number === match.match_number
-          );
-          return (
-            <div key={match.id} className="p-4 bg-gray-800 rounded-lg">
-              <p className="text-sm text-gray-400">Матч #{match.match_number}</p>
-              <div className="flex justify-between items-center">
-                <div>
-                  <p>{match.player1}</p>
-                  <p>{match.player2}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-400">Счёт: {getScoreDisplay(match)}</p>
-                  {match.winner && <p className="text-green-400">Победитель: {match.winner}</p>}
-                  {result && (
-                    <p className={result.is_correct ? "text-green-400" : "text-red-400"}>
-                      Ваш выбор: {result.predicted_winner} ({result.is_correct ? "Правильно" : "Неправильно"})
-                    </p>
-                  )}
-                </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {matches.map((match) => {
+        // Находим сравнение для этого матча
+        const matchComparison = comparison.find(
+          (comp) => comp.round === match.round && comp.match_number === match.match_number
+        );
+
+        // Определяем, кто проиграл (для вычеркивания)
+        const loser =
+          matchComparison && matchComparison.actual_winner
+            ? matchComparison.actual_winner === match.player1
+              ? match.player2
+              : match.player1
+            : null;
+
+        return (
+          <div key={`${match.round}-${match.match_number}`} className="bg-gray-800 p-4 rounded-lg shadow-md">
+            <h3 className="text-lg font-semibold">Матч {match.match_number}</h3>
+            <div className="flex justify-between items-center">
+              {/* Игрок 1 */}
+              <div
+                className={`cursor-pointer p-2 rounded ${
+                  match.predicted_winner === match.player1
+                    ? 'bg-green-500'
+                    : loser === match.player1
+                    ? 'line-through text-gray-500'
+                    : 'bg-gray-600'
+                } ${!canEdit || !match.player1 ? 'pointer-events-none' : ''}`}
+                onClick={() =>
+                  canEdit && match.player1 && handlePick(match, match.predicted_winner === match.player1 ? null : match.player1)
+                }
+              >
+                {match.player1 || 'TBD'}
+                {loser === match.player1 && matchComparison && (
+                  <span className="ml-2 text-red-500">
+                    ({matchComparison.actual_winner})
+                  </span>
+                )}
               </div>
-              {!match.winner && tournament.status !== "CLOSED" && (
-                <div className="mt-2 flex space-x-2">
-                  <button
-                    onClick={() => handlePick(match.id, match.player1!)}
-                    className={`px-3 py-1 rounded ${picks[match.id] === match.player1 ? 'bg-green-500' : 'bg-gray-600'}`}
-                  >
-                    {match.player1}
-                  </button>
-                  <button
-                    onClick={() => handlePick(match.id, match.player2!)}
-                    className={`px-3 py-1 rounded ${picks[match.id] === match.player2 ? 'bg-green-500' : 'bg-gray-600'}`}
-                  >
-                    {match.player2}
-                  </button>
-                </div>
-              )}
+              <span className="text-gray-400">vs</span>
+              {/* Игрок 2 */}
+              <div
+                className={`cursor-pointer p-2 rounded ${
+                  match.predicted_winner === match.player2
+                    ? 'bg-green-500'
+                    : loser === match.player2
+                    ? 'line-through text-gray-500'
+                    : 'bg-gray-600'
+                } ${!canEdit || !match.player2 ? 'pointer-events-none' : ''}`}
+                onClick={() =>
+                  canEdit && match.player2 && handlePick(match, match.predicted_winner === match.player2 ? null : match.player2)
+                }
+              >
+                {match.player2 || 'TBD'}
+                {loser === match.player2 && matchComparison && (
+                  <span className="ml-2 text-red-500">
+                    ({matchComparison.actual_winner})
+                  </span>
+                )}
+              </div>
             </div>
-          );
-        })}
-      </div>
-      {currentRoundMatches.some((match) => !match.winner) && tournament.status !== "CLOSED" && (
-        <div className="mt-6">
-          <button
-            onClick={handleSubmitPicks}
-            disabled={isSubmitting || Object.keys(picks).length === 0}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-          >
-            {isSubmitting ? 'Сохранение...' : 'Сохранить пики'}
-          </button>
-        </div>
-      )}
+          </div>
+        );
+      })}
     </div>
   );
 }

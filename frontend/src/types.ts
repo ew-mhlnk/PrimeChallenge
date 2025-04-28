@@ -9,10 +9,13 @@ export interface Tournament {
   id: number;
   name: string;
   dates: string;
-  status: 'ACTIVE' | 'CLOSED'; // Уточняем возможные значения
+  status: 'ACTIVE' | 'CLOSED' | 'COMPLETED';
+  sheet_name?: string;
   starting_round: string;
   type: string;
-  active: boolean;
+  start: string;
+  close: string;
+  tag?: string;
 }
 
 export interface Match {
@@ -30,22 +33,30 @@ export interface Match {
   predicted_winner?: string;
 }
 
-export interface Pick {
-  tournament_id: number; // Добавляем поле, которого не было в index.ts, но оно есть в useTournamentLogic.ts
+export interface UserPick { // Переименовано с Pick на UserPick
+  tournament_id: number;
   round: string;
   match_number: number;
   player1: string;
   player2: string;
-  predicted_winner: string;
-  winner: string; // Убираем опциональность, так как в useTournamentLogic.ts оно используется как string
+  predicted_winner: string | null;
+  winner: string;
 }
 
 export interface ComparisonResult {
   round: string;
   match_number: number;
-  player1: string; // Эти поля есть в index.ts, но не в useTournamentLogic.ts
+  player1: string;
   player2: string;
   predicted_winner: string;
   actual_winner: string;
   correct: boolean;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  user_id: number;
+  username: string;
+  score: number;
+  correct_picks: number;
 }

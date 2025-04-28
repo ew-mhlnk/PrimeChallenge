@@ -1,14 +1,15 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { useTournamentLogic } from '@/hooks/useTournamentLogic';
-import styles from './BracketPage.module.css';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import MatchList from './MatchList';
+import { useTournamentLogic } from '../hooks/useTournamentLogic';
+import { UserPick } from '@/types'; // Импортируем UserPick вместо Pick
 
-const allRounds = ["R128", "R64", "R32", "R16", "QF", "SF", "F"];
+const allRounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'W'];
 
 export default function BracketPage() {
+  const router = useRouter();
   const { id } = useParams();
   const {
     tournament,
@@ -19,309 +20,142 @@ export default function BracketPage() {
     selectedRound,
     setSelectedRound,
     rounds,
-    handlePick,
+    handlePick: originalHandlePick,
     savePicks,
-  } = useTournamentLogic({ id: id as string, allRounds });
+  } = useTournamentLogic({ id: typeof id === 'string' ? id : undefined, allRounds });
 
-  const handleSwipe = (direction: 'left' | 'right') => {
-    if (!selectedRound || !rounds.length) return;
-    const currentIndex = rounds.indexOf(selectedRound);
-    if (direction === 'left' && currentIndex < rounds.length - 1) {
-      setSelectedRound(rounds[currentIndex + 1]);
-    } else if (direction === 'right' && currentIndex > 0) {
-      setSelectedRound(rounds[currentIndex - 1]);
+  const [notification, setNotification] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (error) {
+      setNotification(error);
     }
-  };
-
-  const dragHandlers = {
-    drag: "x" as const,
-    dragConstraints: { left: 0, right: 0 },
-    dragElastic: 0.2,
-    onDragEnd: (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-      const offset = info.offset.x;
-      if (offset > 50) handleSwipe('right');
-      else if (offset < -50) handleSwipe('left');
-    },
-  };
+  }, [error]);
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center">
-        <p className="text-xl">Загрузка...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center">
-        <p className="text-xl text-red-400">{error}</p>
-      </div>
-    );
+    return <p>Загрузка...</p>;
   }
 
   if (!tournament) {
-    return (
-      <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center">
-        <p className="text-xl">Турнир не найден</p>
-      </div>
-    );
+    return <p>Турнир не найден</p>;
   }
 
-  const championMatch = comparison.find((c) => c.round === "F" && c.match_number === 1);
-  const champion = championMatch?.actual_winner;
+  // Проверяем, можно ли редактировать пики
+  const canEdit = tournament.status === 'ACTIVE';
+
+  // Модифицированная функция handlePick для обновления последующих раундов
+  const handlePick = (match: UserPick, player: string | null) => { // Используем UserPick
+    if (!canEdit) {
+      setNotification('Турнир закрыт, пики нельзя изменить');
+      return;
+    }
+
+    // Вызываем оригинальную функцию handlePick
+    originalHandlePick(match, player);
+
+    // Если выбор отменен (player = null), очищаем последующие пики
+    if (player === null) {
+      const newPicks = [...picks];
+      const currentRoundIdx = allRounds.indexOf(match.round);
+
+      // Обновляем последующие раунды
+      for (let roundIdx = currentRoundIdx + 1; roundIdx < allRounds.length; roundIdx++) {
+        const nextRound = allRounds[roundIdx];
+        const nextMatchNumber = Math.ceil(match.match_number / 2);
+        const nextMatch = newPicks.find(
+          (p) => p.round === nextRound && p.match_number === nextMatchNumber
+        );
+
+        if (nextMatch) {
+          if (match.match_number % 2 === 1) {
+            if (nextMatch.player1 === match.predicted_winner) {
+              nextMatch.player1 = '';
+              nextMatch.predicted_winner = '';
+            }
+          } else {
+            if (nextMatch.player2 === match.predicted_winner) {
+              nextMatch.player2 = '';
+              nextMatch.predicted_winner = '';
+            }
+          }
+        }
+
+        // Если это финал, обновляем победителя
+        if (nextRound === 'W') {
+          const winnerMatch = newPicks.find((p) => p.round === 'W' && p.match_number === 1);
+          if (winnerMatch) {
+            winnerMatch.player1 = '';
+            winnerMatch.predicted_winner = '';
+          }
+        }
+      }
+    }
+  };
+
+  const handleSave = async () => {
+    if (!canEdit) {
+      setNotification('Турнир закрыт, пики нельзя изменить');
+      return;
+    }
+    await savePicks();
+    setNotification('Пики сохранены!');
+  };
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white p-4 flex flex-col items-center">
-      <div className="w-full max-w-[375px]">
-        <header>
-          {/* 1. Кнопка "Назад" */}
-          <Link href="/" className="text-[#5F6067] text-[16px]">
-            ← Назад
-          </Link>
+    <div className="container mx-auto p-4">
+      <button
+        onClick={() => router.push('/')}
+        className="mb-4 px-4 py-2 bg-gray-600 rounded text-white hover:bg-gray-500"
+      >
+        Назад
+      </button>
 
-          {/* 2. Название турнира */}
-          <h1 className="mt-[40px] text-[14px] font-bold text-[#FFFFFF]">
-            {tournament.name}
-          </h1>
-          <p className="text-gray-400 mt-1">{tournament.dates}</p>
-          <span
-            className={`mt-2 inline-block px-2 py-1 rounded text-sm ${
-              tournament.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-500'
+      {notification && (
+        <div className="mb-4 p-2 bg-yellow-500 text-white rounded">
+          {notification}
+        </div>
+      )}
+
+      <h1 className="text-2xl font-bold mb-4">{tournament.name}</h1>
+      <p>{tournament.dates}</p>
+      <p>Статус: {tournament.status}</p>
+
+      <div className="flex space-x-2 mb-4 overflow-x-auto">
+        {rounds.map((round: string) => (
+          <button
+            key={round}
+            onClick={() => setSelectedRound(round)}
+            className={`px-4 py-2 rounded ${
+              selectedRound === round ? 'bg-blue-500 text-white' : 'bg-gray-600 text-white'
             }`}
           >
-            {tournament.status === 'ACTIVE' ? 'Активен' : 'Завершён'}
-          </span>
-          {champion && <p className="text-green-400 mt-2">Победитель: {champion}</p>}
-        </header>
-
-        {/* 4. Бенто баннер (заглушка), отцентрирован */}
-        <div
-          data-layer="Rectangle 541"
-          className="Rectangle541 mt-[40px] mx-auto"
-          style={{
-            width: 'min(337px, 90vw)', // Адаптивная ширина
-            height: 'min(124px, 33vw)', // Адаптивная высота
-            background: '#D9D9D9',
-            borderRadius: '29px',
-          }}
-        ></div>
-
-        {/* 5. Кнопки с раундами */}
-        <div className="overflow-x-auto mt-[40px] mb-4">
-          <div className="flex gap-2 whitespace-nowrap">
-            {rounds.map((round) => (
-              <button
-                key={round}
-                onClick={() => setSelectedRound(round)}
-                className={`w-[53px] h-9 rounded-[25.5px] text-sm font-medium flex items-center justify-center ${
-                  selectedRound === round
-                    ? 'bg-gradient-to-r from-[rgba(0,140,255,0.26)] to-[rgba(0,119,255,0.26)] border-2 border-[#00B2FF] text-[#CBCBCB]'
-                    : 'text-[#5F6067]'
-                }`}
-              >
-                {round}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 7-11. Сетка с соединяющими линиями */}
-        <section className="mt-[40px]">
-          <AnimatePresence mode="wait">
-            {selectedRound ? (
-              <motion.div
-                key={selectedRound}
-                initial={{ x: 100 }}
-                animate={{ x: 0 }}
-                exit={{ x: -100 }}
-                transition={{ duration: 0.3 }}
-                className="w-full max-w-[320px]"
-                {...dragHandlers}
-              >
-                {picks.length === 0 ? (
-                  <p className="text-red-400">Матчи не найдены для раунда {selectedRound}</p>
-                ) : (
-                  <div className="flex flex-col gap-[40px]">
-                    {picks
-                      .filter((pick) => pick.round === selectedRound)
-                      .map((pick) => {
-                        const comparisonResult = comparison.find(
-                          (c) => c.round === pick.round && c.match_number === pick.match_number
-                        );
-                        const displayPlayer1 = pick.player1 === "Q" || pick.player1 === "LL" ? pick.player1 : pick.player1 || 'TBD';
-                        const displayPlayer2 = pick.player2 === "Q" || pick.player2 === "LL" ? pick.player2 : pick.player2 || 'TBD';
-
-                        const isPlayer1Selected = pick.predicted_winner === pick.player1;
-                        const isPlayer2Selected = pick.predicted_winner === pick.player2;
-
-                        // Проверяем, кто фактический победитель
-                        const isPlayer1Winner = comparisonResult?.actual_winner === pick.player1;
-                        const isPlayer2Winner = comparisonResult?.actual_winner === pick.player2;
-
-                        // Определяем стили ячеек
-                        const getCellStyle = (isSelected: boolean, isCorrect: boolean | null, isWinner: boolean) => {
-                          let background = 'linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0%, rgba(153, 153, 153, 0) 100%)';
-                          let border = '1px solid rgba(255, 255, 255, 0.18)';
-                          let color = '#5F6067';
-                          let textDecoration = 'none';
-
-                          if (isSelected && !comparisonResult) {
-                            // 8. Ячейка при нажатии (до сравнения)
-                            background = 'linear-gradient(90deg, #102F51 0%, #102E51 100%)';
-                            border = '1px solid rgba(0, 178, 255, 0.18)';
-                            color = '#CBCBCB';
-                          } else if (comparisonResult) {
-                            if (isWinner) {
-                              // 9. Правильная ячейка (фактический победитель)
-                              background = 'linear-gradient(90deg, #1D1F1A 0%, #161616 100%)';
-                              color = '#5B7E60';
-                            } else {
-                              // 10. Неправильная ячейка (не победитель)
-                              background = 'linear-gradient(90deg, #201212 0%, #161616 100%)';
-                              color = '#7E5B5B';
-                              textDecoration = 'line-through';
-                            }
-                          }
-
-                          return {
-                            width: '100%', // Растягиваем ячейку на всю ширину
-                            borderRadius: '10px', // Скругленные углы
-                            background,
-                            border,
-                            color,
-                            textDecoration,
-                          };
-                        };
-
-                        return (
-                          <motion.div
-                            key={`${pick.round}-${pick.match_number}`}
-                            initial={{ y: 20 }}
-                            animate={{ y: 0 }}
-                            transition={{ duration: 0.3 }}
-                            className={`w-full max-w-[320px] ${styles.matchContainer} ${
-                              selectedRound === "W" ? styles.noLines : ''
-                            }`}
-                          >
-                            <div className="flex flex-col gap-[12px]">
-                              {/* Ячейка для первого игрока */}
-                              <div className={styles.playerCell}>
-                                <div
-                                  data-layer="Rectangle 549"
-                                  className="Rectangle549"
-                                  style={
-                                    selectedRound === "W"
-                                      ? getCellStyle(true, null, false) // В раунде "W" ячейка выглядит как "выбранная"
-                                      : getCellStyle(isPlayer1Selected, comparisonResult?.correct, isPlayer1Winner)
-                                  }
-                                  onClick={() => tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)}
-                                >
-                                  <div className="flex items-center">
-                                    <p
-                                      className="text-[14px]"
-                                      style={{
-                                        paddingLeft: '15px',
-                                        lineHeight: '40px',
-                                      }}
-                                    >
-                                      {displayPlayer1}
-                                    </p>
-                                    {/* 10. Правильная фамилия рядом, если игрок проиграл */}
-                                    {comparisonResult && !isPlayer1Winner && (
-                                      <p
-                                        className="text-[14px] text-[#5F6067]"
-                                        style={{
-                                          marginLeft: '10px',
-                                          lineHeight: '40px',
-                                        }}
-                                      >
-                                        {comparisonResult.actual_winner}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Ячейка для второго игрока (если не финальный раунд "W") */}
-                              {selectedRound !== "W" && (
-                                <div className={styles.playerCell}>
-                                  <div
-                                    data-layer="Rectangle 550"
-                                    className="Rectangle550"
-                                    style={getCellStyle(isPlayer2Selected, comparisonResult?.correct, isPlayer2Winner)}
-                                    onClick={() => tournament.status === 'ACTIVE' && pick.player2 && handlePick(pick, pick.player2)}
-                                  >
-                                    <div className="flex items-center">
-                                      <p
-                                        className="text-[14px]"
-                                        style={{
-                                          paddingLeft: '15px',
-                                          lineHeight: '40px',
-                                        }}
-                                      >
-                                        {displayPlayer2}
-                                      </p>
-                                      {/* 10. Правильная фамилия рядом, если игрок проиграл */}
-                                      {comparisonResult && !isPlayer2Winner && (
-                                        <p
-                                          className="text-[14px] text-[#5F6067]"
-                                          style={{
-                                            marginLeft: '10px',
-                                            lineHeight: '40px',
-                                          }}
-                                        >
-                                          {comparisonResult.actual_winner}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                  </div>
-                )}
-              </motion.div>
-            ) : (
-              <p className="text-red-400">Раунд не выбран</p>
-            )}
-          </AnimatePresence>
-        </section>
-
-        {/* 13-14. Кнопка "Сохранить" */}
-        {tournament.status === 'ACTIVE' && (
-          <div className="flex justify-center mt-4">
-            <button
-              onClick={savePicks}
-              className="Rectangle532"
-              style={{
-                width: '135px',
-                height: '32px',
-                background: picks.some(pick => pick.predicted_winner)
-                  ? '#0E325A'
-                  : 'linear-gradient(90deg, #1B1A1F 0%, #161616 100%)',
-                borderRadius: picks.some(pick => pick.predicted_winner) ? '25.5px' : '20px',
-                border: picks.some(pick => pick.predicted_winner)
-                  ? '1px solid #00B2FF'
-                  : '1px solid rgba(255, 255, 255, 0.18)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <span
-                className="text-[16px] text-[#CBCBCB]"
-                style={{ lineHeight: '32px' }}
-              >
-                Сохранить сетку
-              </span>
-            </button>
-          </div>
-        )}
+            {round}
+          </button>
+        ))}
       </div>
+
+      {selectedRound && (
+        <MatchList
+          picks={picks}
+          round={selectedRound}
+          comparison={comparison}
+          handlePick={handlePick}
+          canEdit={canEdit}
+        />
+      )}
+
+      {canEdit && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={handleSave}
+            className="Rectangle532 w-[176px] h-10 p-2.5 rounded-[20px] border border-[#D6D6D6] flex justify-center items-center gap-2.5"
+          >
+            <span className="text-[#D6D6D6] text-base font-bold leading-[19.2px]">
+              Сохранить сетку
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
