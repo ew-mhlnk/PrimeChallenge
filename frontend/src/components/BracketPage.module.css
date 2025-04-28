@@ -1,5 +1,4 @@
 .playerCell {
-    position: relative;
     width: 280px;
     height: 40px;
     border-radius: 10px;
@@ -7,26 +6,38 @@
     align-items: center;
   }
   
-  .playerCell::after {
-    content: "";
+  .matchContainer {
+    position: relative;
+    padding-right: 60px; /* Увеличим место для линий, чтобы они могли соединяться с следующим уровнем */
+  }
+  
+  .horizontalLine {
     position: absolute;
-    right: -20px;
-    top: 50%;
-    width: 20px;
+    right: 0;
+    width: 30px; /* Длина горизонтальной линии */
     height: 2px;
     background: #5F6067;
   }
   
-  .matchContainer {
-    position: relative;
-    padding-right: 30px; /* Место для линий */
-  }
-  
   .verticalLine {
     position: absolute;
-    right: 10px;
-    top: 20px;
+    right: 30px; /* Отступ от правого края ячейки */
     width: 2px;
     height: 52px; /* 40px (высота ячейки) + 12px (отступ между ячейками) */
     background: #5F6067;
+  }
+  
+  .connectorLine {
+    position: absolute;
+    right: 0; /* Начинается там, где заканчивается вертикальная линия */
+    width: 30px; /* Длина линии, ведущей к следующему уровню */
+    height: 2px;
+    background: #5F6067;
+  }
+  
+  /* Для финального раунда линии не нужны */
+  .noLines .horizontalLine,
+  .noLines .verticalLine,
+  .noLines .connectorLine {
+    display: none;
   }

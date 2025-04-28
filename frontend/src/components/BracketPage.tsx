@@ -198,7 +198,9 @@ export default function BracketPage() {
                             initial={{ y: 20 }}
                             animate={{ y: 0 }}
                             transition={{ duration: 0.3 }}
-                            className={`w-full max-w-[320px] ${styles.matchContainer}`}
+                            className={`w-full max-w-[320px] ${styles.matchContainer} ${
+                              selectedRound === "W" ? styles.noLines : ''
+                            }`}
                           >
                             <div className="flex flex-col gap-[12px]">
                               {/* Ячейка для первого игрока */}
@@ -233,6 +235,11 @@ export default function BracketPage() {
                                     )}
                                   </div>
                                 </div>
+                                {/* Горизонтальная линия для первого игрока */}
+                                <div
+                                  className={styles.horizontalLine}
+                                  style={{ top: '20px' }} // Центр ячейки по высоте
+                                />
                               </div>
 
                               {/* Ячейка для второго игрока (если не финальный раунд "W") */}
@@ -268,12 +275,23 @@ export default function BracketPage() {
                                       )}
                                     </div>
                                   </div>
+                                  {/* Горизонтальная линия для второго игрока */}
+                                  <div
+                                    className={styles.horizontalLine}
+                                    style={{ top: '20px' }} // Центр ячейки по высоте
+                                  />
                                 </div>
                               )}
 
-                              {/* Вертикальная соединяющая линия */}
+                              {/* Вертикальная соединяющая линия и соединительная линия к следующему уровню */}
                               {selectedRound !== "W" && (
-                                <div className={styles.verticalLine} />
+                                <>
+                                  <div className={styles.verticalLine} />
+                                  <div
+                                    className={styles.connectorLine}
+                                    style={{ top: '46px' }} // Центр между двумя ячейками: (40px + 12px + 40px) / 2
+                                  />
+                                </>
                               )}
 
                               {/* Ячейка для победителя (раунд "W") */}
