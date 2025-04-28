@@ -210,7 +210,11 @@ export default function BracketPage() {
                                 <div
                                   data-layer="Rectangle 549"
                                   className="Rectangle549"
-                                  style={getCellStyle(isPlayer1Selected, comparisonResult?.correct, isPlayer1Winner)}
+                                  style={
+                                    selectedRound === "W"
+                                      ? getCellStyle(true, null, false) // В раунде "W" ячейка выглядит как "выбранная"
+                                      : getCellStyle(isPlayer1Selected, comparisonResult?.correct, isPlayer1Winner)
+                                  }
                                   onClick={() => tournament.status === 'ACTIVE' && pick.player1 && handlePick(pick, pick.player1)}
                                 >
                                   <div className="flex items-center">
@@ -271,27 +275,6 @@ export default function BracketPage() {
                                         </p>
                                       )}
                                     </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Ячейка для победителя (раунд "W") */}
-                              {selectedRound === "W" && (
-                                <div className={styles.playerCell}>
-                                  <div
-                                    data-layer="Rectangle 549"
-                                    className="Rectangle549"
-                                    style={getCellStyle(true, true, true)} // Применяем тот же стиль, что и для победителей
-                                  >
-                                    <p
-                                      className="text-[14px] text-[#5B7E60]"
-                                      style={{
-                                        paddingLeft: '15px',
-                                        lineHeight: '40px',
-                                      }}
-                                    >
-                                      Победитель: {displayPlayer1}
-                                    </p>
                                   </div>
                                 </div>
                               )}
