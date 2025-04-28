@@ -185,6 +185,8 @@ export default function BracketPage() {
                           }
 
                           return {
+                            width: '100%', // Растягиваем ячейку на всю ширину
+                            borderRadius: '10px', // Скругленные углы
                             background,
                             border,
                             color,
@@ -275,28 +277,22 @@ export default function BracketPage() {
 
                               {/* Ячейка для победителя (раунд "W") */}
                               {selectedRound === "W" && (
-                                <div
-                                  data-layer="Rectangle 549"
-                                  className="Rectangle549"
-                                  style={{
-                                    width: '280px',
-                                    height: '40px',
-                                    background: 'linear-gradient(90deg, #1D1F1A 0%, #161616 100%)',
-                                    borderRadius: '10px',
-                                    border: '1px solid rgba(255, 255, 255, 0.18)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                  }}
-                                >
-                                  <p
-                                    className="text-[14px] text-[#5B7E60]"
-                                    style={{
-                                      paddingLeft: '15px',
-                                      lineHeight: '40px',
-                                    }}
+                                <div className={styles.playerCell}>
+                                  <div
+                                    data-layer="Rectangle 549"
+                                    className="Rectangle549"
+                                    style={getCellStyle(true, true, true)} // Применяем тот же стиль, что и для победителей
                                   >
-                                    Победитель: {displayPlayer1}
-                                  </p>
+                                    <p
+                                      className="text-[14px] text-[#5B7E60]"
+                                      style={{
+                                        paddingLeft: '15px',
+                                        lineHeight: '40px',
+                                      }}
+                                    >
+                                      Победитель: {displayPlayer1}
+                                    </p>
+                                  </div>
                                 </div>
                               )}
                             </div>
