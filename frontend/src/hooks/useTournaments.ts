@@ -13,7 +13,7 @@ export default function useTournaments() {
           throw new Error('Telegram initData not available');
         }
 
-        const response = await fetch('https://primechallenge.onrender.com/tournaments', {
+        const response = await fetch('https://primechallenge.onrender.com/', {
           headers: {
             Authorization: initData,
           },
