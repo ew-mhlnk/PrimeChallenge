@@ -3,9 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 import asyncio
 from database.db import init_db, engine
-from routers import auth, tournaments, picks, results  # Убрали leaderboard
-from services.sync_service import sync_google_sheets_with_db
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from routers import auth, tournaments, picks, results
+from services.sync_service import sync_google_sheets_with_db  # Добавили импорт
+from apscheduler.schedulers.asyncio import AsyncIOScheduler  # Добавили импорт
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,7 +31,6 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(tournaments.router, prefix="", tags=["tournaments"])
 app.include_router(picks.router, prefix="/picks", tags=["picks"])
 app.include_router(results.router, prefix="/results", tags=["results"])
-# Убрали leaderboard
 
 scheduler = AsyncIOScheduler()
 
