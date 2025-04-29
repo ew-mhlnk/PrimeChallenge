@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import useTournaments from '../hooks/useTournaments';
 import { Tournament } from '@/types';
-import Navigation from '../components/Navigation';
 import TagSelector from '../components/TagSelector';
 
 export default function Home() {
@@ -123,10 +122,7 @@ export default function Home() {
         </div>
       </main>
 
-      <div className="h-[39px]"></div>
-
-      {/* Navigation */}
-      <Navigation />
+      <div className="h-[19px]"></div>
     </div>
   );
 }
