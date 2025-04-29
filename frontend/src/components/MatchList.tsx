@@ -1,77 +1,76 @@
 'use client';
 
-import { UserPick, ComparisonResult, Match } from '@/types';
+import { UserPick, ComparisonResult } from '@/types';
 
 interface MatchListProps {
-  matches: Match[];
   picks: UserPick[];
   round: string;
   comparison: ComparisonResult[];
-  handlePick: (match: Match, player: string | null) => void;
+  handlePick: (match: UserPick, player: string | null) => void;
   canEdit: boolean;
 }
 
-export default function MatchList({ matches, picks, round, comparison, handlePick, canEdit }: MatchListProps) {
-  const roundMatches = matches.filter((match) => match.round === round);
+export default function MatchList({ picks, round, comparison, handlePick, canEdit }: MatchListProps) {
+  const roundPicks = picks.filter((pick) => pick.round === round);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {roundMatches.map((match) => {
+    <div className="space-y-[20px] flex flex-col items-center">
+      {roundPicks.map((pick) => {
         const matchComparison = comparison.find(
-          (comp) => comp.round === match.round && comp.match_number === match.match_number
+          (comp) => comp.round === pick.round && comp.match_number === pick.match_number
         );
-        const userPick = picks.find(
-          (pick) => pick.round === match.round && pick.match_number === match.match_number
-        );
-
         const loser =
           matchComparison && matchComparison.actual_winner
-            ? matchComparison.actual_winner === match.player1
-              ? match.player2
-              : match.player1
+            ? matchComparison.actual_winner === pick.player1
+              ? pick.player2
+              : pick.player1
             : null;
 
         return (
-          <div key={`${match.round}-${match.match_number}`} className="bg-gray-800 p-4 rounded-lg shadow-md">
-            <h3 className="text-lg font-semibold">Матч {match.match_number}</h3>
-            <div className="flex justify-between items-center">
+          <div
+            key={`${pick.round}-${pick.match_number}`}
+            className="w-[330px] max-w-[90vw] h-[93px] bg-gradient-to-r from-[#1B1A1F] to-[#161616] rounded-[10px] border border-[rgba(255,255,255,0.18)] relative"
+          >
+            <p className="absolute top-[10px] left-[10px] text-[16px] font-semibold text-[#FFFFFF]">
+              Матч #{pick.match_number}
+            </p>
+            <div className="absolute top-[35px] left-[10px] flex flex-col space-y-1">
               <div
-                className={`cursor-pointer p-2 rounded ${
-                  userPick?.predicted_winner === match.player1
-                    ? 'bg-green-500'
-                    : loser === match.player1
+                className={`cursor-pointer ${
+                  pick.predicted_winner === pick.player1
+                    ? 'text-green-500'
+                    : loser === pick.player1
                     ? 'line-through text-gray-500'
-                    : 'bg-gray-600'
-                } ${!canEdit || !match.player1 ? 'pointer-events-none' : ''}`}
+                    : 'text-[#FFFFFF]'
+                } ${!canEdit || !pick.player1 ? 'pointer-events-none' : ''}`}
                 onClick={() =>
-                  canEdit && match.player1 && handlePick(match, userPick?.predicted_winner === match.player1 ? null : match.player1)
+                  canEdit &&
+                  pick.player1 &&
+                  handlePick(pick, pick.predicted_winner === pick.player1 ? null : pick.player1)
                 }
               >
-                {match.player1 || 'TBD'}
-                {loser === match.player1 && matchComparison && (
-                  <span className="ml-2 text-red-500">
-                    ({matchComparison.actual_winner})
-                  </span>
+                {pick.player1 || 'TBD'}
+                {loser === pick.player1 && matchComparison && (
+                  <span className="ml-2 text-red-500">({matchComparison.actual_winner})</span>
                 )}
               </div>
-              <span className="text-gray-400">vs</span>
               <div
-                className={`cursor-pointer p-2 rounded ${
-                  userPick?.predicted_winner === match.player2
-                    ? 'bg-green-500'
-                    : loser === match.player2
+                className={`cursor-pointer ${
+                  pick.predicted_winner === pick.player2
+                    ? 'text-green-500'
+                    : loser === pick.player2
                     ? 'line-through text-gray-500'
-                    : 'bg-gray-600'
-                } ${!canEdit || !match.player2 ? 'pointer-events-none' : ''}`}
+                    : 'text-[#FFFFFF]'
+                } ${!canEdit || !pick.player2 ? 'pointer-events-none' : ''}`}
                 onClick={() =>
-                  canEdit && match.player2 && handlePick(match, userPick?.predicted_winner === match.player2 ? null : match.player2)
+                  canEdit &&
+                  pick.player2 &&
+                  handlePick(pick, pick.predicted_winner === pick.player2 ? null : pick.player2)
                 }
               >
-                {match.player2 || 'TBD'}
-                {loser === match.player2 && matchComparison && (
-                  <span className="ml-2 text-red-500">
-                    ({matchComparison.actual_winner})
-                  </span>
+                {pick.player2 || 'TBD'}
+                {loser === pick.player2 && matchComparison && (
+                  <span className="ml-2 text-red-500">({matchComparison.actual_winner})</span>
                 )}
               </div>
             </div>

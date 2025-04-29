@@ -1,18 +1,162 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import MatchList from './MatchList';
-import { useTournamentLogic } from '../hooks/useTournamentLogic';
-import { UserPick } from '@/types'; // Импортируем UserPick вместо Pick
+import { Tournament, UserPick, ComparisonResult, Match } from '@/types';
 
-const allRounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'W'];
+interface UseTournamentLogicProps {
+  id?: string;
+  allRounds: string[];
+}
 
-export default function BracketPage() {
-  const router = useRouter();
-  const { id } = useParams();
-  const {
+export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) => {
+  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [picks, setPicks] = useState<UserPick[]>([]);
+  const [comparison, setComparison] = useState<ComparisonResult[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [selectedRound, setSelectedRound] = useState<string | null>(null);
+  const [rounds, setRounds] = useState<string[]>([]);
+
+  // Загрузка данных турнира, матчей и пиков
+  useEffect(() => {
+    const fetchTournamentData = async () => {
+      if (!id) return;
+
+      setIsLoading(true);
+      try {
+        const initData = window.Telegram?.WebApp?.initData;
+        if (!initData) {
+          throw new Error('Telegram initData not available');
+        }
+
+        const response = await fetch(`https://primechallenge.onrender.com/bracket/${id}`, {
+          headers: {
+            Authorization: initData,
+          },
+        });
+        if (!response.ok) {
+          throw new Error('Ошибка при загрузке турнира');
+        }
+        const data: Tournament = await response.json();
+        setTournament(data);
+
+        // Устанавливаем матчи и пики
+        setMatches(data.true_draws || []);
+        setPicks(data.user_picks || []);
+
+        // Устанавливаем раунды
+        if (data.starting_round) {
+          const startIdx = allRounds.indexOf(data.starting_round);
+          const availableRounds = allRounds.slice(startIdx);
+          setRounds(availableRounds);
+          setSelectedRound(data.starting_round);
+        } else {
+          setRounds(allRounds);
+          setSelectedRound(allRounds[0]);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
+        setError(message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTournamentData();
+  }, [id, allRounds]);
+
+  // Сравнение пиков с реальными результатами
+  useEffect(() => {
+    const computeComparison = () => {
+      if (!matches || !picks) return;
+
+      const comparisonResults: ComparisonResult[] = matches.map((match) => {
+        const pick = picks.find(
+          (p) => p.round === match.round && p.match_number === match.match_number
+        );
+        return {
+          round: match.round,
+          match_number: match.match_number,
+          player1: match.player1 || 'TBD',
+          player2: match.player2 || 'TBD',
+          predicted_winner: pick?.predicted_winner || '',
+          actual_winner: match.winner || '',
+          correct: pick?.predicted_winner === match.winner && !!match.winner,
+        };
+      });
+      setComparison(comparisonResults);
+    };
+
+    computeComparison();
+  }, [matches, picks]);
+
+  // Функция для обработки пиков
+  const handlePick = async (match: UserPick, player: string | null) => {
+    try {
+      const initData = window.Telegram?.WebApp?.initData;
+      if (!initData) {
+        throw new Error('Telegram initData not available');
+      }
+
+      const response = await fetch('https://primechallenge.onrender.com/picks/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: initData,
+        },
+        body: JSON.stringify({
+          tournament_id: match.tournament_id,
+          round: match.round,
+          match_number: match.match_number,
+          predicted_winner: player,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Ошибка при обновлении пика');
+      }
+
+      const updatedPick: UserPick = await response.json();
+      const updatedPicks = picks.some((p) => p.id === updatedPick.id)
+        ? picks.map((p) => (p.id === updatedPick.id ? updatedPick : p))
+        : [...picks, updatedPick];
+      setPicks(updatedPicks);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
+      setError(message);
+    }
+  };
+
+  // Функция для сохранения всех пиков
+  const savePicks = async () => {
+    try {
+      const initData = window.Telegram?.WebApp?.initData;
+      if (!initData) {
+        throw new Error('Telegram initData not available');
+      }
+
+      const response = await fetch('https://primechallenge.onrender.com/picks/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: initData,
+        },
+        body: JSON.stringify(picks),
+      });
+
+      if (!response.ok) {
+        throw new Error('Ошибка при сохранении пиков');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
+      setError(message);
+    }
+  };
+
+  return {
     tournament,
+    matches,
     picks,
     error,
     isLoading,
@@ -20,142 +164,7 @@ export default function BracketPage() {
     selectedRound,
     setSelectedRound,
     rounds,
-    handlePick: originalHandlePick,
+    handlePick,
     savePicks,
-  } = useTournamentLogic({ id: typeof id === 'string' ? id : undefined, allRounds });
-
-  const [notification, setNotification] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (error) {
-      setNotification(error);
-    }
-  }, [error]);
-
-  if (isLoading) {
-    return <p>Загрузка...</p>;
-  }
-
-  if (!tournament) {
-    return <p>Турнир не найден</p>;
-  }
-
-  // Проверяем, можно ли редактировать пики
-  const canEdit = tournament.status === 'ACTIVE';
-
-  // Модифицированная функция handlePick для обновления последующих раундов
-  const handlePick = (match: UserPick, player: string | null) => { // Используем UserPick
-    if (!canEdit) {
-      setNotification('Турнир закрыт, пики нельзя изменить');
-      return;
-    }
-
-    // Вызываем оригинальную функцию handlePick
-    originalHandlePick(match, player);
-
-    // Если выбор отменен (player = null), очищаем последующие пики
-    if (player === null) {
-      const newPicks = [...picks];
-      const currentRoundIdx = allRounds.indexOf(match.round);
-
-      // Обновляем последующие раунды
-      for (let roundIdx = currentRoundIdx + 1; roundIdx < allRounds.length; roundIdx++) {
-        const nextRound = allRounds[roundIdx];
-        const nextMatchNumber = Math.ceil(match.match_number / 2);
-        const nextMatch = newPicks.find(
-          (p) => p.round === nextRound && p.match_number === nextMatchNumber
-        );
-
-        if (nextMatch) {
-          if (match.match_number % 2 === 1) {
-            if (nextMatch.player1 === match.predicted_winner) {
-              nextMatch.player1 = '';
-              nextMatch.predicted_winner = '';
-            }
-          } else {
-            if (nextMatch.player2 === match.predicted_winner) {
-              nextMatch.player2 = '';
-              nextMatch.predicted_winner = '';
-            }
-          }
-        }
-
-        // Если это финал, обновляем победителя
-        if (nextRound === 'W') {
-          const winnerMatch = newPicks.find((p) => p.round === 'W' && p.match_number === 1);
-          if (winnerMatch) {
-            winnerMatch.player1 = '';
-            winnerMatch.predicted_winner = '';
-          }
-        }
-      }
-    }
   };
-
-  const handleSave = async () => {
-    if (!canEdit) {
-      setNotification('Турнир закрыт, пики нельзя изменить');
-      return;
-    }
-    await savePicks();
-    setNotification('Пики сохранены!');
-  };
-
-  return (
-    <div className="container mx-auto p-4">
-      <button
-        onClick={() => router.push('/')}
-        className="mb-4 px-4 py-2 bg-gray-600 rounded text-white hover:bg-gray-500"
-      >
-        Назад
-      </button>
-
-      {notification && (
-        <div className="mb-4 p-2 bg-yellow-500 text-white rounded">
-          {notification}
-        </div>
-      )}
-
-      <h1 className="text-2xl font-bold mb-4">{tournament.name}</h1>
-      <p>{tournament.dates}</p>
-      <p>Статус: {tournament.status}</p>
-
-      <div className="flex space-x-2 mb-4 overflow-x-auto">
-        {rounds.map((round: string) => (
-          <button
-            key={round}
-            onClick={() => setSelectedRound(round)}
-            className={`px-4 py-2 rounded ${
-              selectedRound === round ? 'bg-blue-500 text-white' : 'bg-gray-600 text-white'
-            }`}
-          >
-            {round}
-          </button>
-        ))}
-      </div>
-
-      {selectedRound && (
-        <MatchList
-          picks={picks}
-          round={selectedRound}
-          comparison={comparison}
-          handlePick={handlePick}
-          canEdit={canEdit}
-        />
-      )}
-
-      {canEdit && (
-        <div className="flex justify-center mt-4">
-          <button
-            onClick={handleSave}
-            className="Rectangle532 w-[176px] h-10 p-2.5 rounded-[20px] border border-[#D6D6D6] flex justify-center items-center gap-2.5"
-          >
-            <span className="text-[#D6D6D6] text-base font-bold leading-[19.2px]">
-              Сохранить сетку
-            </span>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
+};

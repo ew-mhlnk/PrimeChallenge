@@ -72,7 +72,7 @@ export default function Home() {
             <p className="text-[#FFFFFF]">Нет активных турниров</p>
           ) : (
             activeTournaments.map((tournament: Tournament) => (
-              <Link href={`/bracket/${tournament.id}`} key={tournament.id}>
+              <Link href={`/tournament/${tournament.id}`} key={tournament.id}>
                 <div
                   data-layer="Rectangle 549"
                   className="Rectangle549 w-[330px] max-w-[90vw] h-[93px] bg-gradient-to-r from-[#1B1A1F] to-[#161616] rounded-[10px] border border-[rgba(255,255,255,0.18)] relative"
