@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import useTournaments from '../hooks/useTournaments';
 import { Tournament } from '@/types';
+import Navigation from '../components/Navigation';
+import TagSelector from '../components/TagSelector';
 
 export default function Home() {
   const { tournaments, error } = useTournaments();
@@ -63,51 +65,8 @@ export default function Home() {
           ТУРНИРЫ ЭТОЙ НЕДЕЛИ
         </h2>
 
-        <div className="flex justify-start space-x-[15px] mb-[40px]">
-          <div
-            data-svg-wrapper
-            data-layer="Rectangle 545"
-            className={`Rectangle545 cursor-pointer ${selectedTag === 'все' ? 'ring-2 ring-[#FF8000]' : ''}`}
-            onClick={() => setSelectedTag('все')}
-          >
-            <svg width="38" height="15" viewBox="0 0 38 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="38" height="14.3396" rx="3.58491" fill="#FF8000"/>
-              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fill="#FFFFFF" fontSize="10">все</text>
-            </svg>
-          </div>
-          <div
-            data-svg-wrapper
-            data-layer="Rectangle 545"
-            className={`Rectangle545 cursor-pointer ${selectedTag === 'ATP' ? 'ring-2 ring-[#002BFF]' : ''}`}
-            onClick={() => setSelectedTag('ATP')}
-          >
-            <svg width="38" height="15" viewBox="0 0 38 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="38" height="14.3396" rx="3.58491" fill="#002BFF"/>
-              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fill="#FFFFFF" fontSize="10">ATP</text>
-            </svg>
-          </div>
-          <div
-            data-svg-wrapper
-            data-layer="Rectangle 545"
-            className={`Rectangle545 cursor-pointer ${selectedTag === 'WTA' ? 'ring-2 ring-[#7B00FF]' : ''}`}
-            onClick={() => setSelectedTag('WTA')}
-          >
-            <svg width="38" height="15" viewBox="0 0 38 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="38" height="14.3396" rx="3.58491" fill="#7B00FF"/>
-              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fill="#FFFFFF" fontSize="10">WTA</text>
-            </svg>
-          </div>
-          <div
-            data-layer="Rectangle 545"
-            className={`Rectangle545 cursor-pointer ${selectedTag === 'ТБШ' ? 'ring-2 ring-[#FDF765]' : ''}`}
-            style={{ width: '93.87px', height: '14.34px', background: 'linear-gradient(180deg, #FDF765 0%, #7D490E 100%)', borderRadius: '3.58px' }}
-            onClick={() => setSelectedTag('ТБШ')}
-          >
-            <div className="flex items-center justify-center h-full">
-              <span className="text-[#FFFFFF] text-[10px] font-medium">ТБШ</span>
-            </div>
-          </div>
-        </div>
+        {/* TagSelector */}
+        <TagSelector selectedTag={selectedTag} setSelectedTag={setSelectedTag} />
 
         <div className="space-y-[20px] flex flex-col items-center">
           {activeTournaments.length === 0 ? (
@@ -161,24 +120,10 @@ export default function Home() {
         </div>
       </main>
 
-      <div className="h-[80px]"></div>
+      <div className="h-[39px]"></div>
 
-      <footer className="bg-[#1B1A1F] w-full h-[39px] flex justify-center items-center">
-        <div className="flex space-x-[70px]">
-          <div
-            data-layer="Rectangle 544"
-            className="Rectangle544 w-[120px] h-[29px] bg-[#131215] rounded-[16.5px] border border-[#141414] flex items-center justify-center"
-          >
-            <Link href="/" className="text-[#FFFFFF] text-[14px] font-medium">Активные</Link>
-          </div>
-          <div className="flex items-center justify-center w-[120px] h-[29px]">
-            <Link href="/archive" className="text-[#FFFFFF] text-[14px] font-medium">Архив</Link>
-          </div>
-          <div className="flex items-center justify-center w-[120px] h-[29px]">
-            <Link href="/leaderboard" className="text-[#FFFFFF] text-[14px] font-medium">Лидерборд</Link>
-          </div>
-        </div>
-      </footer>
+      {/* Navigation */}
+      <Navigation />
     </div>
   );
 }

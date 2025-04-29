@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           async
         />
       </head>
-      <body className="bg-[#141414] text-white">{children}</body>
+      <body className="bg-[#141414] text-white pb-[39px]">{children}</body>
     </html>
   );
 }
