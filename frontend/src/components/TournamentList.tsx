@@ -5,7 +5,7 @@ import useTournaments from '../hooks/useTournaments';
 import { Tournament } from '@/types';
 
 interface TournamentListProps {
-  filterStatus?: 'ACTIVE' | 'CLOSED' | 'COMPLETED'; // Фильтр по статусу
+  filterStatus?: 'ACTIVE' | 'CLOSED' | 'COMPLETED';
 }
 
 export default function TournamentList({ filterStatus }: TournamentListProps) {
@@ -15,10 +15,12 @@ export default function TournamentList({ filterStatus }: TournamentListProps) {
     return <p className="text-red-500">{error}</p>;
   }
 
-  // Фильтруем турниры по статусу
+  if (!tournaments) {
+    return <p>Загрузка турниров...</p>;
+  }
+
   const filteredTournaments = tournaments.filter(
-    (tournament: Tournament) =>
-      !filterStatus || tournament.status === filterStatus
+    (tournament: Tournament) => !filterStatus || tournament.status === filterStatus
   );
 
   if (filteredTournaments.length === 0) {
@@ -31,9 +33,9 @@ export default function TournamentList({ filterStatus }: TournamentListProps) {
         <Link href={`/bracket/${tournament.id}`} key={tournament.id}>
           <div className="bg-gray-800 p-4 rounded-lg shadow-md hover:bg-gray-700 transition">
             <h2 className="text-xl font-bold">{tournament.name}</h2>
-            <p>{tournament.dates}</p>
+            <p>{tournament.dates || 'Даты не указаны'}</p>
             <p>Статус: {tournament.status}</p>
-            <p>Тип: {tournament.type}</p>
+            <p>Тип: {tournament.type || 'Не указан'}</p>
           </div>
         </Link>
       ))}

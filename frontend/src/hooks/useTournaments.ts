@@ -8,13 +8,22 @@ export default function useTournaments() {
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
-        const response = await fetch('https://primechallenge.onrender.com/tournaments/');
+        const initData = window.Telegram?.WebApp?.initData;
+        if (!initData) {
+          throw new Error('Telegram initData not available');
+        }
+
+        const response = await fetch('https://primechallenge.onrender.com/tournaments', {
+          headers: {
+            Authorization: initData,
+          },
+        });
         if (!response.ok) {
           throw new Error('Ошибка при загрузке турниров');
         }
         const data: Tournament[] = await response.json();
         setTournaments(data);
-      } catch (err: unknown) { // Заменяем any на unknown
+      } catch (err) {
         const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
         setError(message);
       }

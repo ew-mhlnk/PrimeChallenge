@@ -8,8 +8,18 @@ export default function useMatches(selectedTournament: Tournament | null) {
   const loadMatches = async (tournament: Tournament) => {
     console.log('>>> [matches] Attempting to load matches for tournament:', tournament.id);
     try {
+      const initData = window.Telegram?.WebApp?.initData;
+      if (!initData) {
+        throw new Error('Telegram initData not available');
+      }
+
       const response = await fetch(
-        `https://primechallenge.onrender.com/tournaments/matches?tournament_id=${tournament.id}`
+        `https://primechallenge.onrender.com/tournaments/matches/by-id?tournament_id=${tournament.id}`,
+        {
+          headers: {
+            Authorization: initData,
+          },
+        }
       );
       console.log('>>> [matches] Response status:', response.status);
       if (!response.ok) {

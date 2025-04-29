@@ -37,7 +37,7 @@ export default function useAuth() {
           if (tgUser && initData) {
             console.log('>>> [auth] User found, attempting authentication...');
             try {
-              const response = await fetch('https://primechallenge.onrender.com/auth', {
+              const response = await fetch('https://primechallenge.onrender.com/auth/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ initData }),
@@ -45,9 +45,14 @@ export default function useAuth() {
               const data = await response.json();
               console.log('🔐 Auth response:', data);
 
-              if (response.ok && data.status === 'ok') {
+              if (response.ok) {
                 console.log('>>> [auth] Authentication successful');
-                setUser({ id: data.user_id, firstName: data.first_name });
+                setUser({
+                  id: data.user_id,
+                  firstName: data.first_name,
+                  username: data.username,
+                  photoUrl: data.photo_url, // Если поле есть в ответе
+                });
               } else {
                 console.error('❌ Auth failed:', data);
                 setUser({ id: 0, firstName: 'Гость' });

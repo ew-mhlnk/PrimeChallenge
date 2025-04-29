@@ -13,7 +13,10 @@ export default function Home() {
     return <p className="text-red-500">{error}</p>;
   }
 
-  // Фильтруем турниры по статусу "ACTIVE" и тегу
+  if (!tournaments) {
+    return <p className="text-[#FFFFFF]">Загрузка турниров...</p>;
+  }
+
   const activeTournaments = tournaments.filter((tournament: Tournament) => {
     if (tournament.status !== 'ACTIVE') return false;
     if (selectedTag === 'все') return true;
@@ -24,7 +27,6 @@ export default function Home() {
     <div className="min-h-screen bg-[#141414] text-white flex flex-col">
       {/* Header */}
       <header className="flex justify-between items-start px-4 pt-8">
-        {/* Title and Subtitle */}
         <div>
           <h1 className="text-[25px] font-bold text-[#00B2FF] text-left leading-none">
             BRACKET CHALLENGE
@@ -33,8 +35,6 @@ export default function Home() {
             BY ПРАЙМСПОРТ
           </p>
         </div>
-
-        {/* Profile Button */}
         <Link href="/profile">
           <div data-svg-wrapper data-layer="Rectangle 533" className="Rectangle533">
             <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -50,24 +50,19 @@ export default function Home() {
         </Link>
       </header>
 
-      {/* Spacer */}
       <div className="h-[50px]"></div>
 
-      {/* Bento Banner */}
       <div className="flex justify-center">
         <div data-layer="Rectangle 541" className="Rectangle541 w-[330px] h-[124px] bg-[#D9D9D9] rounded-[29px]"></div>
       </div>
 
-      {/* Spacer */}
       <div className="h-[75px]"></div>
 
-      {/* Tournaments Section */}
       <main className="flex-1 px-4">
         <h2 className="text-[20px] font-semibold text-[#FFFFFF] text-left mb-[15px]">
           ТУРНИРЫ ЭТОЙ НЕДЕЛИ
         </h2>
 
-        {/* Tags */}
         <div className="flex justify-start space-x-[15px] mb-[40px]">
           <div
             data-svg-wrapper
@@ -114,7 +109,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Tournament Cards */}
         <div className="space-y-[20px] flex flex-col items-center">
           {activeTournaments.length === 0 ? (
             <p className="text-[#FFFFFF]">Нет активных турниров</p>
@@ -125,15 +119,12 @@ export default function Home() {
                   data-layer="Rectangle 549"
                   className="Rectangle549 w-[330px] h-[93px] bg-gradient-to-r from-[#1B1A1F] to-[#161616] rounded-[10px] border border-[rgba(255,255,255,0.18)] relative"
                 >
-                  {/* Tournament Name */}
                   <h3 className="absolute top-[10px] left-[10px] text-[20px] font-semibold text-[#FFFFFF]">
                     {tournament.name}
                   </h3>
-                  {/* Tournament Dates */}
                   <p className="absolute top-[35px] left-[10px] text-[10px] font-normal text-[#5F6067]">
-                    {tournament.dates}
+                    {tournament.dates || 'Даты не указаны'}
                   </p>
-                  {/* Tournament Tag */}
                   <div className="absolute top-[10px] right-[10px] flex items-center justify-center">
                     {tournament.tag === 'ATP' && (
                       <div data-svg-wrapper data-layer="Rectangle 545" className="Rectangle545">
@@ -170,10 +161,8 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Spacer before Footer */}
       <div className="h-[80px]"></div>
 
-      {/* Footer Navigation */}
       <footer className="bg-[#1B1A1F] w-full h-[39px] flex justify-center items-center">
         <div className="flex space-x-[70px]">
           <div
