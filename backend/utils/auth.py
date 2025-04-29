@@ -1,4 +1,5 @@
 import os
+from fastapi import Header, HTTPException, status
 from init_data_py import InitData
 
 def verify_telegram_data(init_data_raw: str) -> dict:
@@ -31,3 +32,28 @@ def verify_telegram_data(init_data_raw: str) -> dict:
         }
     except Exception:
         return None
+
+async def get_current_user(authorization: str = Header(default=None)):
+    """
+    Извлекает и валидирует Telegram initData из заголовка Authorization.
+    Возвращает данные пользователя или выбрасывает исключение, если авторизация не удалась.
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header missing",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Предполагаем, что initData передаётся в заголовке Authorization
+    # Формат: Authorization: <initData>
+    init_data_raw = authorization
+    user_data = verify_telegram_data(init_data_raw)
+    if not user_data:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Telegram auth",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user_data
