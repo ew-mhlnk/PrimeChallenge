@@ -28,10 +28,12 @@ def parse_datetime(date_str: str) -> datetime:
     Парсит дату и время в формате DD.MM.YYYY HH:MM.
     Например: '25.04.2025 18:00' -> datetime(2025, 4, 25, 18, 0)
     """
+    if not date_str:  # Проверяем, не пустая ли строка
+        raise ValueError("Date string is empty")
     try:
         return datetime.strptime(date_str, "%d.%m.%Y %H:%M").replace(tzinfo=pytz.UTC)
     except ValueError as e:
-        logger.error(f"Invalid datetime format for {date_str}: {str(e)}")
+        logger.error(f"Invalid datetime format for {date_str}: time data '{date_str}' does not match format '%d.%m.%Y %H:%M'")
         raise
 
 async def sync_google_sheets_with_db(engine: Engine) -> None:
@@ -105,6 +107,11 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                 tag = row[9]  # J: Tag
 
                 new_tournament_ids.add(tournament_id)
+
+                # Проверяем, что start_time и close_time не пустые
+                if not start_time or not close_time:
+                    logger.warning(f"Skipping tournament {tournament_id}: Start or Close time is empty (Start: '{start_time}', Close: '{close_time}')")
+                    continue
 
                 # Проверяем и обновляем статус на основе даты
                 try:
