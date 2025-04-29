@@ -8,10 +8,10 @@ interface TagSelectorProps {
 }
 
 const tags = [
-  { label: 'все', color: '#FF8000', width: '38px' },
-  { label: 'ATP', color: '#002BFF', width: '38px' },
-  { label: 'WTA', color: '#7B00FF', width: '38px' },
-  { label: 'ТБШ', gradient: 'linear-gradient(180deg, #FDF765 0%, #7D490E 100%)', width: '93.87px' },
+  { label: 'ВСЕ', fill: '#FF8000' },
+  { label: 'ATP', fill: '#002BFF' },
+  { label: 'WTA', fill: '#7B00FF' },
+  { label: 'ТБШ', gradient: 'url(#paint0_linear_1872_30)' },
 ];
 
 export default function TagSelector({ selectedTag, setSelectedTag }: TagSelectorProps) {
@@ -22,35 +22,39 @@ export default function TagSelector({ selectedTag, setSelectedTag }: TagSelector
         return (
           <div
             key={tag.label}
-            data-svg-wrapper={tag.label !== 'ТБШ'}
-            data-layer="Rectangle 545"
-            className={`Rectangle545 cursor-pointer ${isActive ? `ring-2 ring-${tag.color || '[#FDF765]'}` : ''}`}
-            style={
-              tag.gradient
-                ? { width: tag.width, height: '14.34px', background: tag.gradient, borderRadius: '3.58px' }
-                : { width: tag.width, height: '14.34px' }
-            }
+            data-svg-wrapper
+            data-layer={isActive ? 'Rectangle 545' : 'Rectangle 546'}
+            className={`Rectangle${isActive ? '545' : '546'} cursor-pointer flex items-center justify-center gap-1`}
             onClick={() => setSelectedTag(tag.label)}
           >
-            {tag.gradient ? (
-              <div className="flex items-center justify-center h-full">
-                <span className="text-[#FFFFFF] text-[10px] font-medium">{tag.label}</span>
-              </div>
-            ) : (
-              <svg width={tag.width} height="15" viewBox="0 0 38 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="38" height="14.3396" rx="3.58491" fill={tag.color} />
-                <text
-                  x="50%"
-                  y="50%"
-                  dominantBaseline="middle"
-                  textAnchor="middle"
-                  fill="#FFFFFF"
-                  fontSize="10"
-                >
-                  {tag.label}
-                </text>
-              </svg>
-            )}
+            <svg width="40" height="20" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {isActive ? (
+                <>
+                  <rect width="40" height="20" rx="3.58491" fill={tag.fill || tag.gradient} />
+                  {tag.gradient && (
+                    <defs>
+                      <linearGradient id="paint0_linear_1872_30" x1="20" y1="0" x2="20" y2="20" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#FDF765" />
+                        <stop offset="1" stopColor="#DAB07F" />
+                      </linearGradient>
+                    </defs>
+                  )}
+                </>
+              ) : (
+                <rect x="0.25" y="0.25" width="39.5" height="19.5" rx="3.33491" stroke="#5F6067" strokeWidth="0.5" />
+              )}
+              <text
+                x="50%"
+                y="50%"
+                dominantBaseline="middle"
+                textAnchor="middle"
+                fill="#FFFFFF"
+                fontSize="10"
+                className={isActive ? 'font-black' : ''}
+              >
+                {tag.label}
+              </text>
+            </svg>
           </div>
         );
       })}
