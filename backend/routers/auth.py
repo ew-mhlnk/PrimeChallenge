@@ -3,18 +3,13 @@ from sqlalchemy.orm import Session
 import logging
 from database.db import get_db
 from database.models import User
-from pydantic import BaseModel
+from schemas import UserBase
 from utils.auth import verify_telegram_data
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-class AuthResponse(BaseModel):
-    status: str
-    user_id: int
-    first_name: str
-
-@router.post("/", response_model=AuthResponse)
+@router.post("/", response_model=UserBase)
 async def auth(request: Request, db: Session = Depends(get_db)):
     logger.info("Auth endpoint accessed")
     try:
@@ -58,11 +53,7 @@ async def auth(request: Request, db: Session = Depends(get_db)):
             db.refresh(existing)
             db_user = existing
 
-        return {
-            "status": "ok",
-            "user_id": db_user.user_id,
-            "first_name": db_user.first_name
-        }
+        return db_user
     except Exception as e:
         logger.error(f"Unexpected error in auth endpoint: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
