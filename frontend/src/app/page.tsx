@@ -21,9 +21,9 @@ export default function Home() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+    <div className="min-h-screen bg-[#141414] text-white flex flex-col">
       {/* Header */}
-      <header className="flex justify-between items-start px-4 pt-4">
+      <header className="flex justify-between items-start px-4 pt-8">
         {/* Title and Subtitle */}
         <div>
           <h1 className="text-[25px] font-bold text-[#00B2FF] text-left leading-none">
@@ -51,7 +51,7 @@ export default function Home() {
       </header>
 
       {/* Spacer */}
-      <div className="h-[35px]"></div>
+      <div className="h-[50px]"></div>
 
       {/* Bento Banner */}
       <div className="flex justify-center">
@@ -63,12 +63,12 @@ export default function Home() {
 
       {/* Tournaments Section */}
       <main className="flex-1 px-4">
-        <h2 className="text-[20px] font-semibold text-[#FFFFFF] text-center mb-[15px]">
+        <h2 className="text-[20px] font-semibold text-[#FFFFFF] text-left mb-[15px]">
           ТУРНИРЫ ЭТОЙ НЕДЕЛИ
         </h2>
 
         {/* Tags */}
-        <div className="flex justify-center space-x-[15px] mb-[40px]">
+        <div className="flex justify-start space-x-[15px] mb-[40px]">
           <div
             data-svg-wrapper
             data-layer="Rectangle 545"
@@ -171,7 +171,7 @@ export default function Home() {
       </main>
 
       {/* Spacer before Footer */}
-      <div className="h-[65px]"></div>
+      <div className="h-[80px]"></div>
 
       {/* Footer Navigation */}
       <footer className="bg-[#1B1A1F] w-full h-[39px] flex justify-center items-center">
