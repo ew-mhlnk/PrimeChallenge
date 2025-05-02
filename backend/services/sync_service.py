@@ -206,7 +206,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                 # Получаем текущие записи true_draw для этого турнира
                 existing_matches = conn.execute(
                     text("""
-                        SELECT round, match_number
+                        SELECT round, match_number, player1, player2, winner
                         FROM true_draw
                         WHERE tournament_id = :tournament_id
                     """),
@@ -244,13 +244,13 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                 round_order = {"R128": 1, "R64": 2, "R32": 3, "R16": 4, "QF": 5, "SF": 6, "F": 7}
                 starting_round_order = round_order.get(starting_round, 1)
 
-                # Парсим матчи попарно (начиная со второй строки)
+                # Собираем все матчи по раундам
+                matches_by_round = {"R128": [], "R64": [], "R32": [], "R16": [], "QF": [], "SF": [], "F": []}
                 row_idx = 1  # Начинаем со второй строки (после заголовков)
                 while row_idx < len(data) - 1:  # Обрабатываем пары строк
                     player1_row = data[row_idx]
                     player2_row = data[row_idx + 1]
 
-                    # Парсим каждый раунд
                     for col_idx, round_name in round_columns.items():
                         # Пропускаем раунды до starting_round
                         if round_order[round_name] < starting_round_order:
@@ -263,34 +263,71 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                         if not player1 or not player2:
                             continue  # Пропускаем, если нет игроков
 
-                        # Определяем номер матча (считаем матчи в этом раунде)
+                        # Определяем номер матча
                         match_number = sum(1 for r in range(1, row_idx, 2) if col_idx < len(data[r]) and col_idx < len(data[r + 1]) and data[r][col_idx].strip() and data[r + 1][col_idx].strip()) + 1
-                        new_match_keys.add((round_name, match_number))
+                        matches_by_round[round_name].append({
+                            "match_number": match_number,
+                            "player1": player1,
+                            "player2": player2
+                        })
 
-                        # Парсим результаты сетов (следующие 5 колонок после раунда)
+                    row_idx += 2  # Переходим к следующей паре игроков
+
+                # Определяем победителей для каждого раунда
+                for round_name in ["R128", "R64", "R32", "R16", "QF", "SF"]:
+                    if round_name == "F":  # Для финала нет следующего раунда
+                        continue
+
+                    current_matches = matches_by_round[round_name]
+                    if not current_matches:
+                        continue
+
+                    # Находим следующий раунд
+                    next_round_name = None
+                    for r, order in round_order.items():
+                        if order == round_order[round_name] + 1:
+                            next_round_name = r
+                            break
+
+                    if not next_round_name:
+                        continue
+
+                    next_round_matches = matches_by_round[next_round_name]
+                    if not next_round_matches:
+                        continue
+
+                    # Проходим по матчам текущего раунда
+                    for match in current_matches:
+                        match_number = match["match_number"]
+                        player1 = match["player1"]
+                        player2 = match["player2"]
+
+                        # Парсим результаты сетов (для декорации)
+                        col_idx = list(round_columns.keys())[list(round_columns.values()).index(round_name)]
+                        player1_row = data[row_idx - 1] if row_idx - 1 < len(data) else [""]
+                        player2_row = data[row_idx] if row_idx < len(data) else [""]
                         set1 = player1_row[col_idx + 1] if col_idx + 1 < len(player1_row) and player1_row[col_idx + 1] else None
                         set2 = player1_row[col_idx + 2] if col_idx + 2 < len(player1_row) and player1_row[col_idx + 2] else None
                         set3 = player1_row[col_idx + 3] if col_idx + 3 < len(player1_row) and player1_row[col_idx + 3] else None
                         set4 = player1_row[col_idx + 4] if col_idx + 4 < len(player1_row) and player1_row[col_idx + 4] else None
                         set5 = player1_row[col_idx + 5] if col_idx + 5 < len(player1_row) and player1_row[col_idx + 5] else None
 
-                        # Ищем победителя в колонке следующего раунда
+                        # Определяем победителя на основе следующего раунда
                         winner = None
-                        next_round_col = None
-                        for next_col_idx, next_round in round_columns.items():
-                            if round_order[next_round] == round_order[round_name] + 1:
-                                next_round_col = next_col_idx
-                                break
-
-                        if next_round_col is not None:
-                            next_player1 = player1_row[next_round_col].strip() if next_round_col < len(player1_row) else ""
-                            next_player2 = player2_row[next_round_col].strip() if next_round_col < len(player2_row) else ""
+                        # Находим соответствующий матч в следующем раунде
+                        # Например, R32 #1 и R32 #2 → R16 #1
+                        next_match_idx = (match_number - 1) // 2
+                        if next_match_idx < len(next_round_matches):
+                            next_match = next_round_matches[next_match_idx]
+                            next_player1 = next_match["player1"]
+                            next_player2 = next_match["player2"]
                             if next_player1 in [player1, player2]:
                                 winner = next_player1
                             elif next_player2 in [player1, player2]:
                                 winner = next_player2
 
                         # Сохраняем матч в базу (обновляем или добавляем)
+                        new_match_keys.add((round_name, match_number))
                         conn.execute(
                             text("""
                                 INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, set1, set2, set3, set4, set5, winner)
@@ -319,9 +356,57 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                                 "winner": winner
                             }
                         )
-                        logger.info(f"Synced match: {round_name} #{match_number} - {player1} vs {player2}")
+                        logger.info(f"Synced match: {round_name} #{match_number} - {player1} vs {player2}, winner: {winner}")
 
-                    row_idx += 2  # Переходим к следующей паре игроков
+                # Обрабатываем финал отдельно (нет следующего раунда)
+                for match in matches_by_round["F"]:
+                    match_number = match["match_number"]
+                    player1 = match["player1"]
+                    player2 = match["player2"]
+
+                    # Парсим результаты сетов (для декорации)
+                    col_idx = list(round_columns.keys())[list(round_columns.values()).index("F")]
+                    player1_row = data[row_idx - 1] if row_idx - 1 < len(data) else [""]
+                    player2_row = data[row_idx] if row_idx < len(data) else [""]
+                    set1 = player1_row[col_idx + 1] if col_idx + 1 < len(player1_row) and player1_row[col_idx + 1] else None
+                    set2 = player1_row[col_idx + 2] if col_idx + 2 < len(player1_row) and player1_row[col_idx + 2] else None
+                    set3 = player1_row[col_idx + 3] if col_idx + 3 < len(player1_row) and player1_row[col_idx + 3] else None
+                    set4 = player1_row[col_idx + 4] if col_idx + 4 < len(player1_row) and player1_row[col_idx + 4] else None
+                    set5 = player1_row[col_idx + 5] if col_idx + 5 < len(player1_row) and player1_row[col_idx + 5] else None
+
+                    # Для финала winner может быть определён через колонку Champion
+                    winner = champion if champion in [player1, player2] else None
+
+                    new_match_keys.add(("F", match_number))
+                    conn.execute(
+                        text("""
+                            INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, set1, set2, set3, set4, set5, winner)
+                            VALUES (:tournament_id, :round, :match_number, :player1, :player2, :set1, :set2, :set3, :set4, :set5, :winner)
+                            ON CONFLICT (tournament_id, round, match_number) DO UPDATE
+                            SET player1 = EXCLUDED.player1,
+                                player2 = EXCLUDED.player2,
+                                set1 = EXCLUDED.set1,
+                                set2 = EXCLUDED.set2,
+                                set3 = EXCLUDED.set3,
+                                set4 = EXCLUDED.set4,
+                                set5 = EXCLUDED.set5,
+                                winner = EXCLUDED.winner
+                        """),
+                        {
+                            "tournament_id": tournament_id,
+                            "round": "F",
+                            "match_number": match_number,
+                            "player1": player1,
+                            "player2": player2,
+                            "set1": set1,
+                            "set2": set2,
+                            "set3": set3,
+                            "set4": set4,
+                            "set5": set5,
+                            "winner": winner
+                        }
+                    )
+                    logger.info(f"Synced match: F #{match_number} - {player1} vs {player2}, winner: {winner}")
 
                 # Удаляем матчи, которых больше нет в Google Sheets
                 matches_to_delete = existing_match_keys - new_match_keys
