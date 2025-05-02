@@ -5,6 +5,7 @@ from database.db import get_db
 from database import models
 import logging
 from schemas import Tournament, TrueDraw
+from utils.auth import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -28,11 +29,15 @@ async def get_tournaments(tag: str = None, status: str = None, id: int = None, d
     return tournaments
 
 @router.get("/tournament/{id}", response_model=Tournament)
-async def get_tournament_by_id(id: int, db: Session = Depends(get_db)):
+async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     logger.info(f"Fetching tournament with id={id}")
     tournament = db.query(models.Tournament).filter(models.Tournament.id == id).first()
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
+    
+    # Извлекаем user_id из user
+    user_id = user["id"]
+    logger.info(f"Using user_id={user_id} for picks")
     
     # Загружаем матчи (true_draws)
     true_draws = (
@@ -41,8 +46,7 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db)):
         .all()
     )
     
-    # Загружаем пики пользователя (предполагаем, что user_id берётся из initData, но для простоты пока заглушка)
-    user_id = 0  # Нужно извлечь user_id из initData (например, через middleware)
+    # Загружаем пики пользователя
     user_picks = (
         db.query(models.UserPick)
         .filter(models.UserPick.tournament_id == id, models.UserPick.user_id == user_id)
@@ -61,7 +65,7 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db)):
         "user_picks": user_picks,
     }
     
-    logger.info(f"Returning tournament with id={id}")
+    logger.info(f"Returning tournament with id={id}, user_picks count={len(user_picks)}")
     return tournament_dict
 
 @router.get("/matches/by-id", response_model=List[TrueDraw])
@@ -87,9 +91,12 @@ async def get_picks(tournament_id: int, user_id: int, db: Session = Depends(get_
     return picks
 
 @router.post("/picks/", response_model=dict)
-async def save_pick(pick: dict, db: Session = Depends(get_db)):
+async def save_pick(pick: dict, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     logger.info("Saving pick")
     try:
+        # Устанавливаем user_id из аутентифицированного пользователя
+        pick["user_id"] = user["id"]
+        
         existing_pick = (
             db.query(models.UserPick)
             .filter(
@@ -121,10 +128,13 @@ async def save_pick(pick: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Failed to save pick")
 
 @router.post("/picks/bulk")
-async def save_picks_bulk(picks: List[dict], db: Session = Depends(get_db)):
+async def save_picks_bulk(picks: List[dict], db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     logger.info("Saving picks in bulk")
     try:
         for pick in picks:
+            # Устанавливаем user_id из аутентифицированного пользователя
+            pick["user_id"] = user["id"]
+            
             existing_pick = (
                 db.query(models.UserPick)
                 .filter(
