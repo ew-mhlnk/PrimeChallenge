@@ -162,8 +162,8 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                 )
 
                 # Определяем, нужно ли синхронизировать true_draw
-                # Синхронизируем только для ACTIVE турниров
-                if status == "ACTIVE":
+                # Синхронизируем для ACTIVE и CLOSED турниров
+                if status in ["ACTIVE", "CLOSED"]:
                     tournaments_to_sync.append((tournament_id, sheet_name, starting_round))
                 else:
                     logger.info(f"Skipping sync for tournament {tournament_id} as it is {status}")
@@ -192,7 +192,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     {"tournament_id": tournament_id}
                 )
 
-        # Шаг 2: Парсим турнирные сетки из листов, указанных в sheet_name, только для ACTIVE турниров
+        # Шаг 2: Парсим турнирные сетки из листов, указанных в sheet_name, для ACTIVE и CLOSED турниров
         for tournament_id, sheet_name, starting_round in tournaments_to_sync:
             try:
                 logger.info(f"Processing tournament {tournament_id} with sheet name {sheet_name}")
