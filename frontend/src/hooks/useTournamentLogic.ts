@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { Tournament, UserPick, ComparisonResult, Match } from '@/types';
 
@@ -28,7 +30,8 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
           throw new Error('Telegram initData not available');
         }
 
-        const response = await fetch(`https://primechallenge.onrender.com/bracket/${id}`, {
+        console.log('useTournamentLogic: Fetching tournament with id', id);
+        const response = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
           headers: {
             Authorization: initData,
           },
@@ -37,24 +40,38 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
           throw new Error('Ошибка при загрузке турнира');
         }
         const data: Tournament = await response.json();
+        console.log('useTournamentLogic: Fetched data', data);
         setTournament(data);
 
         // Устанавливаем матчи и пики
-        setMatches(data.true_draws || []);
-        setPicks(data.user_picks || []);
+        const fetchedMatches = data.true_draws || [];
+        const fetchedPicks = data.user_picks || [];
+        console.log('useTournamentLogic: Matches', fetchedMatches);
+        console.log('useTournamentLogic: Picks', fetchedPicks);
+        setMatches(fetchedMatches);
+        setPicks(fetchedPicks);
 
         // Устанавливаем раунды
         if (data.starting_round) {
           const startIdx = allRounds.indexOf(data.starting_round);
-          const availableRounds = allRounds.slice(startIdx);
-          setRounds(availableRounds);
-          setSelectedRound(data.starting_round);
+          if (startIdx === -1) {
+            console.error('useTournamentLogic: Invalid starting_round', data.starting_round);
+            setRounds(allRounds);
+            setSelectedRound(allRounds[0]);
+          } else {
+            const availableRounds = allRounds.slice(startIdx);
+            console.log('useTournamentLogic: Available rounds', availableRounds);
+            setRounds(availableRounds);
+            setSelectedRound(data.starting_round);
+          }
         } else {
+          console.log('useTournamentLogic: No starting_round, using default');
           setRounds(allRounds);
           setSelectedRound(allRounds[0]);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
+        console.error('useTournamentLogic: Error', message);
         setError(message);
       } finally {
         setIsLoading(false);
@@ -83,6 +100,7 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
           correct: pick?.predicted_winner === match.winner && !!match.winner,
         };
       });
+      console.log('useTournamentLogic: Comparison', comparisonResults);
       setComparison(comparisonResults);
     };
 
@@ -90,16 +108,12 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
   }, [matches, picks]);
 
   // Функция для обработки пиков
-  const handlePick = async (match: Match, player: string | null) => {
+  const handlePick = async (match: UserPick, player: string | null) => {
     try {
       const initData = window.Telegram?.WebApp?.initData;
       if (!initData) {
         throw new Error('Telegram initData not available');
       }
-
-      const existingPick = picks.find(
-        (p) => p.round === match.round && p.match_number === match.match_number
-      );
 
       const response = await fetch('https://primechallenge.onrender.com/picks/', {
         method: 'POST',
@@ -120,10 +134,36 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       }
 
       const updatedPick: UserPick = await response.json();
-      const updatedPicks = existingPick
+      const updatedPicks = picks.some((p) => p.id === updatedPick.id)
         ? picks.map((p) => (p.id === updatedPick.id ? updatedPick : p))
         : [...picks, updatedPick];
       setPicks(updatedPicks);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
+      setError(message);
+    }
+  };
+
+  // Функция для сохранения всех пиков
+  const savePicks = async () => {
+    try {
+      const initData = window.Telegram?.WebApp?.initData;
+      if (!initData) {
+        throw new Error('Telegram initData not available');
+      }
+
+      const response = await fetch('https://primechallenge.onrender.com/picks/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: initData,
+        },
+        body: JSON.stringify(picks),
+      });
+
+      if (!response.ok) {
+        throw new Error('Ошибка при сохранении пиков');
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
       setError(message);
@@ -141,5 +181,6 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
     setSelectedRound,
     rounds,
     handlePick,
+    savePicks,
   };
 };

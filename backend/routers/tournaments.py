@@ -27,17 +27,17 @@ async def get_tournaments(tag: str = None, status: str = None, id: int = None, d
     logger.info(f"Returning {len(tournaments)} tournaments")
     return tournaments
 
-@router.get("/bracket/{tournament_id}", response_model=Tournament)
-async def get_tournament_by_id(tournament_id: int, db: Session = Depends(get_db)):
-    logger.info(f"Fetching tournament with id={tournament_id}")
-    tournament = db.query(models.Tournament).filter(models.Tournament.id == tournament_id).first()
+@router.get("/tournament/{id}", response_model=Tournament)
+async def get_tournament_by_id(id: int, db: Session = Depends(get_db)):
+    logger.info(f"Fetching tournament with id={id}")
+    tournament = db.query(models.Tournament).filter(models.Tournament.id == id).first()
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
     
     # Загружаем матчи (true_draws)
     true_draws = (
         db.query(models.TrueDraw)
-        .filter(models.TrueDraw.tournament_id == tournament_id)
+        .filter(models.TrueDraw.tournament_id == id)
         .all()
     )
     
@@ -45,7 +45,7 @@ async def get_tournament_by_id(tournament_id: int, db: Session = Depends(get_db)
     user_id = 0  # Нужно извлечь user_id из initData (например, через middleware)
     user_picks = (
         db.query(models.UserPick)
-        .filter(models.UserPick.tournament_id == tournament_id, models.UserPick.user_id == user_id)
+        .filter(models.UserPick.tournament_id == id, models.UserPick.user_id == user_id)
         .all()
     )
     
@@ -61,7 +61,7 @@ async def get_tournament_by_id(tournament_id: int, db: Session = Depends(get_db)
         "user_picks": user_picks,
     }
     
-    logger.info(f"Returning tournament with id={tournament_id}")
+    logger.info(f"Returning tournament with id={id}")
     return tournament_dict
 
 @router.get("/matches/by-id", response_model=List[TrueDraw])
