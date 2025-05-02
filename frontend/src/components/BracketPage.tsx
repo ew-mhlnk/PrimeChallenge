@@ -6,11 +6,13 @@ import Link from 'next/link';
 import MatchList from './MatchList';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 import { UserPick } from '@/types';
+import styles from './BracketPage.module.css'; // Импортируем стили
 
 const allRounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'W'];
 
 export default function BracketPage() {
   const { id } = useParams();
+  // Используем хук для управления логикой турнира
   const {
     tournament,
     picks,
@@ -26,13 +28,14 @@ export default function BracketPage() {
 
   const [notification, setNotification] = useState<string | null>(null);
 
+  // Показываем уведомление, если есть ошибка
   useEffect(() => {
     if (error) {
       setNotification(error);
     }
   }, [error]);
 
-  // Отладка
+  // Отладочные логи
   console.log('BracketPage: tournament', tournament);
   console.log('BracketPage: picks', picks);
   console.log('BracketPage: rounds', rounds);
@@ -177,6 +180,7 @@ export default function BracketPage() {
             comparison={comparison}
             handlePick={handlePick}
             canEdit={canEdit}
+            styles={styles} // Передаём стили
           />
         ) : (
           <p className="text-[#FFFFFF]">Выберите раунд</p>

@@ -9,6 +9,7 @@ interface UseTournamentLogicProps {
 }
 
 export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) => {
+  // Состояние для хранения данных турнира, матчей, пиков и т.д.
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
   const [picks, setPicks] = useState<UserPick[]>([]);
@@ -18,12 +19,12 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
   const [rounds, setRounds] = useState<string[]>([]);
 
-  // Загрузка данных турнира, матчей и пиков
+  // Загружаем данные турнира при монтировании компонента
   useEffect(() => {
     const fetchTournamentData = async () => {
       if (!id) return;
 
-      setIsLoading(true);
+      setIsLoading(true); // Показываем состояние загрузки
       try {
         const initData = window.Telegram?.WebApp?.initData;
         if (!initData) {
@@ -39,19 +40,22 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
         if (!response.ok) {
           throw new Error('Ошибка при загрузке турнира');
         }
-        const data: Tournament = await response.json();
+        const data: Tournament & { compared_picks?: ComparisonResult[] } = await response.json();
         console.log('useTournamentLogic: Fetched data', data);
         setTournament(data);
 
-        // Устанавливаем матчи и пики
+        // Устанавливаем матчи, пики и сравнения
         const fetchedMatches = data.true_draws || [];
         const fetchedPicks = data.user_picks || [];
+        const fetchedComparison = data.compared_picks || [];
         console.log('useTournamentLogic: Matches', fetchedMatches);
         console.log('useTournamentLogic: Picks', fetchedPicks);
+        console.log('useTournamentLogic: Comparison', fetchedComparison);
         setMatches(fetchedMatches);
         setPicks(fetchedPicks);
+        setComparison(fetchedComparison);
 
-        // Устанавливаем раунды
+        // Устанавливаем доступные раунды
         if (data.starting_round) {
           const startIdx = allRounds.indexOf(data.starting_round);
           if (startIdx === -1) {
@@ -74,41 +78,21 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
         console.error('useTournamentLogic: Error', message);
         setError(message);
       } finally {
-        setIsLoading(false);
+        setIsLoading(false); // Снимаем состояние загрузки
       }
     };
 
     fetchTournamentData();
   }, [id, allRounds]);
 
-  // Сравнение пиков с реальными результатами
-  useEffect(() => {
-    const computeComparison = () => {
-      if (!matches || !picks) return;
-
-      const comparisonResults: ComparisonResult[] = matches.map((match) => {
-        const pick = picks.find(
-          (p) => p.round === match.round && p.match_number === match.match_number
-        );
-        return {
-          round: match.round,
-          match_number: match.match_number,
-          player1: match.player1 || 'TBD',
-          player2: match.player2 || 'TBD',
-          predicted_winner: pick?.predicted_winner || '',
-          actual_winner: match.winner || '',
-          correct: pick?.predicted_winner === match.winner && !!match.winner,
-        };
-      });
-      console.log('useTournamentLogic: Comparison', comparisonResults);
-      setComparison(comparisonResults);
-    };
-
-    computeComparison();
-  }, [matches, picks]);
-
-  // Функция для обработки пиков
+  // Функция для отправки пика на сервер
   const handlePick = async (match: UserPick, player: string | null) => {
+    // Проверяем статус турнира перед редактированием
+    if (tournament?.status !== 'ACTIVE') {
+      setError('Турнир закрыт, пики нельзя изменить');
+      return;
+    }
+
     try {
       const initData = window.Telegram?.WebApp?.initData;
       if (!initData) {
@@ -134,6 +118,7 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       }
 
       const updatedPick: UserPick = await response.json();
+      // Обновляем локальное состояние пиков
       const updatedPicks = picks.some((p) => p.id === updatedPick.id)
         ? picks.map((p) => (p.id === updatedPick.id ? updatedPick : p))
         : [...picks, updatedPick];
@@ -144,8 +129,13 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
     }
   };
 
-  // Функция для сохранения всех пиков
+  // Функция для сохранения всех пиков сразу
   const savePicks = async () => {
+    if (tournament?.status !== 'ACTIVE') {
+      setError('Турнир закрыт, пики нельзя изменить');
+      return;
+    }
+
     try {
       const initData = window.Telegram?.WebApp?.initData;
       if (!initData) {
