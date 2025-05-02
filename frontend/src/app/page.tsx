@@ -19,7 +19,8 @@ export default function Home() {
   }
 
   const activeTournaments = tournaments.filter((tournament: Tournament) => {
-    if (tournament.status !== 'ACTIVE') return false;
+    // Показываем турниры со статусами ACTIVE и CLOSED
+    if (!['ACTIVE', 'CLOSED'].includes(tournament.status)) return false;
     if (selectedTag === 'ВСЕ') return true;
     return tournament.tag === selectedTag;
   });
