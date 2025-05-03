@@ -297,22 +297,31 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
 
                             # Инициализация user_picks для каждого активного пользователя
                             active_users = conn.execute(text("SELECT id FROM users WHERE status = 'ACTIVE'")).fetchall()
-                            for user in active_users:
-                                user_id = user[0]
-                                conn.execute(
-                                    text("""
-                                        INSERT INTO user_picks (user_id, tournament_id, match_id, pick)
-                                        VALUES (:user_id, :tournament_id, (SELECT id FROM true_draw WHERE tournament_id = :tournament_id AND round = :round AND match_number = :match_number), NULL)
-                                        ON CONFLICT (user_id, tournament_id, match_id) DO NOTHING
-                                    """),
-                                    {
-                                        "user_id": user_id,
-                                        "tournament_id": tournament_id,
-                                        "round": round_name,
-                                        "match_number": match_number
-                                    }
-                                )
-                                logger.info(f"Initialized user_picks for user {user_id}, tournament {tournament_id}, match {round_name} #{match_number}")
+                            match_id = conn.execute(
+                                text("SELECT id FROM true_draw WHERE tournament_id = :tournament_id AND round = :round AND match_number = :match_number"),
+                                {"tournament_id": tournament_id, "round": round_name, "match_number": match_number}
+                            ).scalar()
+                            if match_id:
+                                for user in active_users:
+                                    user_id = user[0]
+                                    try:
+                                        conn.execute(
+                                            text("""
+                                                INSERT INTO user_picks (user_id, tournament_id, match_id, pick)
+                                                VALUES (:user_id, :tournament_id, :match_id, NULL)
+                                                ON CONFLICT (user_id, tournament_id, match_id) DO NOTHING
+                                            """),
+                                            {
+                                                "user_id": user_id,
+                                                "tournament_id": tournament_id,
+                                                "match_id": match_id
+                                            }
+                                        )
+                                        logger.info(f"Initialized user_picks for user {user_id}, tournament {tournament_id}, match {match_id}")
+                                    except Exception as e:
+                                        logger.error(f"Error initializing user_picks for user {user_id}, tournament {tournament_id}, match {match_id}: {str(e)}")
+                            else:
+                                logger.error(f"Match not found in true_draw for tournament {tournament_id}, round {round_name}, match_number {match_number}")
 
                         row_idx += 2
 
