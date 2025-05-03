@@ -44,14 +44,19 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
         setMatches(fetchedMatches);
         setComparison(fetchedComparison);
 
-        // Ограничиваем раунды только starting_round для активного турнира
+        // Устанавливаем все раунды, начиная с starting_round
         let availableRounds: string[] = [];
-        if (data.starting_round && data.status === 'ACTIVE') {
-          availableRounds = [data.starting_round];
-          setSelectedRound(data.starting_round);
-        } else {
-          availableRounds = allRounds.slice(allRounds.indexOf(data.starting_round || allRounds[0]));
+        if (data.starting_round) {
+          const startIdx = allRounds.indexOf(data.starting_round);
+          if (startIdx !== -1) {
+            availableRounds = allRounds.slice(startIdx);
+          } else {
+            availableRounds = allRounds;
+          }
           setSelectedRound(data.starting_round || allRounds[0]);
+        } else {
+          availableRounds = allRounds;
+          setSelectedRound(allRounds[0]);
         }
         setRounds(availableRounds);
 
@@ -61,7 +66,7 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
             (match) => match.round === data.starting_round
           );
           fetchedPicks = firstRoundMatches.map((match) => ({
-            id: match.match_number, // Используем match_number как временный id (число)
+            id: match.match_number,
             user_id: 0,
             tournament_id: parseInt(id),
             round: match.round,
@@ -90,7 +95,6 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       return;
     }
 
-    // Обновляем локальное состояние пиков
     const newPicks = [...picks];
     const pickIndex = newPicks.findIndex(
       (p) => p.round === match.round && p.match_number === match.match_number
@@ -101,7 +105,6 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       newPicks.push({ ...match, predicted_winner: player });
     }
 
-    // Логика продвижения игроков в следующие раунды
     const currentRoundIdx = allRounds.indexOf(match.round);
     if (player && currentRoundIdx < allRounds.length - 1) {
       const nextRound = allRounds[currentRoundIdx + 1];
@@ -112,7 +115,7 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       );
       if (!nextMatch) {
         nextMatch = {
-          id: nextMatchNumber, // Временный id на основе match_number
+          id: nextMatchNumber,
           user_id: 0,
           tournament_id: match.tournament_id,
           round: nextRound,
@@ -124,7 +127,6 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
         newPicks.push(nextMatch);
       }
 
-      // Проверяем, что nextMatch определён перед использованием
       if (nextMatch) {
         if (match.match_number % 2 === 1) {
           nextMatch.player1 = player;
@@ -140,7 +142,7 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
           let winnerMatch = newPicks.find((p) => p.round === 'W' && p.match_number === 1);
           if (!winnerMatch) {
             winnerMatch = {
-              id: 1, // Временный id для W
+              id: 1,
               user_id: 0,
               tournament_id: match.tournament_id,
               round: 'W',
@@ -158,7 +160,6 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       }
     }
 
-    // Очистка последующих матчей, если выбор снят
     if (player === null) {
       const currentRoundIdx = allRounds.indexOf(match.round);
       for (let roundIdx = currentRoundIdx + 1; roundIdx < allRounds.length; roundIdx++) {
@@ -194,7 +195,6 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
 
     setPicks(newPicks);
 
-    // Отправляем обновление на сервер
     try {
       const initData = window.Telegram?.WebApp?.initData;
       if (!initData) throw new Error('Telegram initData not available');
@@ -233,7 +233,6 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       const initData = window.Telegram?.WebApp?.initData;
       if (!initData) throw new Error('Telegram initData not available');
 
-      // Отправляем все пики (временные id будут заменены сервером)
       const response = await fetch('https://primechallenge.onrender.com/picks/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: initData },
@@ -242,7 +241,6 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
 
       if (!response.ok) throw new Error('Ошибка при сохранении пиков');
 
-      // Перезагружаем данные после сохранения
       const updatedResponse = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
         headers: { Authorization: initData },
       });
