@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import MatchList from './MatchList';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
-import { UserPick } from '@/types';
 import styles from './BracketPage.module.css';
 
 const allRounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'W'];
@@ -21,7 +20,7 @@ export default function BracketPage() {
     selectedRound,
     setSelectedRound,
     rounds,
-    handlePick: originalHandlePick,
+    handlePick,
     savePicks,
   } = useTournamentLogic({ id: typeof id === 'string' ? id : undefined, allRounds });
 
@@ -31,60 +30,10 @@ export default function BracketPage() {
     if (error) setNotification(error);
   }, [error]);
 
-  console.log('BracketPage: tournament', tournament);
-  console.log('BracketPage: picks', picks);
-  console.log('BracketPage: rounds', rounds);
-  console.log('BracketPage: selectedRound', selectedRound);
-
   if (isLoading) return <p className="text-[#FFFFFF] px-8">Загрузка...</p>;
   if (!tournament) return <p className="text-[#FFFFFF] px-8">Турнир не найден</p>;
 
   const canEdit = tournament.status === 'ACTIVE';
-  console.log('BracketPage: canEdit', canEdit);
-
-  const handlePick = (match: UserPick, player: string | null) => {
-    if (!canEdit) {
-      setNotification('Турнир закрыт, пики нельзя изменить');
-      return;
-    }
-
-    originalHandlePick(match, player);
-
-    if (player === null) {
-      const newPicks = [...picks];
-      const currentRoundIdx = allRounds.indexOf(match.round);
-
-      for (let roundIdx = currentRoundIdx + 1; roundIdx < allRounds.length; roundIdx++) {
-        const nextRound = allRounds[roundIdx];
-        const nextMatchNumber = Math.ceil(match.match_number / 2);
-        const nextMatch = newPicks.find(
-          (p) => p.round === nextRound && p.match_number === nextMatchNumber
-        );
-
-        if (nextMatch) {
-          if (match.match_number % 2 === 1) {
-            if (nextMatch.player1 === match.predicted_winner) {
-              nextMatch.player1 = '';
-              nextMatch.predicted_winner = null;
-            }
-          } else {
-            if (nextMatch.player2 === match.predicted_winner) {
-              nextMatch.player2 = '';
-              nextMatch.predicted_winner = null;
-            }
-          }
-        }
-
-        if (nextRound === 'W') {
-          const winnerMatch = newPicks.find((p) => p.round === 'W' && p.match_number === 1);
-          if (winnerMatch) {
-            winnerMatch.player1 = '';
-            winnerMatch.predicted_winner = null;
-          }
-        }
-      }
-    }
-  };
 
   const handleSave = async () => {
     if (!canEdit) {
