@@ -35,18 +35,17 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
     
-    # Извлекаем user_id из user
     user_id = user["id"]
     logger.info(f"Using user_id={user_id} for picks")
     
-    # Загружаем матчи (true_draws)
+    # Загружаем матчи первого раунда (R32)
     true_draws = (
         db.query(models.TrueDraw)
-        .filter(models.TrueDraw.tournament_id == id)
+        .filter(models.TrueDraw.tournament_id == id, models.TrueDraw.round == 'R32')
         .all()
     )
     
-    # Загружаем пики пользователя
+    # Загружаем пики пользователя (если есть)
     user_picks = (
         db.query(models.UserPick)
         .filter(models.UserPick.tournament_id == id, models.UserPick.user_id == user_id)
@@ -61,11 +60,11 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
         "status": tournament.status,
         "tag": tournament.tag,
         "starting_round": tournament.starting_round,
-        "true_draws": true_draws,
-        "user_picks": user_picks,
+        "true_draws": true_draws,  # Матчи R32
+        "user_picks": user_picks,  # Пики пользователя
     }
     
-    logger.info(f"Returning tournament with id={id}, user_picks count={len(user_picks)}")
+    logger.info(f"Returning tournament with id={id}, true_draws count={len(true_draws)}, user_picks count={len(user_picks)}")
     return tournament_dict
 
 @router.get("/matches/by-id", response_model=List[TrueDraw])
@@ -94,19 +93,28 @@ async def get_picks(tournament_id: int, user_id: int, db: Session = Depends(get_
 async def save_pick(pick: dict, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     logger.info("Saving pick")
     try:
-        # Устанавливаем user_id из аутентифицированного пользователя
         pick["user_id"] = user["id"]
         
-        existing_pick = (
-            db.query(models.UserPick)
-            .filter(
-                models.UserPick.user_id == pick['user_id'],
-                models.UserPick.tournament_id == pick['tournament_id'],
-                models.UserPick.round == pick['round'],
-                models.UserPick.match_number == pick['match_number']
-            )
-            .first()
-        )
+        # Проверяем существование матча
+        match = db.query(models.TrueDraw).filter(
+            models.TrueDraw.tournament_id == pick['tournament_id'],
+            models.TrueDraw.round == pick['round'],
+            models.TrueDraw.match_number == pick['match_number']
+        ).first()
+        if not match:
+            raise HTTPException(status_code=404, detail="Match not found")
+        
+        # Проверяем, что predicted_winner — один из игроков
+        if pick['predicted_winner'] not in [match.player1, match.player2]:
+            raise HTTPException(status_code=400, detail="Predicted winner must be one of the players")
+        
+        # Сохраняем или обновляем пик
+        existing_pick = db.query(models.UserPick).filter(
+            models.UserPick.user_id == pick['user_id'],
+            models.UserPick.tournament_id == pick['tournament_id'],
+            models.UserPick.round == pick['round'],
+            models.UserPick.match_number == pick['match_number']
+        ).first()
         if existing_pick:
             existing_pick.predicted_winner = pick['predicted_winner']
         else:
@@ -115,8 +123,8 @@ async def save_pick(pick: dict, db: Session = Depends(get_db), user: dict = Depe
                 tournament_id=pick['tournament_id'],
                 round=pick['round'],
                 match_number=pick['match_number'],
-                player1=pick.get('player1', ''),
-                player2=pick.get('player2', ''),
+                player1=match.player1,
+                player2=match.player2,
                 predicted_winner=pick['predicted_winner']
             )
             db.add(db_pick)
@@ -132,29 +140,31 @@ async def save_picks_bulk(picks: List[dict], db: Session = Depends(get_db), user
     logger.info("Saving picks in bulk")
     try:
         for pick in picks:
-            # Устанавливаем user_id из аутентифицированного пользователя
             pick["user_id"] = user["id"]
             
-            existing_pick = (
-                db.query(models.UserPick)
-                .filter(
-                    models.UserPick.user_id == pick['user_id'],
-                    models.UserPick.tournament_id == pick['tournament_id'],
-                    models.UserPick.round == pick['round'],
-                    models.UserPick.match_number == pick['match_number']
-                )
-                .first()
-            )
+            existing_pick = db.query(models.UserPick).filter(
+                models.UserPick.user_id == pick['user_id'],
+                models.UserPick.tournament_id == pick['tournament_id'],
+                models.UserPick.round == pick['round'],
+                models.UserPick.match_number == pick['match_number']
+            ).first()
             if existing_pick:
                 existing_pick.predicted_winner = pick['predicted_winner']
             else:
+                match = db.query(models.TrueDraw).filter(
+                    models.TrueDraw.tournament_id == pick['tournament_id'],
+                    models.TrueDraw.round == pick['round'],
+                    models.TrueDraw.match_number == pick['match_number']
+                ).first()
+                if not match:
+                    raise HTTPException(status_code=404, detail=f"Match not found for round={pick['round']}, match_number={pick['match_number']}")
                 db_pick = models.UserPick(
                     user_id=pick['user_id'],
                     tournament_id=pick['tournament_id'],
                     round=pick['round'],
                     match_number=pick['match_number'],
-                    player1=pick.get('player1', ''),
-                    player2=pick.get('player2', ''),
+                    player1=match.player1,
+                    player2=match.player2,
                     predicted_winner=pick['predicted_winner']
                 )
                 db.add(db_pick)

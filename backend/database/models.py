@@ -53,7 +53,6 @@ class TrueDraw(Base):
     )
 
     tournament = relationship("Tournament", back_populates="true_draws")  # Связь с турниром
-    user_picks = relationship("UserPick", back_populates="true_draw")  # Связь с пиками пользователей
 
 # Модель пользователя
 class User(Base):
@@ -74,19 +73,16 @@ class UserPick(Base):
     id = Column(Integer, primary_key=True, index=True)  # Уникальный ID пика
     user_id = Column(Integer, ForeignKey("users.user_id"), index=True)  # ID пользователя
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)  # ID турнира
-    match_id = Column(Integer, ForeignKey("true_draw.id"), index=True)  # ID матча из TrueDraw
+    round = Column(String)  # Раунд
+    match_number = Column(Integer)  # Номер матча в раунде
+    player1 = Column(String)  # Первый игрок
+    player2 = Column(String)  # Второй игрок
     predicted_winner = Column(String, nullable=True)  # Предсказанный победитель (может быть пустым)
     created_at = Column(DateTime, server_default=func.now())  # Дата создания пика
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())  # Дата обновления пика
 
-    # Уникальное ограничение на комбинацию (user_id, tournament_id, match_id)
-    __table_args__ = (
-        UniqueConstraint('user_id', 'tournament_id', 'match_id', name='unique_user_pick'),
-    )
-
     user = relationship("User", back_populates="user_picks")  # Связь с пользователем
     tournament = relationship("Tournament", back_populates="user_picks")  # Связь с турниром
-    true_draw = relationship("TrueDraw", back_populates="user_picks")  # Связь с реальным матчем
 
 # Модель для хранения очков пользователей
 class UserScore(Base):
