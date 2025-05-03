@@ -65,17 +65,26 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
         const isPlayer1Eliminated = (isEliminated && pick.predicted_winner === pick.player1) || replacementPlayer1;
         const isPlayer2Eliminated = (isEliminated && pick.predicted_winner === pick.player2) || replacementPlayer2;
 
-        // Определяем цвет и зачёркивание
+        // Для раунда W показываем только победителя
+        const isWinnerRound = round === 'W';
+        const winner = isWinnerRound
+          ? (actualWinner || pick.predicted_winner || pick.player1 || 'TBD')
+          : null;
+
+        // Определяем стили для игроков
+        // Только predicted_winner будет синим, если матч не сыгран
         const player1Styles = {
-          color: actualWinner === '' ? '#00B2FF' : // Синий для несыгранных матчей
+          color: isWinnerRound ? '#FFFFFF' : // Для W цвет белый
+                actualWinner === '' && pick.predicted_winner === pick.player1 ? '#00B2FF' : // Синий для несыгранных пиков
                 isCorrect === true ? 'green' : // Зелёный для верных предсказаний
-                isCorrect === false ? 'red' : 'inherit', // Красный для неверных
+                isCorrect === false ? 'red' : '#FFFFFF', // Красный для неверных, иначе белый
           textDecoration: isPlayer1Eliminated ? 'line-through' : 'none',
         };
         const player2Styles = {
-          color: actualWinner === '' ? '#00B2FF' : // Синий для несыгранных матчей
+          color: isWinnerRound ? '#FFFFFF' : // Для W цвет белый
+                actualWinner === '' && pick.predicted_winner === pick.player2 ? '#00B2FF' : // Синий для несыгранных пиков
                 isCorrect === true ? 'green' : // Зелёный для верных предсказаний
-                isCorrect === false ? 'red' : 'inherit', // Красный для неверных
+                isCorrect === false ? 'red' : '#FFFFFF', // Красный для неверных, иначе белый
           textDecoration: isPlayer2Eliminated ? 'line-through' : 'none',
         };
 
@@ -86,40 +95,51 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
           >
             {/* Заголовок матча */}
             <p className="text-[16px] font-semibold text-[#FFFFFF] mb-2">
-              Матч #{pick.match_number}
+              {isWinnerRound ? 'Победитель' : `Матч #${pick.match_number}`}
             </p>
-            {/* Ячейка первого игрока */}
-            <div className={styles.playerCell}>
-              <span
-                style={player1Styles}
-                className={`cursor-pointer ${!canEdit || !pick.player1 ? 'pointer-events-none' : ''}`}
-                onClick={() =>
-                  canEdit &&
-                  pick.player1 &&
-                  handlePick(pick, pick.predicted_winner === pick.player1 ? null : pick.player1)
-                }
-              >
-                {displayPlayer1}
-                {replacementPlayer1 && ` (${replacementPlayer1})`}
-                {isEliminated && actualWinner && pick.player1 === pick.predicted_winner && ` (${actualWinner})`}
-              </span>
-            </div>
-            {/* Ячейка второго игрока */}
-            <div className={styles.playerCell}>
-              <span
-                style={player2Styles}
-                className={`cursor-pointer ${!canEdit || !pick.player2 ? 'pointer-events-none' : ''}`}
-                onClick={() =>
-                  canEdit &&
-                  pick.player2 &&
-                  handlePick(pick, pick.predicted_winner === pick.player2 ? null : pick.player2)
-                }
-              >
-                {displayPlayer2}
-                {replacementPlayer2 && ` (${replacementPlayer2})`}
-                {isEliminated && actualWinner && pick.player2 === pick.predicted_winner && ` (${actualWinner})`}
-              </span>
-            </div>
+            {isWinnerRound ? (
+              // Для раунда W показываем только победителя
+              <div className={styles.playerCell}>
+                <span style={{ color: actualWinner ? '#FFFFFF' : '#00B2FF' }}>
+                  {winner}
+                </span>
+              </div>
+            ) : (
+              <>
+                {/* Ячейка первого игрока */}
+                <div className={styles.playerCell}>
+                  <span
+                    style={player1Styles}
+                    className={`cursor-pointer ${!canEdit || !pick.player1 ? 'pointer-events-none' : ''}`}
+                    onClick={() =>
+                      canEdit &&
+                      pick.player1 &&
+                      handlePick(pick, pick.predicted_winner === pick.player1 ? null : pick.player1)
+                    }
+                  >
+                    {displayPlayer1}
+                    {replacementPlayer1 && ` (${replacementPlayer1})`}
+                    {isEliminated && actualWinner && pick.player1 === pick.predicted_winner && ` (${actualWinner})`}
+                  </span>
+                </div>
+                {/* Ячейка второго игрока */}
+                <div className={styles.playerCell}>
+                  <span
+                    style={player2Styles}
+                    className={`cursor-pointer ${!canEdit || !pick.player2 ? 'pointer-events-none' : ''}`}
+                    onClick={() =>
+                      canEdit &&
+                      pick.player2 &&
+                      handlePick(pick, pick.predicted_winner === pick.player2 ? null : pick.player2)
+                    }
+                  >
+                    {displayPlayer2}
+                    {replacementPlayer2 && ` (${replacementPlayer2})`}
+                    {isEliminated && actualWinner && pick.player2 === pick.predicted_winner && ` (${actualWinner})`}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         );
       })}
