@@ -55,11 +55,14 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
         }
         setRounds(availableRounds);
 
-        // Создаём заготовки пиков для starting_round, если их нет
+        // Создаём заготовки пиков для всех матчей starting_round, если их нет
         if (fetchedPicks.length === 0 && data.status === 'ACTIVE' && data.starting_round) {
           const firstRoundMatches = fetchedMatches.filter(
             (match) => match.round === data.starting_round
           );
+          if (firstRoundMatches.length !== 16) {
+            console.warn('Expected 16 matches for R32, got:', firstRoundMatches.length);
+          }
           fetchedPicks = firstRoundMatches.map((match) => ({
             id: match.match_number,
             user_id: 0,
