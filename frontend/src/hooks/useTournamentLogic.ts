@@ -44,19 +44,14 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
         setMatches(fetchedMatches);
         setComparison(fetchedComparison);
 
-        // Устанавливаем все раунды, начиная с starting_round
+        // Ограничиваем отображение только starting_round для активного турнира
         let availableRounds: string[] = [];
-        if (data.starting_round) {
-          const startIdx = allRounds.indexOf(data.starting_round);
-          if (startIdx !== -1) {
-            availableRounds = allRounds.slice(startIdx);
-          } else {
-            availableRounds = allRounds;
-          }
-          setSelectedRound(data.starting_round || allRounds[0]);
+        if (data.starting_round && data.status === 'ACTIVE') {
+          availableRounds = [data.starting_round];
+          setSelectedRound(data.starting_round);
         } else {
-          availableRounds = allRounds;
-          setSelectedRound(allRounds[0]);
+          availableRounds = allRounds.slice(allRounds.indexOf(data.starting_round || allRounds[0]));
+          setSelectedRound(data.starting_round || allRounds[0]);
         }
         setRounds(availableRounds);
 
@@ -72,7 +67,7 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
             round: match.round,
             match_number: match.match_number,
             player1: match.player1,
-            player2: match.player2 || 'TBD',
+            player2: match.player2 || '',
             predicted_winner: match.player2 === 'Bye' ? match.player1 : null,
           }));
         }
