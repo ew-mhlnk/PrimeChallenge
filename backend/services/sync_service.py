@@ -253,6 +253,48 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             })
                             logger.info(f"Added match {round_name} #{match_number}: {player1} vs {player2}")
 
+                            # Записываем матч в true_draw сразу после добавления
+                            col_idx_sets = list(round_columns.keys())[list(round_columns.values()).index(round_name)]
+                            player1_row_sets = data[row_idx] if row_idx < len(data) else [""]
+                            player2_row_sets = data[row_idx + 1] if row_idx + 1 < len(data) else [""]
+                            set1 = player1_row_sets[col_idx_sets + 1] if col_idx_sets + 1 < len(player1_row_sets) and player1_row_sets[col_idx_sets + 1] else None
+                            set2 = player1_row_sets[col_idx_sets + 2] if col_idx_sets + 2 < len(player1_row_sets) and player1_row_sets[col_idx_sets + 2] else None
+                            set3 = player1_row_sets[col_idx_sets + 3] if col_idx_sets + 3 < len(player1_row_sets) and player1_row_sets[col_idx_sets + 3] else None
+                            set4 = player1_row_sets[col_idx_sets + 4] if col_idx_sets + 4 < len(player1_row_sets) and player1_row_sets[col_idx_sets + 4] else None
+                            set5 = player1_row_sets[col_idx_sets + 5] if col_idx_sets + 5 < len(player1_row_sets) and player1_row_sets[col_idx_sets + 5] else None
+                            winner = None
+
+                            new_match_keys.add((round_name, match_number))
+                            conn.execute(
+                                text("""
+                                    INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, set1, set2, set3, set4, set5, winner)
+                                    VALUES (:tournament_id, :round, :match_number, :player1, :player2, :set1, :set2, :set3, :set4, :set5, :winner)
+                                    ON CONFLICT (tournament_id, round, match_number) DO UPDATE
+                                    SET player1 = EXCLUDED.player1,
+                                        player2 = EXCLUDED.player2,
+                                        set1 = EXCLUDED.set1,
+                                        set2 = EXCLUDED.set2,
+                                        set3 = EXCLUDED.set3,
+                                        set4 = EXCLUDED.set4,
+                                        set5 = EXCLUDED.set5,
+                                        winner = EXCLUDED.winner
+                                """),
+                                {
+                                    "tournament_id": tournament_id,
+                                    "round": round_name,
+                                    "match_number": match_number,
+                                    "player1": player1,
+                                    "player2": player2,
+                                    "set1": set1,
+                                    "set2": set2,
+                                    "set3": set3,
+                                    "set4": set4,
+                                    "set5": set5,
+                                    "winner": winner
+                                }
+                            )
+                            logger.info(f"Synced match: {round_name} #{match_number} - {player1} vs {player2}, winner: {winner}")
+
                         row_idx += 2
 
                     for round_name in ["R128", "R64", "R32", "R16", "QF", "SF"]:
