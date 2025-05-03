@@ -95,7 +95,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                 logger.warning(f"Skipping incomplete row in 'tournaments': {row}")
                 continue
 
-            # Используем вложенную транзакцию для каждой строки
             with conn.begin_nested():
                 try:
                     tournament_id = int(row[0])
@@ -120,24 +119,17 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     start_datetime = parse_datetime(start_time)
                     close_datetime = parse_datetime(close_time)
 
-                    # Исправляем опечатку в статусе
-                    if status == "COMPLITED":
-                        status = "COMPLETED"
-                        logger.info(f"Corrected status for tournament {tournament_id} from 'COMPLITED' to 'COMPLETED'")
-
-                    # Логика определения статуса
-                    if status != "COMPLETED" and current_time > close_datetime:
+                    valid_statuses = {"ACTIVE", "CLOSED", "COMPLETED"}
+                    if status not in valid_statuses:
+                        logger.error(f"Invalid status for tournament {tournament_id}: {status}. Expected one of {valid_statuses}")
+                        raise ValueError(f"Invalid status: {status}")
+                    if current_time > close_datetime and status != "COMPLETED":
                         status = "COMPLETED"
                         logger.info(f"Tournament {tournament_id} status updated to COMPLETED based on close time {close_time}")
                     elif status == "ACTIVE" and current_time > start_datetime:
                         status = "CLOSED"
                         logger.info(f"Tournament {tournament_id} status updated to CLOSED based on start time {start_time}")
 
-                    if status not in ["ACTIVE", "CLOSED", "COMPLETED"]:
-                        logger.warning(f"Invalid status for tournament {tournament_id}: {status}")
-                        continue
-
-                    # Обновляем или добавляем турнир в БД
                     conn.execute(
                         text("""
                             INSERT INTO tournaments (id, name, dates, status, sheet_name, starting_round, type, start, close, tag)
@@ -178,32 +170,15 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     logger.error(f"Error processing tournament row {row}: {str(e)}")
                     continue
 
-        tournaments_to_delete = existing_tournament_ids - new_tournament_ids
-        if tournaments_to_delete:
-            logger.info(f"Deleting tournaments not in Google Sheets: {tournaments_to_delete}")
-            for tournament_id in tournaments_to_delete:
-                conn.execute(
-                    text("DELETE FROM true_draw WHERE tournament_id = :tournament_id"),
-                    {"tournament_id": tournament_id}
-                )
-                conn.execute(
-                    text("DELETE FROM user_picks WHERE tournament_id = :tournament_id"),
-                    {"tournament_id": tournament_id}
-                )
-                conn.execute(
-                    text("DELETE FROM tournaments WHERE id = :tournament_id"),
-                    {"tournament_id": tournament_id}
-                )
-
         logger.info(f"Tournaments to sync true_draw: {tournaments_to_sync}")
 
         for tournament_id, sheet_name, starting_round in tournaments_to_sync:
-            # Используем вложенную транзакцию для каждого листа true_draw
             with conn.begin_nested():
                 try:
                     logger.info(f"Processing tournament {tournament_id} with sheet name {sheet_name}")
                     worksheet = sheet.worksheet(sheet_name)
                     data = worksheet.get_all_values()
+                    logger.info(f"Raw data from sheet {sheet_name}: {data}")
                     
                     if not data or len(data) < 2:
                         logger.warning(f"No data found in sheet {sheet_name} for tournament {tournament_id}")
@@ -248,7 +223,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             continue
 
                     round_order = {"R128": 1, "R64": 2, "R32": 3, "R16": 4, "QF": 5, "SF": 6, "F": 7}
-                    starting_round_order = round_order.get(starting_round, 1)
+                    starting_round_order = round_order.get(starting_round, 3)  # R32 по умолчанию имеет порядок 3
                     logger.info(f"Starting round for tournament {tournament_id}: {starting_round}, order: {starting_round_order}")
 
                     matches_by_round = {"R128": [], "R64": [], "R32": [], "R16": [], "QF": [], "SF": [], "F": []}
@@ -256,6 +231,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     while row_idx < len(data) - 1:
                         player1_row = data[row_idx]
                         player2_row = data[row_idx + 1]
+                        logger.info(f"Processing row {row_idx}: {player1_row}, {player2_row}")
 
                         for col_idx, round_name in round_columns.items():
                             if round_order[round_name] < starting_round_order:
@@ -264,7 +240,9 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
 
                             player1 = player1_row[col_idx].strip() if col_idx < len(player1_row) else ""
                             player2 = player2_row[col_idx].strip() if col_idx < len(player2_row) else ""
+                            logger.info(f"Checking match in {round_name}: player1='{player1}', player2='{player2}'")
                             if not player1 or not player2:
+                                logger.warning(f"Skipping match in {round_name} #{match_number} due to empty player1 or player2")
                                 continue
 
                             match_number = sum(1 for r in range(1, row_idx, 2) if col_idx < len(data[r]) and col_idx < len(data[r + 1]) and data[r][col_idx].strip() and data[r + 1][col_idx].strip()) + 1
@@ -273,6 +251,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                                 "player1": player1,
                                 "player2": player2
                             })
+                            logger.info(f"Added match {round_name} #{match_number}: {player1} vs {player2}")
 
                         row_idx += 2
 
