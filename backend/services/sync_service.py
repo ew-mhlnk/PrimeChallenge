@@ -173,8 +173,8 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         logger.info(f"Tournaments to sync true_draw: {tournaments_to_sync}")
 
         for tournament_id, sheet_name, starting_round in tournaments_to_sync:
-            with conn.begin_nested():
-                try:
+            try:
+                with conn.begin_nested():
                     logger.info(f"Processing tournament {tournament_id} with sheet name {sheet_name}")
                     worksheet = sheet.worksheet(sheet_name)
                     data = worksheet.get_all_values()
@@ -265,49 +265,51 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             winner = None
 
                             new_match_keys.add((round_name, match_number))
-                            conn.execute(
-                                text("""
-                                    INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, set1, set2, set3, set4, set5, winner)
-                                    VALUES (:tournament_id, :round, :match_number, :player1, :player2, :set1, :set2, :set3, :set4, :set5, :winner)
-                                    ON CONFLICT (tournament_id, round, match_number) DO UPDATE
-                                    SET player1 = EXCLUDED.player1,
-                                        player2 = EXCLUDED.player2,
-                                        set1 = EXCLUDED.set1,
-                                        set2 = EXCLUDED.set2,
-                                        set3 = EXCLUDED.set3,
-                                        set4 = EXCLUDED.set4,
-                                        set5 = EXCLUDED.set5,
-                                        winner = EXCLUDED.winner
-                                """),
-                                {
-                                    "tournament_id": tournament_id,
-                                    "round": round_name,
-                                    "match_number": match_number,
-                                    "player1": player1,
-                                    "player2": player2,
-                                    "set1": set1,
-                                    "set2": set2,
-                                    "set3": set3,
-                                    "set4": set4,
-                                    "set5": set5,
-                                    "winner": winner
-                                }
-                            )
-                            logger.info(f"Synced match: {round_name} #{match_number} - {player1} vs {player2}, winner: {winner}")
+                            try:
+                                result = conn.execute(
+                                    text("""
+                                        INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, set1, set2, set3, set4, set5, winner)
+                                        VALUES (:tournament_id, :round, :match_number, :player1, :player2, :set1, :set2, :set3, :set4, :set5, :winner)
+                                        ON CONFLICT (tournament_id, round, match_number) DO UPDATE
+                                        SET player1 = EXCLUDED.player1,
+                                            player2 = EXCLUDED.player2,
+                                            set1 = EXCLUDED.set1,
+                                            set2 = EXCLUDED.set2,
+                                            set3 = EXCLUDED.set3,
+                                            set4 = EXCLUDED.set4,
+                                            set5 = EXCLUDED.set5,
+                                            winner = EXCLUDED.winner
+                                        RETURNING id
+                                    """),
+                                    {
+                                        "tournament_id": tournament_id,
+                                        "round": round_name,
+                                        "match_number": match_number,
+                                        "player1": player1,
+                                        "player2": player2,
+                                        "set1": set1,
+                                        "set2": set2,
+                                        "set3": set3,
+                                        "set4": set4,
+                                        "set5": set5,
+                                        "winner": winner
+                                    }
+                                )
+                                match_id = result.scalar_one()
+                                logger.info(f"Synced match: {round_name} #{match_number} - {player1} vs {player2}, winner: {winner}, match_id: {match_id}")
+                            except Exception as e:
+                                logger.error(f"Error syncing match {round_name} #{match_number} into true_draw: {str(e)}")
+                                continue
 
                             # Инициализация user_picks для каждого активного пользователя
                             active_users = conn.execute(text("SELECT id FROM users WHERE status = 'ACTIVE'")).fetchall()
-                            match_id = conn.execute(
-                                text("SELECT id FROM true_draw WHERE tournament_id = :tournament_id AND round = :round AND match_number = :match_number"),
-                                {"tournament_id": tournament_id, "round": round_name, "match_number": match_number}
-                            ).scalar()
                             if match_id:
                                 for user in active_users:
                                     user_id = user[0]
                                     try:
                                         conn.execute(
                                             text("""
-                                                INSERT INTO user_picks (user_id, tournament_id, match_id, pick)
+                                                INSERT INTO user_picks (user_id, tournament_id, match_id, predicted_winner)
                                                 VALUES (:user_id, :tournament_id, :match_id, NULL)
                                                 ON CONFLICT (user_id, tournament_id, match_id) DO NOTHING
                                             """),
@@ -360,35 +362,41 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                                     winner = next_player2
 
                             new_match_keys.add((round_name, match_number))
-                            conn.execute(
-                                text("""
-                                    INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, set1, set2, set3, set4, set5, winner)
-                                    VALUES (:tournament_id, :round, :match_number, :player1, :player2, :set1, :set2, :set3, :set4, :set5, :winner)
-                                    ON CONFLICT (tournament_id, round, match_number) DO UPDATE
-                                    SET player1 = EXCLUDED.player1,
-                                        player2 = EXCLUDED.player2,
-                                        set1 = EXCLUDED.set1,
-                                        set2 = EXCLUDED.set2,
-                                        set3 = EXCLUDED.set3,
-                                        set4 = EXCLUDED.set4,
-                                        set5 = EXCLUDED.set5,
-                                        winner = EXCLUDED.winner
-                                """),
-                                {
-                                    "tournament_id": tournament_id,
-                                    "round": round_name,
-                                    "match_number": match_number,
-                                    "player1": player1,
-                                    "player2": player2,
-                                    "set1": set1,
-                                    "set2": set2,
-                                    "set3": set3,
-                                    "set4": set4,
-                                    "set5": set5,
-                                    "winner": winner
-                                }
-                            )
-                            logger.info(f"Synced match: {round_name} #{match_number} - {player1} vs {player2}, winner: {winner}")
+                            try:
+                                result = conn.execute(
+                                    text("""
+                                        INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, set1, set2, set3, set4, set5, winner)
+                                        VALUES (:tournament_id, :round, :match_number, :player1, :player2, :set1, :set2, :set3, :set4, :set5, :winner)
+                                        ON CONFLICT (tournament_id, round, match_number) DO UPDATE
+                                        SET player1 = EXCLUDED.player1,
+                                            player2 = EXCLUDED.player2,
+                                            set1 = EXCLUDED.set1,
+                                            set2 = EXCLUDED.set2,
+                                            set3 = EXCLUDED.set3,
+                                            set4 = EXCLUDED.set4,
+                                            set5 = EXCLUDED.set5,
+                                            winner = EXCLUDED.winner
+                                        RETURNING id
+                                    """),
+                                    {
+                                        "tournament_id": tournament_id,
+                                        "round": round_name,
+                                        "match_number": match_number,
+                                        "player1": player1,
+                                        "player2": player2,
+                                        "set1": set1,
+                                        "set2": set2,
+                                        "set3": set3,
+                                        "set4": set4,
+                                        "set5": set5,
+                                        "winner": winner
+                                    }
+                                )
+                                match_id = result.scalar_one()
+                                logger.info(f"Synced match: {round_name} #{match_number} - {player1} vs {player2}, winner: {winner}, match_id: {match_id}")
+                            except Exception as e:
+                                logger.error(f"Error syncing match {round_name} #{match_number} into true_draw: {str(e)}")
+                                continue
 
                     for match in matches_by_round["F"]:
                         match_number = match["match_number"]
@@ -407,35 +415,41 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                         winner = champion if champion in [player1, player2] else None
 
                         new_match_keys.add(("F", match_number))
-                        conn.execute(
-                            text("""
-                                INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, set1, set2, set3, set4, set5, winner)
-                                VALUES (:tournament_id, :round, :match_number, :player1, :player2, :set1, :set2, :set3, :set4, :set5, :winner)
-                                ON CONFLICT (tournament_id, round, match_number) DO UPDATE
-                                SET player1 = EXCLUDED.player1,
-                                    player2 = EXCLUDED.player2,
-                                    set1 = EXCLUDED.set1,
-                                    set2 = EXCLUDED.set2,
-                                    set3 = EXCLUDED.set3,
-                                    set4 = EXCLUDED.set4,
-                                    set5 = EXCLUDED.set5,
-                                    winner = EXCLUDED.winner
-                            """),
-                            {
-                                "tournament_id": tournament_id,
-                                "round": "F",
-                                "match_number": match_number,
-                                "player1": player1,
-                                "player2": player2,
-                                "set1": set1,
-                                "set2": set2,
-                                "set3": set3,
-                                "set4": set4,
-                                "set5": set5,
-                                "winner": winner
-                            }
-                        )
-                        logger.info(f"Synced match: F #{match_number} - {player1} vs {player2}, winner: {winner}")
+                        try:
+                            result = conn.execute(
+                                text("""
+                                    INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, set1, set2, set3, set4, set5, winner)
+                                    VALUES (:tournament_id, :round, :match_number, :player1, :player2, :set1, :set2, :set3, :set4, :set5, :winner)
+                                    ON CONFLICT (tournament_id, round, match_number) DO UPDATE
+                                    SET player1 = EXCLUDED.player1,
+                                        player2 = EXCLUDED.player2,
+                                        set1 = EXCLUDED.set1,
+                                        set2 = EXCLUDED.set2,
+                                        set3 = EXCLUDED.set3,
+                                        set4 = EXCLUDED.set4,
+                                        set5 = EXCLUDED.set5,
+                                        winner = EXCLUDED.winner
+                                    RETURNING id
+                                """),
+                                {
+                                    "tournament_id": tournament_id,
+                                    "round": "F",
+                                    "match_number": match_number,
+                                    "player1": player1,
+                                    "player2": player2,
+                                    "set1": set1,
+                                    "set2": set2,
+                                    "set3": set3,
+                                    "set4": set4,
+                                    "set5": set5,
+                                    "winner": winner
+                                }
+                            )
+                            match_id = result.scalar_one()
+                            logger.info(f"Synced match: F #{match_number} - {player1} vs {player2}, winner: {winner}, match_id: {match_id}")
+                        except Exception as e:
+                            logger.error(f"Error syncing match F #{match_number} into true_draw: {str(e)}")
+                            continue
 
                     matches_to_delete = existing_match_keys - new_match_keys
                     for round, match_number in matches_to_delete:
@@ -455,9 +469,9 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                         logger.info(f"Deleted match: {round} #{match_number} for tournament {tournament_id}")
 
                     logger.info(f"Successfully synced sheet {sheet_name} for tournament {tournament_id}")
-                except Exception as e:
-                    logger.error(f"Error syncing sheet {sheet_name} for tournament {tournament_id}: {str(e)}")
-                    continue
+            except Exception as e:
+                logger.error(f"Error syncing sheet {sheet_name} for tournament {tournament_id}: {str(e)}")
+                continue
         
         conn.commit()
         logger.info("Finished sync with Google Sheets successfully")
