@@ -13,11 +13,13 @@ def get_google_sheets_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     credentials_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
     if not credentials_json:
+        logger.error("GOOGLE_SHEETS_CREDENTIALS environment variable is not set")
         raise ValueError("GOOGLE_SHEETS_CREDENTIALS environment variable is not set")
     
     try:
         credentials_dict = json.loads(credentials_json)
     except json.JSONDecodeError as e:
+        logger.error(f"Invalid GOOGLE_SHEETS_CREDENTIALS JSON format: {str(e)}")
         raise ValueError(f"Invalid GOOGLE_SHEETS_CREDENTIALS JSON format: {str(e)}")
     
     credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
@@ -28,7 +30,8 @@ def parse_datetime(date_str: str) -> datetime:
     Парсит дату и время в формате DD.MM.YYYY HH:MM.
     Например: '25.04.2025 18:00' -> datetime(2025, 4, 25, 18, 0)
     """
-    if not date_str:  # Проверяем, не пустая ли строка
+    if not date_str:
+        logger.error("Date string is empty")
         raise ValueError("Date string is empty")
     try:
         return datetime.strptime(date_str, "%d.%m.%Y %H:%M").replace(tzinfo=pytz.UTC)
@@ -76,9 +79,12 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
             logger.error(f"Unexpected headers in 'tournaments' worksheet: {headers}")
             raise ValueError(f"Expected headers {expected_headers}, but got {headers}")
 
+        logger.info(f"Found {len(tournament_data) - 1} tournament rows in Google Sheets")
+
         existing_tournaments = conn.execute(text("SELECT id, status FROM tournaments")).fetchall()
         existing_tournament_ids = {row[0] for row in existing_tournaments}
         existing_tournament_status = {row[0]: row[1] for row in existing_tournaments}
+        logger.info(f"Existing tournaments in DB: {existing_tournament_ids}")
 
         current_time = datetime.now(pytz.UTC)
         tournaments_to_sync = []
@@ -93,13 +99,15 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                 tournament_id = int(row[0])
                 name = row[1]
                 dates = row[2]
-                status = row[3]
+                status = row[3].upper()  # Приводим статус к верхнему регистру
                 sheet_name = row[4]
                 starting_round = row[5]
                 tournament_type = row[6]
                 start_time = row[7]
                 close_time = row[8]
                 tag = row[9]
+
+                logger.info(f"Processing tournament {tournament_id}: {name}, status={status}, sheet_name={sheet_name}")
 
                 new_tournament_ids.add(tournament_id)
 
@@ -109,6 +117,8 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
 
                 start_datetime = parse_datetime(start_time)
                 close_datetime = parse_datetime(close_time)
+
+                # Логика определения статуса
                 if status != "COMPLETED" and current_time > close_datetime:
                     status = "COMPLETED"
                     logger.info(f"Tournament {tournament_id} status updated to COMPLETED based on close time {close_time}")
@@ -120,6 +130,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     logger.warning(f"Invalid status for tournament {tournament_id}: {status}")
                     continue
 
+                # Обновляем или добавляем турнир в БД
                 conn.execute(
                     text("""
                         INSERT INTO tournaments (id, name, dates, status, sheet_name, starting_round, type, start, close, tag)
@@ -151,10 +162,11 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
 
                 if status in ["ACTIVE", "CLOSED"]:
                     tournaments_to_sync.append((tournament_id, sheet_name, starting_round))
+                    logger.info(f"Added tournament {tournament_id} to sync list (status: {status})")
                 else:
                     logger.info(f"Skipping sync for tournament {tournament_id} as it is {status}")
 
-                logger.info(f"Synced tournament {tournament_id}: {name}")
+                logger.info(f"Synced tournament {tournament_id}: {name} in DB")
             except Exception as e:
                 logger.error(f"Error processing tournament row {row}: {str(e)}")
                 continue
@@ -176,6 +188,8 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     {"tournament_id": tournament_id}
                 )
 
+        logger.info(f"Tournaments to sync true_draw: {tournaments_to_sync}")
+
         for tournament_id, sheet_name, starting_round in tournaments_to_sync:
             try:
                 logger.info(f"Processing tournament {tournament_id} with sheet name {sheet_name}")
@@ -186,7 +200,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     logger.warning(f"No data found in sheet {sheet_name} for tournament {tournament_id}")
                     continue
 
-                # Проверяем статус перед синхронизацией true_draw
                 current_status = conn.execute(
                     text("SELECT status FROM tournaments WHERE id = :tournament_id"),
                     {"tournament_id": tournament_id}
@@ -207,6 +220,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                 new_match_keys = set()
 
                 headers = data[0]
+                logger.info(f"Headers in sheet {sheet_name}: {headers}")
                 round_columns = {col_idx: header for col_idx, header in enumerate(headers) if header in ["R128", "R64", "R32", "R16", "QF", "SF", "F"]}
                 if not round_columns:
                     logger.error(f"No valid round columns found in sheet {sheet_name}")
@@ -222,10 +236,11 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             {"tournament_id": tournament_id}
                         )
                         logger.info(f"Tournament {tournament_id} status updated to COMPLETED")
-                        continue  # Пропускаем синхронизацию
+                        continue
 
                 round_order = {"R128": 1, "R64": 2, "R32": 3, "R16": 4, "QF": 5, "SF": 6, "F": 7}
                 starting_round_order = round_order.get(starting_round, 1)
+                logger.info(f"Starting round for tournament {tournament_id}: {starting_round}, order: {starting_round_order}")
 
                 matches_by_round = {"R128": [], "R64": [], "R32": [], "R16": [], "QF": [], "SF": [], "F": []}
                 row_idx = 1
