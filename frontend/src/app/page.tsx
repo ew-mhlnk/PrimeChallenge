@@ -19,7 +19,7 @@ export default function Home() {
   }
 
   const activeTournaments = tournaments.filter((tournament: Tournament) => {
-    // Показываем турниры со статусами ACTIVE и CLOSED
+    // Показываем только турниры со статусами ACTIVE и CLOSED
     if (!['ACTIVE', 'CLOSED'].includes(tournament.status)) return false;
     if (selectedTag === 'ВСЕ') return true;
     return tournament.tag === selectedTag;
@@ -61,9 +61,14 @@ export default function Home() {
       <div className="h-[75px]"></div>
 
       <main className="flex-1 px-8">
-        <h2 className="text-[20px] font-semibold text-[#FFFFFF] text-left mb-[15px]">
-          ТУРНИРЫ ЭТОЙ НЕДЕЛИ
-        </h2>
+        <div className="flex justify-between items-center mb-[15px]">
+          <h2 className="text-[20px] font-semibold text-[#FFFFFF] text-left">
+            ТУРНИРЫ ЭТОЙ НЕДЕЛИ
+          </h2>
+          <Link href="/archive">
+            <span className="text-[#00B2FF] text-[14px]">Архив</span>
+          </Link>
+        </div>
 
         {/* TagSelector */}
         <TagSelector selectedTag={selectedTag} setSelectedTag={setSelectedTag} />

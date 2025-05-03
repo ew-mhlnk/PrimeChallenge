@@ -6,13 +6,12 @@ import Link from 'next/link';
 import MatchList from './MatchList';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 import { UserPick } from '@/types';
-import styles from './BracketPage.module.css'; // Импортируем стили
+import styles from './BracketPage.module.css';
 
 const allRounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'W'];
 
 export default function BracketPage() {
   const { id } = useParams();
-  // Используем хук для управления логикой турнира
   const {
     tournament,
     picks,
@@ -28,47 +27,33 @@ export default function BracketPage() {
 
   const [notification, setNotification] = useState<string | null>(null);
 
-  // Показываем уведомление, если есть ошибка
   useEffect(() => {
-    if (error) {
-      setNotification(error);
-    }
+    if (error) setNotification(error);
   }, [error]);
 
-  // Отладочные логи
   console.log('BracketPage: tournament', tournament);
   console.log('BracketPage: picks', picks);
   console.log('BracketPage: rounds', rounds);
   console.log('BracketPage: selectedRound', selectedRound);
 
-  if (isLoading) {
-    return <p className="text-[#FFFFFF] px-8">Загрузка...</p>;
-  }
+  if (isLoading) return <p className="text-[#FFFFFF] px-8">Загрузка...</p>;
+  if (!tournament) return <p className="text-[#FFFFFF] px-8">Турнир не найден</p>;
 
-  if (!tournament) {
-    return <p className="text-[#FFFFFF] px-8">Турнир не найден</p>;
-  }
-
-  // Проверяем, можно ли редактировать пики
   const canEdit = tournament.status === 'ACTIVE';
   console.log('BracketPage: canEdit', canEdit);
 
-  // Модифицированная функция handlePick для обновления последующих раундов
   const handlePick = (match: UserPick, player: string | null) => {
     if (!canEdit) {
       setNotification('Турнир закрыт, пики нельзя изменить');
       return;
     }
 
-    // Вызываем оригинальную функцию handlePick
     originalHandlePick(match, player);
 
-    // Если выбор отменён (player = null), очищаем последующие пики
     if (player === null) {
       const newPicks = [...picks];
       const currentRoundIdx = allRounds.indexOf(match.round);
 
-      // Обновляем последующие раунды
       for (let roundIdx = currentRoundIdx + 1; roundIdx < allRounds.length; roundIdx++) {
         const nextRound = allRounds[roundIdx];
         const nextMatchNumber = Math.ceil(match.match_number / 2);
@@ -80,22 +65,21 @@ export default function BracketPage() {
           if (match.match_number % 2 === 1) {
             if (nextMatch.player1 === match.predicted_winner) {
               nextMatch.player1 = '';
-              nextMatch.predicted_winner = '';
+              nextMatch.predicted_winner = null;
             }
           } else {
             if (nextMatch.player2 === match.predicted_winner) {
               nextMatch.player2 = '';
-              nextMatch.predicted_winner = '';
+              nextMatch.predicted_winner = null;
             }
           }
         }
 
-        // Если это финал, обновляем победителя
         if (nextRound === 'W') {
           const winnerMatch = newPicks.find((p) => p.round === 'W' && p.match_number === 1);
           if (winnerMatch) {
             winnerMatch.player1 = '';
-            winnerMatch.predicted_winner = '';
+            winnerMatch.predicted_winner = null;
           }
         }
       }
@@ -113,7 +97,6 @@ export default function BracketPage() {
 
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col">
-      {/* Header */}
       <header className="flex justify-between items-start px-8 pt-8">
         <div>
           <h1 className="text-[25px] font-bold text-[#00B2FF] text-left leading-none">
@@ -171,16 +154,14 @@ export default function BracketPage() {
           )}
         </div>
 
-        {picks.length === 0 ? (
-          <p className="text-[#FFFFFF]">Вы не участвовали в турнире!</p>
-        ) : selectedRound ? (
+        {selectedRound ? (
           <MatchList
             picks={picks}
             round={selectedRound}
             comparison={comparison}
             handlePick={handlePick}
             canEdit={canEdit}
-            styles={styles} // Передаём стили
+            styles={styles}
           />
         ) : (
           <p className="text-[#FFFFFF]">Выберите раунд</p>
