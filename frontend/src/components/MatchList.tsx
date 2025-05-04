@@ -16,10 +16,10 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
   const comparisonMap = new Map(comparison.map(comp => [`${comp.round}-${comp.match_number}`, comp]));
 
   const findTrueWinnerForMatch = (pick: UserPick): string | null => {
-    const roundIndex = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'W'].indexOf(pick.round);
+    const roundIndex = ['R32', 'R16', 'QF', 'SF', 'F', 'W'].indexOf(pick.round);
     if (roundIndex === 0) return null;
 
-    const prevRound = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F'][roundIndex - 1];
+    const prevRound = ['R32', 'R16', 'QF', 'SF', 'F'][roundIndex - 1];
     const matchNumber1 = pick.match_number * 2 - 1;
     const matchNumber2 = pick.match_number * 2;
 
@@ -62,14 +62,16 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
 
         const player1Styles = {
           color: isWinnerRound ? '#FFFFFF' :
-                actualWinner === '' && pick.predicted_winner === pick.player1 ? '#00B2FF' :
+                pick.predicted_winner === pick.player1 ? '#00B2FF' : // Синий для выбранного
+                actualWinner === '' ? '#FFFFFF' :
                 isCorrect === true ? 'green' :
                 isCorrect === false ? 'red' : '#FFFFFF',
           textDecoration: isPlayer1Eliminated ? 'line-through' : 'none',
         };
         const player2Styles = {
           color: isWinnerRound ? '#FFFFFF' :
-                actualWinner === '' && pick.predicted_winner === pick.player2 ? '#00B2FF' :
+                pick.predicted_winner === pick.player2 ? '#00B2FF' : // Синий для выбранного
+                actualWinner === '' ? '#FFFFFF' :
                 isCorrect === true ? 'green' :
                 isCorrect === false ? 'red' : '#FFFFFF',
           textDecoration: isPlayer2Eliminated ? 'line-through' : 'none',
@@ -90,7 +92,7 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
             {isWinnerRound ? (
               <div className={styles.playerCell}>
                 <span style={{ color: actualWinner ? '#FFFFFF' : '#00B2FF' }}>
-                  {winner}
+                  {winner || 'TBD'}
                 </span>
               </div>
             ) : (
@@ -102,10 +104,10 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
                     onClick={() =>
                       canEdit &&
                       pick.player1 &&
-                      handlePick(pick, pick.predicted_winner === pick.player1 ? null : pick.player1)
+                      handlePick(pick, pick.player1)
                     }
                   >
-                    {displayPlayer1}
+                    {displayPlayer1 || 'TBD'}
                   </span>
                 </div>
                 <div className={styles.playerCell}>
@@ -116,10 +118,10 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
                       canEdit &&
                       pick.player2 &&
                       pick.player2 !== 'Bye' &&
-                      handlePick(pick, pick.predicted_winner === pick.player2 ? null : pick.player2)
+                      handlePick(pick, pick.player2)
                     }
                   >
-                    {displayPlayer2}
+                    {displayPlayer2 || 'TBD'}
                   </span>
                 </div>
               </>

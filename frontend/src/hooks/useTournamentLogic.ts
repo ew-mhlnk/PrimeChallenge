@@ -66,13 +66,12 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
           generatedPicks = initialPicks;
         } else if (data.status === 'ACTIVE') {
           const firstRoundMatches = fetchedMatches.filter((match) => match.round === startingRound);
-          console.log('First round matches from true_draws:', firstRoundMatches); // Логируем для отладки
+          console.log('First round matches from true_draws:', firstRoundMatches);
 
           if (firstRoundMatches.length === 0) {
             throw new Error(`Нет матчей для начального раунда ${startingRound}`);
           }
 
-          // Всегда используем true_draws как базу для starting_round
           generatedPicks = firstRoundMatches.map((match) => ({
             id: match.id || match.match_number,
             user_id: userId,
@@ -84,7 +83,6 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
             predicted_winner: initialPicks.find(p => p.round === match.round && p.match_number === match.match_number)?.predicted_winner || (match.player2 === 'Bye' ? match.player1 : null),
           }));
 
-          // Если есть user_picks, обновляем predicted_winner
           if (initialPicks.length > 0) {
             initialPicks.forEach((userPick) => {
               const index = generatedPicks.findIndex(p => p.round === userPick.round && p.match_number === userPick.match_number);
@@ -121,6 +119,41 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       newPicks[pickIndex] = { ...newPicks[pickIndex], predicted_winner: player };
     } else {
       newPicks.push({ ...match, predicted_winner: player });
+    }
+
+    // Продвижение в следующий раунд
+    const currentRoundIdx = allRounds.indexOf(match.round);
+    if (player && currentRoundIdx < allRounds.length - 1) {
+      const nextRound = allRounds[currentRoundIdx + 1];
+      const nextMatchNumber = Math.ceil(match.match_number / 2);
+
+      let nextMatch = newPicks.find(
+        (p) => p.round === nextRound && p.match_number === nextMatchNumber
+      );
+      if (!nextMatch) {
+        nextMatch = {
+          id: nextMatchNumber,
+          user_id: match.user_id,
+          tournament_id: match.tournament_id,
+          round: nextRound,
+          match_number: nextMatchNumber,
+          player1: '',
+          player2: '',
+          predicted_winner: null,
+        };
+        newPicks.push(nextMatch);
+      }
+
+      if (match.match_number % 2 === 1) {
+        nextMatch.player1 = player;
+      } else {
+        nextMatch.player2 = player;
+      }
+
+      // Сбрасываем predicted_winner в следующем матче, если оба игрока заполнены
+      if (nextMatch.player1 && nextMatch.player2 && nextMatch.predicted_winner) {
+        nextMatch.predicted_winner = null;
+      }
     }
 
     setPicks(newPicks);
