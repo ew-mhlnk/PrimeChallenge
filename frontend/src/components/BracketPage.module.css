@@ -1,0 +1,17 @@
+.matchContainer {
+    padding: 10px;
+    border: 1px solid #333;
+    border-radius: 5px;
+    background-color: #1a1a1a;
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  .noLines {
+    border: none;
+  }
+  
+  .playerCell {
+    padding: 5px;
+    text-align: center;
+  }
