@@ -65,69 +65,33 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
           }
           generatedPicks = initialPicks;
         } else if (data.status === 'ACTIVE') {
-          if (initialPicks.length === 0) {
-            const firstRoundMatches = fetchedMatches.filter((match) => match.round === startingRound);
-            if (firstRoundMatches.length !== 16 && startingRound === 'R32') {
-              console.warn('Expected 16 matches for R32, got:', firstRoundMatches.length);
-            }
+          const firstRoundMatches = fetchedMatches.filter((match) => match.round === startingRound);
+          console.log('First round matches from true_draws:', firstRoundMatches); // Логируем для отладки
 
-            generatedPicks = firstRoundMatches.map((match) => ({
-              id: match.match_number,
-              user_id: userId,
-              tournament_id: parseInt(id),
-              round: match.round,
-              match_number: match.match_number,
-              player1: match.player1 || 'TBD',
-              player2: match.player2 || 'TBD',
-              predicted_winner: match.player2 === 'Bye' ? match.player1 : null,
-            }));
+          if (firstRoundMatches.length === 0) {
+            throw new Error(`Нет матчей для начального раунда ${startingRound}`);
+          }
 
-            const matchCounts: { [key: string]: number } = {
-              'R32': 16, 'R16': 8, 'QF': 4, 'SF': 2, 'F': 1, 'W': 1
-            };
+          // Всегда используем true_draws как базу для starting_round
+          generatedPicks = firstRoundMatches.map((match) => ({
+            id: match.id || match.match_number,
+            user_id: userId,
+            tournament_id: parseInt(id),
+            round: match.round,
+            match_number: match.match_number,
+            player1: match.player1 || 'TBD',
+            player2: match.player2 || 'TBD',
+            predicted_winner: initialPicks.find(p => p.round === match.round && p.match_number === match.match_number)?.predicted_winner || (match.player2 === 'Bye' ? match.player1 : null),
+          }));
 
-            for (let i = roundIndex + 1; i < allRounds.length; i++) {
-              const round = allRounds[i];
-              const count = matchCounts[round] || 1;
-              for (let matchNum = 1; matchNum <= count; matchNum++) {
-                generatedPicks.push({
-                  id: matchNum,
-                  user_id: userId,
-                  tournament_id: parseInt(id),
-                  round,
-                  match_number: matchNum,
-                  player1: 'TBD',
-                  player2: round !== 'W' ? 'TBD' : '',
-                  predicted_winner: null,
-                });
+          // Если есть user_picks, обновляем predicted_winner
+          if (initialPicks.length > 0) {
+            initialPicks.forEach((userPick) => {
+              const index = generatedPicks.findIndex(p => p.round === userPick.round && p.match_number === userPick.match_number);
+              if (index !== -1) {
+                generatedPicks[index] = { ...generatedPicks[index], predicted_winner: userPick.predicted_winner };
               }
-            }
-          } else {
-            generatedPicks = initialPicks;
-
-            const matchCounts: { [key: string]: number } = {
-              'R32': 16, 'R16': 8, 'QF': 4, 'SF': 2, 'F': 1, 'W': 1
-            };
-            const existingRounds = new Set(generatedPicks.map(pick => pick.round));
-
-            for (let i = roundIndex; i < allRounds.length; i++) {
-              const round = allRounds[i];
-              if (!existingRounds.has(round)) {
-                const count = matchCounts[round] || 1;
-                for (let matchNum = 1; matchNum <= count; matchNum++) {
-                  generatedPicks.push({
-                    id: matchNum,
-                    user_id: userId,
-                    tournament_id: parseInt(id),
-                    round,
-                    match_number: matchNum,
-                    player1: 'TBD',
-                    player2: round !== 'W' ? 'TBD' : '',
-                    predicted_winner: null,
-                  });
-                }
-              }
-            }
+            });
           }
         }
 
@@ -157,34 +121,6 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       newPicks[pickIndex] = { ...newPicks[pickIndex], predicted_winner: player };
     } else {
       newPicks.push({ ...match, predicted_winner: player });
-    }
-
-    const currentRoundIdx = allRounds.indexOf(match.round);
-    if (player && currentRoundIdx < allRounds.length - 1) {
-      const nextRound = allRounds[currentRoundIdx + 1];
-      const nextMatchNumber = Math.ceil(match.match_number / 2);
-
-      const nextMatch = newPicks.find(
-        (p) => p.round === nextRound && p.match_number === nextMatchNumber
-      );
-      if (nextMatch) {
-        if (match.match_number % 2 === 1) {
-          nextMatch.player1 = player;
-        } else {
-          nextMatch.player2 = player;
-        }
-
-        if (nextMatch.player1 && nextMatch.player2 && !nextMatch.predicted_winner) {
-          nextMatch.predicted_winner = null;
-        }
-
-        if (nextRound === 'F' && nextMatchNumber === 1) {
-          const winnerMatch = newPicks.find((p) => p.round === 'W' && p.match_number === 1);
-          if (winnerMatch) {
-            winnerMatch.player1 = player;
-          }
-        }
-      }
     }
 
     setPicks(newPicks);
