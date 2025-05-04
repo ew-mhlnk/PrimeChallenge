@@ -62,7 +62,7 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
 
         const player1Styles = {
           color: isWinnerRound ? '#FFFFFF' :
-                pick.predicted_winner === pick.player1 ? '#00B2FF' : // Синий для выбранного
+                pick.predicted_winner === pick.player1 ? '#00B2FF' :
                 actualWinner === '' ? '#FFFFFF' :
                 isCorrect === true ? 'green' :
                 isCorrect === false ? 'red' : '#FFFFFF',
@@ -70,7 +70,7 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
         };
         const player2Styles = {
           color: isWinnerRound ? '#FFFFFF' :
-                pick.predicted_winner === pick.player2 ? '#00B2FF' : // Синий для выбранного
+                pick.predicted_winner === pick.player2 ? '#00B2FF' :
                 actualWinner === '' ? '#FFFFFF' :
                 isCorrect === true ? 'green' :
                 isCorrect === false ? 'red' : '#FFFFFF',
@@ -92,7 +92,7 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
             {isWinnerRound ? (
               <div className={styles.playerCell}>
                 <span style={{ color: actualWinner ? '#FFFFFF' : '#00B2FF' }}>
-                  {winner || 'TBD'}
+                  {winner || '-'}
                 </span>
               </div>
             ) : (
@@ -107,7 +107,7 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
                       handlePick(pick, pick.player1)
                     }
                   >
-                    {displayPlayer1 || 'TBD'}
+                    {displayPlayer1 || '-'}
                   </span>
                 </div>
                 <div className={styles.playerCell}>
@@ -121,7 +121,7 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
                       handlePick(pick, pick.player2)
                     }
                   >
-                    {displayPlayer2 || 'TBD'}
+                    {displayPlayer2 || '-'}
                   </span>
                 </div>
               </>
