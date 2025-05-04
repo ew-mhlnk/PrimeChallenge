@@ -85,9 +85,9 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
           }));
 
           // Динамически создаём пустые матчи для следующих раундов
-          let matchCount = firstRoundMatches.length; // Количество матчей в начальном раунде
+          let matchCount = firstRoundMatches.length;
           for (let i = roundIndex + 1; i < allRounds.length; i++) {
-            matchCount = Math.ceil(matchCount / 2); // Уменьшаем вдвое для следующего раунда
+            matchCount = Math.ceil(matchCount / 2);
             const round = allRounds[i];
             for (let matchNum = 1; matchNum <= matchCount; matchNum++) {
               generatedPicks.push({
@@ -103,12 +103,12 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
             }
           }
 
-          // Если есть user_picks, обновляем predicted_winner
+          // Обновляем generatedPicks данными из user_picks
           if (initialPicks.length > 0) {
             initialPicks.forEach((userPick) => {
               const index = generatedPicks.findIndex(p => p.round === userPick.round && p.match_number === userPick.match_number);
               if (index !== -1) {
-                generatedPicks[index] = { ...generatedPicks[index], predicted_winner: userPick.predicted_winner };
+                generatedPicks[index] = { ...generatedPicks[index], ...userPick };
               }
             });
           }

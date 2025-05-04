@@ -43,7 +43,6 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
     <div className="space-y-[20px] flex flex-col items-center">
       {roundPicks.map((pick) => {
         const matchComparison = comparisonMap.get(`${pick.round}-${pick.match_number}`);
-        const isCorrect = matchComparison?.correct;
         const actualWinner = matchComparison?.actual_winner || '';
         const isEliminated = matchComparison?.predicted_winner && matchComparison.actual_winner && matchComparison.predicted_winner !== matchComparison.actual_winner;
 
@@ -62,18 +61,14 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
 
         const player1Styles = {
           color: isWinnerRound ? '#FFFFFF' :
-                pick.predicted_winner === pick.player1 ? '#00B2FF' :
-                actualWinner === '' ? '#FFFFFF' :
-                isCorrect === true ? 'green' :
-                isCorrect === false ? 'red' : '#FFFFFF',
+                pick.predicted_winner === pick.player1 ? '#00B2FF' : // Синий для выбранного
+                '#C0C0C0', // Серый по умолчанию
           textDecoration: isPlayer1Eliminated ? 'line-through' : 'none',
         };
         const player2Styles = {
           color: isWinnerRound ? '#FFFFFF' :
-                pick.predicted_winner === pick.player2 ? '#00B2FF' :
-                actualWinner === '' ? '#FFFFFF' :
-                isCorrect === true ? 'green' :
-                isCorrect === false ? 'red' : '#FFFFFF',
+                pick.predicted_winner === pick.player2 ? '#00B2FF' : // Синий для выбранного
+                '#C0C0C0', // Серый по умолчанию
           textDecoration: isPlayer2Eliminated ? 'line-through' : 'none',
         };
 
@@ -87,7 +82,7 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
             className={`${styles.matchContainer} ${round === 'W' ? styles.noLines : ''}`}
           >
             <p className="text-[16px] font-semibold text-[#FFFFFF] mb-2">
-              {isWinnerRound ? 'Победитель' : `Матч #${pick.match_number}`}
+              {pick.match_number}
             </p>
             {isWinnerRound ? (
               <div className={styles.playerCell}>
@@ -107,7 +102,7 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
                       handlePick(pick, pick.player1)
                     }
                   >
-                    {displayPlayer1 || '-'}
+                    {displayPlayer1}
                   </span>
                 </div>
                 <div className={styles.playerCell}>
@@ -121,7 +116,7 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
                       handlePick(pick, pick.player2)
                     }
                   >
-                    {displayPlayer2 || '-'}
+                    {displayPlayer2}
                   </span>
                 </div>
               </>
