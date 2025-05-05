@@ -65,7 +65,9 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
           }
           generatedPicks = initialPicks;
         } else if (data.status === 'ACTIVE') {
-          const firstRoundMatches = fetchedMatches.filter((match) => match.round === startingRound);
+          const firstRoundMatches = fetchedMatches
+            .filter((match) => match.round === startingRound)
+            .sort((a, b) => a.match_number - b.match_number); // Сортируем по match_number
           console.log('First round matches from true_draws:', firstRoundMatches);
 
           if (firstRoundMatches.length === 0) {

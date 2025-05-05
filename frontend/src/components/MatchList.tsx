@@ -12,7 +12,9 @@ interface MatchListProps {
 }
 
 export default function MatchList({ picks, round, comparison, handlePick, canEdit, styles }: MatchListProps) {
-  const roundPicks = picks.filter((pick) => pick.round === round);
+  const roundPicks = picks
+    .filter((pick) => pick.round === round)
+    .sort((a, b) => a.match_number - b.match_number); // Сортируем по match_number
   const comparisonMap = new Map(comparison.map(comp => [`${comp.round}-${comp.match_number}`, comp]));
 
   const findTrueWinnerForMatch = (pick: UserPick): string | null => {
@@ -61,14 +63,14 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
 
         const player1Styles = {
           color: isWinnerRound ? '#FFFFFF' :
-                pick.predicted_winner === pick.player1 ? '#00B2FF' : // Синий для выбранного
-                '#C0C0C0', // Серый по умолчанию
+                pick.predicted_winner === pick.player1 ? '#00B2FF' :
+                '#C0C0C0',
           textDecoration: isPlayer1Eliminated ? 'line-through' : 'none',
         };
         const player2Styles = {
           color: isWinnerRound ? '#FFFFFF' :
-                pick.predicted_winner === pick.player2 ? '#00B2FF' : // Синий для выбранного
-                '#C0C0C0', // Серый по умолчанию
+                pick.predicted_winner === pick.player2 ? '#00B2FF' :
+                '#C0C0C0',
           textDecoration: isPlayer2Eliminated ? 'line-through' : 'none',
         };
 
