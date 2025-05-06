@@ -12,6 +12,8 @@
   }
   
   .playerCell {
-    padding: 5px;
-    text-align: center;
+    display: inline-block;
+    width: 45%;
+    margin: 0 2.5%;
+    vertical-align: top;
   }
