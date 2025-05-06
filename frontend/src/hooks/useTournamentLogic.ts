@@ -67,7 +67,7 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
         } else if (data.status === 'ACTIVE') {
           const firstRoundMatches = fetchedMatches
             .filter((match) => match.round === startingRound)
-            .sort((a, b) => a.match_number - b.match_number); // Сортируем по match_number
+            .sort((a, b) => a.match_number - b.match_number);
           console.log('First round matches from true_draws:', firstRoundMatches);
 
           if (firstRoundMatches.length === 0) {
@@ -83,7 +83,7 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
             match_number: match.match_number,
             player1: match.player1 || '',
             player2: match.player2 || '',
-            predicted_winner: initialPicks.find(p => p.round === match.round && p.match_number === match.match_number)?.predicted_winner || (match.player2 === 'Bye' ? match.player1 : null),
+            predicted_winner: initialPicks.find(p => p.round === match.round && p.match_number === match.match_number)?.predicted_winner || null,
           }));
 
           // Динамически создаём пустые матчи для следующих раундов

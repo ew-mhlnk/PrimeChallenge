@@ -14,7 +14,7 @@ interface MatchListProps {
 export default function MatchList({ picks, round, comparison, handlePick, canEdit, styles }: MatchListProps) {
   const roundPicks = picks
     .filter((pick) => pick.round === round)
-    .sort((a, b) => a.match_number - b.match_number); // Сортируем по match_number
+    .sort((a, b) => a.match_number - b.match_number);
   const comparisonMap = new Map(comparison.map(comp => [`${comp.round}-${comp.match_number}`, comp]));
 
   const findTrueWinnerForMatch = (pick: UserPick): string | null => {
@@ -75,7 +75,7 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
         };
 
         if (pick.player2 === 'Bye' && !pick.predicted_winner && canEdit) {
-          setTimeout(() => handlePick(pick, pick.player1), 0);
+          handlePick(pick, pick.player1); // Автоматический выбор игрока при Bye
         }
 
         return (
@@ -83,9 +83,6 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
             key={`${pick.round}-${pick.match_number}`}
             className={`${styles.matchContainer} ${round === 'W' ? styles.noLines : ''}`}
           >
-            <p className="text-[16px] font-semibold text-[#FFFFFF] mb-2">
-              {pick.match_number}
-            </p>
             {isWinnerRound ? (
               <div className={styles.playerCell}>
                 <span style={{ color: actualWinner ? '#FFFFFF' : '#00B2FF' }}>
