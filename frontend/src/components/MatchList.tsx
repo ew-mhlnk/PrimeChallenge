@@ -51,8 +51,9 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
         const replacementPlayer1 = findTrueWinnerForMatch(pick);
         const replacementPlayer2 = findTrueWinnerForMatch(pick);
 
-        const displayPlayer1 = pick.player1 || ''; // Оставляем player1 видимым
-        const displayPlayer2 = pick.player2 || ''; // Оставляем player2 видимым
+        // Оставляем исходных игроков видимыми
+        const displayPlayer1 = pick.player1 || '';
+        const displayPlayer2 = pick.player2 || '';
         const isPlayer1Eliminated = (isEliminated && pick.predicted_winner === pick.player1) || replacementPlayer1;
         const isPlayer2Eliminated = (isEliminated && pick.predicted_winner === pick.player2) || replacementPlayer2;
 
@@ -74,14 +75,16 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
           textDecoration: isPlayer2Eliminated ? 'line-through' : 'none',
         };
 
+        // Автоматическое продвижение при Bye
         if (pick.player2 === 'Bye' && !pick.predicted_winner && canEdit) {
-          handlePick(pick, pick.player1); // Автоматически выбираем player1 при Bye
+          handlePick(pick, pick.player1); // Немедленное продвижение player1
         }
 
         return (
           <div
             key={`${pick.round}-${pick.match_number}`}
             className={styles.matchContainer}
+            style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }} // Разделяем ячейки
           >
             {isWinnerRound ? (
               <div className={styles.playerCell}>

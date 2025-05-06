@@ -139,9 +139,9 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       (p) => p.round === match.round && p.match_number === match.match_number
     );
     if (pickIndex !== -1) {
-      newPicks[pickIndex] = { ...newPicks[pickIndex], predicted_winner: player };
+      newPicks[pickIndex] = { ...newPicks[pickIndex], predicted_winner: player, player1: match.player1, player2: match.player2 }; // Сохраняем игроков
     } else {
-      newPicks.push({ ...match, predicted_winner: player });
+      newPicks.push({ ...match, predicted_winner: player, player1: match.player1, player2: match.player2 });
     }
 
     // Продвижение в следующий раунд
@@ -189,6 +189,8 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
           round: match.round,
           match_number: match.match_number,
           predicted_winner: player,
+          player1: match.player1,
+          player2: match.player2,
         }),
       });
 
