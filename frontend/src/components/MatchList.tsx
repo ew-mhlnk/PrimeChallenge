@@ -9,11 +9,12 @@ interface MatchListProps {
   handlePick: (match: UserPick, player: string | null) => void;
   canEdit: boolean;
   styles: { [key: string]: string };
+  error?: string | null; // Добавлен error как опциональный пропс
 }
 
-export default function MatchList({ picks, round, comparison, handlePick, canEdit, styles }: MatchListProps) {
+export default function MatchList({ picks, round, comparison, handlePick, canEdit, styles, error }: MatchListProps) {
   const roundPicks = picks
-    .filter((pick) => pick.round === round)
+    .filter((pick) => ['R32', 'R16'].includes(pick.round) && pick.round === round)
     .sort((a, b) => a.match_number - b.match_number);
   const comparisonMap = new Map(comparison.map(comp => [`${comp.round}-${comp.match_number}`, comp]));
 
@@ -46,10 +47,6 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
           : pick.predicted_winner === pick.player2 ? 'bg-blue-500'
           : 'bg-gray-700';
 
-        if (pick.player2 === 'Bye' && !pick.predicted_winner && canEdit) {
-          handlePick(pick, pick.player1); // Автоматическое продвижение
-        }
-
         return (
           <div
             key={`${pick.round}-${pick.match_number}`}
@@ -72,11 +69,11 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
                 </div>
                 <div className={`${styles.playerCell} ${player2Class}`}>
                   <span
-                    className={`cursor-pointer ${!canEdit || !pick.player2 || pick.player2 === 'Bye' ? 'pointer-events-none' : ''}`}
+                    className={`cursor-pointer ${!canEdit || !pick.player2 || pick.player2?.toLowerCase() === 'bye' ? 'pointer-events-none' : ''}`}
                     onClick={() =>
                       canEdit &&
                       pick.player2 &&
-                      pick.player2 !== 'Bye' &&
+                      pick.player2.toLowerCase() !== 'bye' &&
                       handlePick(pick, pick.player2)
                     }
                   >
@@ -93,6 +90,7 @@ export default function MatchList({ picks, round, comparison, handlePick, canEdi
           </div>
         );
       })}
+      {error && <p className="text-red-500">{error}</p>} {/* Используем переданный error */}
     </div>
   );
 }
