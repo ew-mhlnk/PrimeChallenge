@@ -68,13 +68,11 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
           const firstRoundMatches = fetchedMatches
             .filter((match) => match.round === startingRound)
             .sort((a, b) => a.match_number - b.match_number);
-          console.log('First round matches from true_draws:', firstRoundMatches);
 
           if (firstRoundMatches.length === 0) {
             throw new Error(`Нет матчей для начального раунда ${startingRound}`);
           }
 
-          // Формируем пики для начального раунда
           generatedPicks = firstRoundMatches.map((match) => ({
             id: match.id || match.match_number,
             user_id: userId,
@@ -86,7 +84,6 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
             predicted_winner: initialPicks.find(p => p.round === match.round && p.match_number === match.match_number)?.predicted_winner || null,
           }));
 
-          // Динамически создаём пустые матчи для следующих раундов
           let matchCount = firstRoundMatches.length;
           for (let i = roundIndex + 1; i < allRounds.length; i++) {
             matchCount = Math.ceil(matchCount / 2);
@@ -105,7 +102,6 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
             }
           }
 
-          // Обновляем generatedPicks данными из user_picks
           if (initialPicks.length > 0) {
             initialPicks.forEach((userPick) => {
               const index = generatedPicks.findIndex(p => p.round === userPick.round && p.match_number === userPick.match_number);
@@ -139,12 +135,11 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       (p) => p.round === match.round && p.match_number === match.match_number
     );
     if (pickIndex !== -1) {
-      newPicks[pickIndex] = { ...newPicks[pickIndex], predicted_winner: player, player1: match.player1, player2: match.player2 }; // Сохраняем игроков
+      newPicks[pickIndex] = { ...newPicks[pickIndex], predicted_winner: player, player1: match.player1, player2: match.player2 };
     } else {
       newPicks.push({ ...match, predicted_winner: player, player1: match.player1, player2: match.player2 });
     }
 
-    // Продвижение в следующий раунд
     const currentRoundIdx = allRounds.indexOf(match.round);
     if (player && currentRoundIdx < allRounds.length - 1) {
       const nextRound = allRounds[currentRoundIdx + 1];
@@ -159,18 +154,15 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
         } else {
           nextMatch.player2 = player;
         }
-
-        // Сбрасываем predicted_winner в следующем матче, если оба игрока заполнены
         if (nextMatch.player1 && nextMatch.player2 && nextMatch.predicted_winner) {
           nextMatch.predicted_winner = null;
         }
+      }
 
-        // Особая обработка для финала и победителя
-        if (nextRound === 'F' && nextMatchNumber === 1) {
-          const winnerMatch = newPicks.find((p) => p.round === 'W' && p.match_number === 1);
-          if (winnerMatch) {
-            winnerMatch.player1 = player;
-          }
+      if (nextRound === 'F' && nextMatchNumber === 1) {
+        const winnerMatch = newPicks.find((p) => p.round === 'W' && p.match_number === 1);
+        if (winnerMatch) {
+          winnerMatch.player1 = player;
         }
       }
     }

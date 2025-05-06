@@ -1,19 +1,50 @@
+.playerCell {
+  width: 280px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #4B5563; /* Серый по умолчанию */
+  color: white;
+  padding: 0 10px;
+  border-radius: 4px;
+}
+
 .matchContainer {
-    padding: 10px;
-    border: 1px solid #333;
-    border-radius: 5px;
-    background-color: #1a1a1a;
-    width: 100%;
-    max-width: 300px;
-  }
-  
-  .noLines {
-    border: none;
-  }
-  
-  .playerCell {
-    display: inline-block;
-    width: 45%;
-    margin: 0 2.5%;
-    vertical-align: top;
-  }
+  position: relative;
+  padding-right: 60px; /* Место для линий */
+}
+
+.matchContainer::after {
+  content: "";
+  display: block;
+  position: absolute;
+  right: -30px; /* Линия начинается справа от ячейки */
+  width: 30px; /* Длина горизонтальной части линии */
+  border-left: 1px solid #7a7a7a;
+  border-top: 1px solid #7a7a7a;
+  border-bottom: 1px solid #7a7a7a;
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 16px;
+  top: 25%;
+  height: 50%; /* Высота линии */
+}
+
+/* Для финального раунда линии не нужны */
+.noLines::after {
+  display: none;
+}
+
+/* Переопределяем цвета */
+.bg-blue-500 {
+  background-color: #3B82F6 !important;
+}
+.bg-green-500 {
+  background-color: #22C55E !important;
+}
+.bg-red-500 {
+  background-color: #EF4444 !important;
+}
+.bg-gray-700 {
+  background-color: #4B5563 !important;
+}
