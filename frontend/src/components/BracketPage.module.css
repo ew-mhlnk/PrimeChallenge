@@ -1,50 +1,73 @@
+/* Player Cells */
 .playerCell {
   width: 280px;
   height: 40px;
+  background: linear-gradient(90deg, #161616 0%, #161616 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #4B5563; /* Серый по умолчанию */
-  color: white;
-  padding: 0 10px;
-  border-radius: 4px;
+  color: #5F6067;
+  font-size: 14px;
 }
 
-.matchContainer {
-  position: relative;
-  padding-right: 60px; /* Место для линий */
+.selectedPlayer {
+  width: 280px;
+  height: 40px;
+  background: linear-gradient(90deg, #102F51 0%, #102E51 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(0, 178, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #CBCBCB;
+  font-size: 14px;
 }
 
-.matchContainer::after {
-  content: "";
-  display: block;
-  position: absolute;
-  right: -30px; /* Линия начинается справа от ячейки */
-  width: 30px; /* Длина горизонтальной части линии */
-  border-left: 1px solid #7a7a7a;
-  border-top: 1px solid #7a7a7a;
-  border-bottom: 1px solid #7a7a7a;
-  border-top-left-radius: 16px;
-  border-bottom-left-radius: 16px;
-  top: 25%;
-  height: 50%; /* Высота линии */
+.correctPick {
+  width: 280px;
+  height: 40px;
+  background: linear-gradient(90deg, #1D1F1A 0%, #161616 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5B7E60;
+  font-size: 14px;
 }
 
-/* Для финального раунда линии не нужны */
-.noLines::after {
-  display: none;
+.incorrectPick {
+  width: 280px;
+  height: 40px;
+  background: linear-gradient(90deg, #201212 0%, #161616 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7E5B5B;
+  font-size: 14px;
+  text-decoration: line-through;
 }
 
-/* Цвета */
-.bg-blue-500 {
-  background-color: #3B82F6 !important;
+.actualWinner {
+  margin-left: 10px;
+  color: #5F6067;
+  font-size: 14px;
 }
-.bg-green-500 {
-  background-color: #22C55E !important;
+
+/* Round Buttons */
+.inactiveRound {
+  color: #5F6067;
+  font-size: 14px;
 }
-.bg-red-500 {
-  background-color: #EF4444 !important;
-}
-.bg-gray-700 {
-  background-color: #4B5563 !important;
+
+.activeRound {
+  background: url('data:image/svg+xml;utf8,<svg width="53" height="36" viewBox="0 0 53 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="51" height="34" rx="17" fill="url(%23paint0_linear_1611_14)" fill-opacity="0.26" stroke="%2300B3FF" stroke-width="2"/><defs><linearGradient id="paint0_linear_1611_14" x1="0.605023" y1="36" x2="51.2727" y2="34.0699" gradientUnits="userSpaceOnUse"><stop stop-color="%23008CFF"/><stop offset="1" stop-color="%230077FF"/></linearGradient></defs></svg>');
+  color: #CBCBCB;
+  font-size: 14px;
+  padding: 10px 20px;
+  border-radius: 18px;
 }

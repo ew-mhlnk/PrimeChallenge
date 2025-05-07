@@ -1,69 +1,93 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
-from database.db import get_db  # Импорт функции для получения сессии базы данных
-from database import models  # Импорт моделей базы данных (Tournament, TrueDraw, UserPick, Leaderboard)
+from typing import List, Dict
+from database.db import get_db
+from database import models
 import logging
-from schemas import Tournament, TrueDraw  # Импорт схем Pydantic для валидации данных
-from utils.auth import get_current_user  # Импорт функции для получения текущего пользователя
+from schemas import Tournament, TrueDraw, UserPick, UserScore
+from utils.auth import get_current_user
 
-# Создание маршрутизатора FastAPI для обработки запросов, связанных с турнирами
 router = APIRouter()
-logger = logging.getLogger(__name__)  # Инициализация логгера для записи событий и ошибок
+logger = logging.getLogger(__name__)
+
+def compute_comparison_and_scores(tournament: models.Tournament, user_id: int, db: Session) -> Dict:
+    # Fetch user's picks for this tournament
+    user_picks = db.query(models.UserPick).filter(
+        models.UserPick.tournament_id == tournament.id,
+        models.UserPick.user_id == user_id
+    ).all()
+    
+    # Fetch all true_draws for this tournament
+    true_draws = db.query(models.TrueDraw).filter_by(tournament_id=tournament.id).all()
+    
+    # Compute comparison
+    comparison = []
+    correct_count = 0
+    for match in true_draws:
+        pick = next((p for p in user_picks if p.round == match.round and p.match_number == match.match_number), None)
+        is_correct = pick and pick.predicted_winner == match.winner and match.winner is not None
+        if is_correct:
+            correct_count += 1
+        comparison.append({
+            "round": match.round,
+            "match_number": match.match_number,
+            "player1": match.player1 or "TBD",
+            "player2": match.player2 or "TBD",
+            "predicted_winner": pick.predicted_winner if pick else "",
+            "actual_winner": match.winner or "",
+            "correct": is_correct
+        })
+    
+    # Update or create user score
+    user_score = db.query(models.UserScore).filter_by(
+        user_id=user_id,
+        tournament_id=tournament.id
+    ).first()
+    if user_score:
+        user_score.correct_picks = correct_count
+        user_score.score = correct_count * 10  # Example scoring: 10 points per correct pick
+        db.commit()
+    else:
+        new_score = models.UserScore(
+            user_id=user_id,
+            tournament_id=tournament.id,
+            score=correct_count * 10,
+            correct_picks=correct_count
+        )
+        db.add(new_score)
+        db.commit()
+    
+    return {"comparison": comparison, "correct_picks": correct_count, "score": correct_count * 10}
 
 @router.get("/", response_model=List[Tournament])
 async def get_tournaments(tag: str = None, status: str = None, id: int = None, db: Session = Depends(get_db)):
-    """
-    Эндпоинт для получения списка турниров с фильтрацией.
-    Возвращает все турниры или отфильтрованные по tag, status или id.
-    Используется фронтендом для отображения списка турниров (например, в TournamentList.tsx).
-    """
-    logger.info("Fetching all tournaments")  # Логирование запроса
-    query = db.query(models.Tournament)  # Базовый запрос к таблице турниров
-    
-    if tag:
-        query = query.filter(models.Tournament.tag == tag)  # Фильтрация по тегу
-    if status:
-        query = query.filter(models.Tournament.status == status)  # Фильтрация по статусу
-    if id is not None:
-        query = query.filter(models.Tournament.id == id)  # Фильтрация по ID
-    
-    tournaments = query.all()  # Выполнение запроса и получение результатов
-    logger.info(f"Returning {len(tournaments)} tournaments")  # Логирование количества возвращаемых турниров
-    return tournaments  # Возврат списка турниров в формате схемы Tournament
+    logger.info("Fetching all tournaments")
+    query = db.query(models.Tournament)
+    if tag: query = query.filter(models.Tournament.tag == tag)
+    if status: query = query.filter(models.Tournament.status == status)
+    if id is not None: query = query.filter(models.Tournament.id == id)
+    tournaments = query.all()
+    logger.info(f"Returning {len(tournaments)} tournaments")
+    return tournaments
 
-@router.get("/tournament/{id}", response_model=Tournament)
+@router.get("/tournament/{id}", response_model=Dict)
 async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
-    """
-    Эндпоинт для получения данных конкретного турнира по ID.
-    Возвращает информацию о турнире, матчах R32 и пиках пользователя.
-    Используется фронтендом для отображения сетки (например, в BracketPage.tsx через useTournamentLogic.ts).
-    """
-    logger.info(f"Fetching tournament with id={id}")  # Логирование запроса
-    tournament = db.query(models.Tournament).filter(models.Tournament.id == id).first()  # Поиск турнира по ID
+    logger.info(f"Fetching tournament with id={id}")
+    tournament = db.query(models.Tournament).filter(models.Tournament.id == id).first()
     if not tournament:
-        raise HTTPException(status_code=404, detail="Tournament not found")  # Ошибка, если турнир не найден
+        raise HTTPException(status_code=404, detail="Tournament not found")
     
-    user_id = user["id"]  # Получение ID текущего пользователя
-    logger.info(f"Using user_id={user_id} for picks")  # Логирование
+    user_id = user["id"]
+    logger.info(f"Using user_id={user_id} for picks")
     
-    # Загрузка матчей только для раунда R32
-    true_draws = (
-        db.query(models.TrueDraw)
-        .filter(models.TrueDraw.tournament_id == id, models.TrueDraw.round == 'R32')
-        .all()
-    )
-    logger.info(f"Loaded {len(true_draws)} true_draws for R32")  # Логирование количества матчей
+    true_draws = db.query(models.TrueDraw).filter(models.TrueDraw.tournament_id == id).all()
+    user_picks = db.query(models.UserPick).filter(
+        models.UserPick.tournament_id == id,
+        models.UserPick.user_id == user_id
+    ).all()
     
-    # Загрузка пиков пользователя для этого турнира
-    user_picks = (
-        db.query(models.UserPick)
-        .filter(models.UserPick.tournament_id == id, models.UserPick.user_id == user_id)
-        .all()
-    )
-    logger.info(f"Loaded {len(user_picks)} user_picks")  # Логирование количества пиков
+    comparison_data = compute_comparison_and_scores(tournament, user_id, db) if tournament.status in ["CLOSED", "COMPLETED"] else {}
     
-    # Формирование словаря ответа
     tournament_dict = {
         "id": tournament.id,
         "name": tournament.name,
@@ -71,70 +95,39 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
         "status": tournament.status,
         "tag": tournament.tag,
         "starting_round": tournament.starting_round,
-        "true_draws": true_draws,  # Матчи R32
-        "user_picks": user_picks,  # Пики пользователя
+        "true_draws": true_draws,
+        "user_picks": user_picks,
+        **comparison_data
     }
     
-    logger.info(f"Returning tournament with id={id}, true_draws count={len(true_draws)}, user_picks count={len(user_picks)}")  # Логирование
-    return tournament_dict  # Возврат данных в формате схемы Tournament
-
-@router.get("/matches/by-id", response_model=List[TrueDraw])
-async def get_matches_by_tournament_id(tournament_id: int, db: Session = Depends(get_db)):
-    """
-    Эндпоинт для получения всех матчей турнира по его ID.
-    Возвращает список матчей из таблицы true_draw.
-    Может использоваться для отладки или дополнительных запросов фронтенда.
-    """
-    logger.info(f"Fetching matches for tournament_id={tournament_id}")  # Логирование запроса
-    matches = (
-        db.query(models.TrueDraw)
-        .filter(models.TrueDraw.tournament_id == tournament_id)
-        .all()
-    )  # Получение всех матчей турнира
-    logger.info(f"Returning {len(matches)} matches")  # Логирование количества матчей
-    return matches  # Возврат списка матчей в формате схемы TrueDraw
+    logger.info(f"Returning tournament with id={id}, true_draws count={len(true_draws)}, user_picks count={len(user_picks)}")
+    return tournament_dict
 
 @router.get("/picks/", response_model=List[dict])
 async def get_picks(tournament_id: int, user_id: int, db: Session = Depends(get_db)):
-    """
-    Эндпоинт для получения пиков пользователя по ID турнира и пользователя.
-    Возвращает список пиков в произвольном формате словаря.
-    Используется для получения пиков без привязки к авторизации.
-    """
-    logger.info(f"Fetching picks for tournament_id={tournament_id}, user_id={user_id}")  # Логирование запроса
-    picks = (
-        db.query(models.UserPick)
-        .filter(models.UserPick.tournament_id == tournament_id, models.UserPick.user_id == user_id)
-        .all()
-    )  # Получение пиков
-    logger.info(f"Returning {len(picks)} picks")  # Логирование количества пиков
-    return picks  # Возврат списка пиков
+    logger.info(f"Fetching picks for tournament_id={tournament_id}, user_id={user_id}")
+    picks = db.query(models.UserPick).filter(
+        models.UserPick.tournament_id == tournament_id,
+        models.UserPick.user_id == user_id
+    ).all()
+    logger.info(f"Returning {len(picks)} picks")
+    return picks
 
 @router.post("/picks/", response_model=dict)
 async def save_pick(pick: dict, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
-    """
-    Эндпоинт для сохранения одного пика пользователя.
-    Принимает данные пика в формате словаря и сохраняет или обновляет его.
-    Используется фронтендом для сохранения выбора игрока.
-    """
-    logger.info("Saving pick")  # Логирование запроса
+    logger.info("Saving pick")
     try:
-        pick["user_id"] = user["id"]  # Присваивание ID текущего пользователя
-        
-        # Проверка существования матча
+        pick["user_id"] = user["id"]
         match = db.query(models.TrueDraw).filter(
             models.TrueDraw.tournament_id == pick['tournament_id'],
             models.TrueDraw.round == pick['round'],
             models.TrueDraw.match_number == pick['match_number']
         ).first()
         if not match:
-            raise HTTPException(status_code=404, detail="Match not found")  # Ошибка, если матч не найден
-        
-        # Проверка, что предсказанный победитель — один из игроков
+            raise HTTPException(status_code=404, detail="Match not found")
         if pick['predicted_winner'] not in [match.player1, match.player2]:
-            raise HTTPException(status_code=400, detail="Predicted winner must be one of the players")  # Ошибка, если игрок не участвует
+            raise HTTPException(status_code=400, detail="Predicted winner must be one of the players")
         
-        # Сохранение или обновление пика
         existing_pick = db.query(models.UserPick).filter(
             models.UserPick.user_id == pick['user_id'],
             models.UserPick.tournament_id == pick['tournament_id'],
@@ -142,7 +135,7 @@ async def save_pick(pick: dict, db: Session = Depends(get_db), user: dict = Depe
             models.UserPick.match_number == pick['match_number']
         ).first()
         if existing_pick:
-            existing_pick.predicted_winner = pick['predicted_winner']  # Обновление существующего пика
+            existing_pick.predicted_winner = pick['predicted_winner']
         else:
             db_pick = models.UserPick(
                 user_id=pick['user_id'],
@@ -153,26 +146,20 @@ async def save_pick(pick: dict, db: Session = Depends(get_db), user: dict = Depe
                 player2=match.player2,
                 predicted_winner=pick['predicted_winner']
             )
-            db.add(db_pick)  # Добавление нового пика
-        db.commit()  # Подтверждение изменений
-        logger.info("Pick saved successfully")  # Логирование успеха
-        return pick  # Возврат принятого пика
+            db.add(db_pick)
+        db.commit()
+        logger.info("Pick saved successfully")
+        return pick
     except Exception as e:
-        logger.error(f"Error saving pick: {str(e)}")  # Логирование ошибки
-        raise HTTPException(status_code=500, detail="Failed to save pick")  # Ошибка сервера
+        logger.error(f"Error saving pick: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save pick")
 
 @router.post("/picks/bulk")
 async def save_picks_bulk(picks: List[dict], db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
-    """
-    Эндпоинт для массового сохранения пиков пользователя.
-    Принимает список словарей с данными пиков и сохраняет или обновляет их.
-    Используется фронтендом для сохранения всей сетки сразу.
-    """
-    logger.info("Saving picks in bulk")  # Логирование запроса
+    logger.info("Saving picks in bulk")
     try:
         for pick in picks:
-            pick["user_id"] = user["id"]  # Присваивание ID текущего пользователя
-            
+            pick["user_id"] = user["id"]
             existing_pick = db.query(models.UserPick).filter(
                 models.UserPick.user_id == pick['user_id'],
                 models.UserPick.tournament_id == pick['tournament_id'],
@@ -180,7 +167,7 @@ async def save_picks_bulk(picks: List[dict], db: Session = Depends(get_db), user
                 models.UserPick.match_number == pick['match_number']
             ).first()
             if existing_pick:
-                existing_pick.predicted_winner = pick['predicted_winner']  # Обновление существующего пика
+                existing_pick.predicted_winner = pick['predicted_winner']
             else:
                 match = db.query(models.TrueDraw).filter(
                     models.TrueDraw.tournament_id == pick['tournament_id'],
@@ -188,7 +175,7 @@ async def save_picks_bulk(picks: List[dict], db: Session = Depends(get_db), user
                     models.TrueDraw.match_number == pick['match_number']
                 ).first()
                 if not match:
-                    raise HTTPException(status_code=404, detail=f"Match not found for round={pick['round']}, match_number={pick['match_number']}")  # Ошибка, если матч не найден
+                    raise HTTPException(status_code=404, detail=f"Match not found for round={pick['round']}, match_number={pick['match_number']}")
                 db_pick = models.UserPick(
                     user_id=pick['user_id'],
                     tournament_id=pick['tournament_id'],
@@ -198,31 +185,23 @@ async def save_picks_bulk(picks: List[dict], db: Session = Depends(get_db), user
                     player2=match.player2,
                     predicted_winner=pick['predicted_winner']
                 )
-                db.add(db_pick)  # Добавление нового пика
-        db.commit()  # Подтверждение изменений
-        logger.info("Picks saved successfully")  # Логирование успеха
-        return {"status": "success"}  # Возврат успешного статуса
+                db.add(db_pick)
+        db.commit()
+        logger.info("Picks saved successfully")
+        return {"status": "success"}
     except Exception as e:
-        logger.error(f"Error saving picks: {str(e)}")  # Логирование ошибки
-        raise HTTPException(status_code=500, detail="Failed to save picks")  # Ошибка сервера
+        logger.error(f"Error saving picks: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save picks")
 
 @router.get("/leaderboard/", response_model=List[dict])
 async def get_leaderboard(db: Session = Depends(get_db)):
-    """
-    Эндпоинт для получения таблицы лидеров.
-    Возвращает список пользователей с их очками, отсортированных по убыванию.
-    Используется фронтендом для отображения рейтинга.
-    """
-    logger.info("Fetching leaderboard")  # Логирование запроса
+    logger.info("Fetching leaderboard")
     try:
-        leaderboard = db.query(models.Leaderboard).order_by(models.Leaderboard.score.desc()).all()  # Получение лидеров
+        leaderboard = db.query(models.Leaderboard).order_by(models.Leaderboard.score.desc()).all()
         if not leaderboard:
-            return []  # Возврат пустого списка, если данных нет
-        result = [
-            {"user_id": entry.user_id, "username": entry.username, "score": entry.score}  # Формирование словаря для каждого лидера
-            for entry in leaderboard
-        ]
-        logger.info(f"Returning {len(result)} leaderboard entries")  # Логирование количества записей
-        return result  # Возврат списка лидеров
+            return []
+        result = [{"user_id": entry.user_id, "username": entry.username, "score": entry.score} for entry in leaderboard]
+        logger.info(f"Returning {len(result)} leaderboard entries")
+        return result
     except AttributeError:
-        raise HTTPException(status_code=500, detail="Leaderboard table not found in database")  # Ошибка, если таблица отсутствует
+        raise HTTPException(status_code=500, detail="Leaderboard table not found in database")
