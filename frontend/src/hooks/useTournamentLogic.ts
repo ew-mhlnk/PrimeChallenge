@@ -15,14 +15,20 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
   const [picks, setPicks] = useState<UserPick[]>([]);
   const [comparison, setComparison] = useState<ComparisonResult[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
   const [rounds, setRounds] = useState<string[]>([]);
+  const [score, setScore] = useState(0);
+  const [correctPicks, setCorrectPicks] = useState(0);
+  const [userId, setUserId] = useState<number>(0);
+
+  const startingRound = tournament?.starting_round || allRounds[0];
 
   const { generateEmptyPicks, error: bracketError } = useEmptyBracket({
     tournamentId: id ? parseInt(id) : 0,
-    startingRound: tournament?.starting_round || allRounds[0],
+    startingRound,
     allRounds,
+    userId,
   });
 
   useEffect(() => {
@@ -30,29 +36,43 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       if (!id) return;
 
       setIsLoading(true);
+
       try {
         const initData = window.Telegram?.WebApp?.initData;
         if (!initData) throw new Error('Telegram initData not available');
 
-        const response = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
+        const userIdMatch = initData.match(/user=([^&]+)/);
+        const userData = userIdMatch ? JSON.parse(decodeURIComponent(userIdMatch[1])) : null;
+        const fetchedUserId = userData?.id || 0;
+        setUserId(fetchedUserId);
+
+        const res = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
           headers: { Authorization: initData },
         });
-        if (!response.ok) throw new Error('Ошибка при загрузке турнира');
-        const data: Tournament & { compared_picks?: ComparisonResult[] } = await response.json();
+        if (!res.ok) throw new Error('Ошибка при загрузке турнира');
+        const data: Tournament = await res.json();
         setTournament(data);
 
         const fetchedMatches = data.true_draws || [];
-        setMatches(fetchedMatches);
-
         const fetchedPicks = data.user_picks || [];
+
+        setMatches(fetchedMatches);
         setPicks(fetchedPicks.length > 0 ? fetchedPicks : generateEmptyPicks());
 
-        setComparison(data.compared_picks || []);
+        if (['CLOSED', 'COMPLETED'].includes(data.status)) {
+          const resultsRes = await fetch(`https://primechallenge.onrender.com/results/tournament/${id}/results`, {
+            headers: { Authorization: initData },
+          });
+          if (!resultsRes.ok) throw new Error('Ошибка при загрузке результатов');
+          const results = await resultsRes.json();
 
-        const startingRound = data.starting_round || allRounds[0];
+          setComparison(results.comparison);
+          setCorrectPicks(results.correct_picks);
+          setScore(results.score);
+        }
+
         const roundIndex = allRounds.indexOf(startingRound);
-        const availableRounds = allRounds.slice(roundIndex);
-        setRounds(availableRounds);
+        setRounds(allRounds.slice(roundIndex));
         setSelectedRound(startingRound);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Неизвестная ошибка');
@@ -62,23 +82,23 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
     };
 
     fetchTournamentData();
-  }, [id, allRounds, generateEmptyPicks]);
+  }, [id, userId, generateEmptyPicks, startingRound, allRounds]);
 
-  const handlePick = async (match: UserPick, player: string | null) => {
+  const handlePick = (match: UserPick, player: string | null) => {
     if (tournament?.status !== 'ACTIVE') {
       setError('Турнир закрыт, пики нельзя изменить');
       return;
     }
 
     const newPicks = [...picks];
-    const pickIndex = newPicks.findIndex(
-      (p) => p.round === match.round && p.match_number === match.match_number
-    );
-    if (pickIndex !== -1) {
-      newPicks[pickIndex] = { ...newPicks[pickIndex], predicted_winner: player };
+    const idx = newPicks.findIndex(p => p.round === match.round && p.match_number === match.match_number);
+
+    if (idx !== -1) {
+      newPicks[idx] = { ...newPicks[idx], predicted_winner: player };
     } else {
       newPicks.push({ ...match, predicted_winner: player });
     }
+
     setPicks(newPicks);
   };
 
@@ -92,26 +112,29 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
       const initData = window.Telegram?.WebApp?.initData;
       if (!initData) throw new Error('Telegram initData not available');
 
-      const deleteResponse = await fetch(`https://primechallenge.onrender.com/picks/delete?tournament_id=${id}`, {
+      const delRes = await fetch(`https://primechallenge.onrender.com/picks/delete?tournament_id=${id}`, {
         method: 'DELETE',
         headers: { Authorization: initData },
       });
-      if (!deleteResponse.ok) throw new Error('Ошибка при удалении старых пиков');
+      if (!delRes.ok) throw new Error('Ошибка при удалении старых пиков');
 
-      const response = await fetch('https://primechallenge.onrender.com/picks/bulk', {
+      const saveRes = await fetch('https://primechallenge.onrender.com/picks/bulk', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: initData },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: initData,
+        },
         body: JSON.stringify(picks),
       });
-      if (!response.ok) throw new Error('Ошибка при сохранении пиков');
+      if (!saveRes.ok) throw new Error('Ошибка при сохранении пиков');
 
-      const updatedResponse = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
+      const updateRes = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
         headers: { Authorization: initData },
       });
-      if (!updatedResponse.ok) throw new Error('Ошибка при обновлении данных турнира');
-      const updatedData: Tournament & { compared_picks?: ComparisonResult[] } = await updatedResponse.json();
+      if (!updateRes.ok) throw new Error('Ошибка при обновлении данных турнира');
+
+      const updatedData: Tournament = await updateRes.json();
       setPicks(updatedData.user_picks || []);
-      setComparison(updatedData.compared_picks || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Неизвестная ошибка');
     }
@@ -129,5 +152,7 @@ export const useTournamentLogic = ({ id, allRounds }: UseTournamentLogicProps) =
     rounds,
     handlePick,
     savePicks,
+    score,
+    correctPicks,
   };
 };

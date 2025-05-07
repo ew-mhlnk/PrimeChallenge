@@ -5,7 +5,7 @@ interface UseEmptyBracketProps {
   tournamentId: number;
   startingRound: string;
   allRounds: string[];
-  userId: number; // Добавляем userId в параметры
+  userId: number;
 }
 
 export const useEmptyBracket = ({ tournamentId, startingRound, allRounds, userId }: UseEmptyBracketProps) => {
@@ -23,6 +23,7 @@ export const useEmptyBracket = ({ tournamentId, startingRound, allRounds, userId
         });
         if (!response.ok) throw new Error('Failed to load tournament data');
         const data = await response.json();
+
         const startingMatches = data.true_draws.filter((match: Match) => match.round === startingRound);
         setMatches(startingMatches);
       } catch (err) {
@@ -30,7 +31,9 @@ export const useEmptyBracket = ({ tournamentId, startingRound, allRounds, userId
       }
     };
 
-    fetchStartingRoundMatches();
+    if (tournamentId && startingRound) {
+      fetchStartingRoundMatches();
+    }
   }, [tournamentId, startingRound]);
 
   const generateEmptyPicks = (): UserPick[] => {
@@ -40,15 +43,16 @@ export const useEmptyBracket = ({ tournamentId, startingRound, allRounds, userId
 
     for (let i = roundIndex; i < allRounds.length; i++) {
       const round = allRounds[i];
+
       for (let matchNum = 1; matchNum <= matchCount; matchNum++) {
         if (i === roundIndex) {
           const match = matches.find(m => m.match_number === matchNum && m.round === round);
           if (match) {
             picks.push({
               id: match.id,
-              user_id: userId, // Добавляем user_id
+              user_id: userId,
               tournament_id: tournamentId,
-              round: match.round,
+              round,
               match_number: match.match_number,
               player1: match.player1 || '',
               player2: match.player2 || '',
@@ -57,8 +61,8 @@ export const useEmptyBracket = ({ tournamentId, startingRound, allRounds, userId
           }
         } else {
           picks.push({
-            id: matchNum,
-            user_id: userId, // Добавляем user_id
+            id: -1, // temporary ID
+            user_id: userId,
             tournament_id: tournamentId,
             round,
             match_number: matchNum,
@@ -68,8 +72,10 @@ export const useEmptyBracket = ({ tournamentId, startingRound, allRounds, userId
           });
         }
       }
+
       matchCount = Math.ceil(matchCount / 2);
     }
+
     return picks;
   };
 
