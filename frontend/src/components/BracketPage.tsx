@@ -1,136 +1,96 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import MatchList from './MatchList';
-import { useTournamentLogic } from '../hooks/useTournamentLogic';
+import { useTournamentLogic } from '@/hooks/useTournamentLogic';
+import { Match } from '@/types'; // Импорт интерфейса Match
 import styles from './BracketPage.module.css';
 
-const allRounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'W'];
+interface BracketPageProps {
+  params: { id: string };
+}
 
-export default function BracketPage() {
-  const { id } = useParams();
+export default function BracketPage({ params }: BracketPageProps) {
   const {
     tournament,
+    matches,
     picks,
+    handlePick,
+    savePicks,
     error,
     isLoading,
     comparison,
     selectedRound,
     setSelectedRound,
     rounds,
-    handlePick,
-    savePicks,
-  } = useTournamentLogic({ id: typeof id === 'string' ? id : undefined, allRounds });
+  } = useTournamentLogic({
+    id: params.id,
+  });
 
-  const [notification, setNotification] = useState<string | null>(null);
+  if (isLoading) return <div>Загрузка...</div>;
+  if (error) return <div>Ошибка: {error}</div>;
+  if (!tournament) return <div>Турнир не найден</div>;
 
-  useEffect(() => {
-    if (error) setNotification(error);
-  }, [error]);
+  const renderMatch = (match: Match, index: number) => {
+    const userPick = picks.find(
+      (p) => p.round === match.round && p.match_number === match.match_number
+    );
+    const compResult = comparison.find(
+      (c) => c.round === match.round && c.match_number === match.match_number
+    );
 
-  if (isLoading) return <p className="text-[#FFFFFF] px-8">Загрузка...</p>;
-  if (!tournament) return <p className="text-[#FFFFFF] px-8">Турнир не найден</p>;
+    const isSelected = userPick?.predicted_winner;
+    const isCorrect = compResult?.correct;
+    const isIncorrect = compResult && !compResult.correct;
 
-  const canEdit = tournament.status === 'ACTIVE';
+    return (
+      <div key={index} className={styles.matchContainer}>
+        <div
+          className={`${styles.playerCell} ${isSelected && userPick?.predicted_winner === match.player1 ? styles.selectedPlayer : ''} ${isCorrect && compResult?.actual_winner === match.player1 ? styles.correctPick : ''} ${isIncorrect && compResult?.actual_winner === match.player1 ? styles.incorrectPick : ''}`}
+          onClick={() => handlePick(match, match.player1)}
+        >
+          {match.player1 || 'TBD'}
+        </div>
+        <div
+          className={`${styles.playerCell} ${isSelected && userPick?.predicted_winner === match.player2 ? styles.selectedPlayer : ''} ${isCorrect && compResult?.actual_winner === match.player2 ? styles.correctPick : ''} ${isIncorrect && compResult?.actual_winner === match.player2 ? styles.incorrectPick : ''}`}
+          onClick={() => handlePick(match, match.player2)}
+        >
+          {match.player2 || 'TBD'}
+        </div>
+        {isIncorrect && compResult?.actual_winner && (
+          <div className={styles.actualWinner}>
+            Фактический победитель: {compResult.actual_winner}
+          </div>
+        )}
+      </div>
+    );
+  };
 
-  const handleSave = async () => {
-    if (!canEdit) {
-      setNotification('Турнир закрыт, пики нельзя изменить');
-      return;
-    }
-    await savePicks();
-    setNotification('Пики сохранены!');
+  const renderRound = (round: string) => {
+    const roundMatches = matches.filter((m) => m.round === round).sort((a, b) => a.match_number - b.match_number);
+    return (
+      <div key={round} className={`${styles.round} ${selectedRound === round ? styles.activeRound : styles.inactiveRound}`}>
+        <h3 onClick={() => setSelectedRound(round)}>{round}</h3>
+        {roundMatches.map((match, index) => renderMatch(match, index))}
+      </div>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white flex flex-col">
-      <header className="flex justify-between items-start px-8 pt-8">
-        <div>
-          <h1 className="text-[25px] font-bold text-[#00B2FF] text-left leading-none">
-            BRACKET CHALLENGE
-          </h1>
-          <p className="text-[12px] font-normal text-[#FFFFFF] text-left leading-none mt-0">
-            BY ПРАЙМСПОРТ
-          </p>
-        </div>
-        <Link href="/profile">
-          <div data-svg-wrapper data-layer="Rectangle 533" className="Rectangle533">
-            <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="1" y="1" width="48" height="48" rx="24" fill="url(#paint0_linear_1613_3)" fillOpacity="0.26" stroke="#00B3FF" strokeWidth="2"/>
-              <defs>
-                <linearGradient id="paint0_linear_1613_3" x1="0.570776" y1="50" x2="48.4078" y2="48.7622" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#008CFF"/>
-                  <stop offset="1" stopColor="#0077FF"/>
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-        </Link>
-      </header>
-
-      <div className="h-[50px]"></div>
-
-      <main className="flex-1 px-8">
-        {notification && (
-          <div className="mb-4 p-2 bg-yellow-500 text-white rounded">
-            {notification}
-          </div>
-        )}
-
-        <h1 className="text-[20px] font-semibold text-[#FFFFFF] text-left mb-[15px]">
-          {tournament.name}
-        </h1>
-        <p className="text-[#FFFFFF] text-[14px] mb-1">{tournament.dates}</p>
-        <p className="text-[#FFFFFF] text-[14px] mb-4">Статус: {tournament.status}</p>
-
-        <div className="flex space-x-2 mb-4 overflow-x-auto">
-          {rounds && rounds.length > 0 ? (
-            rounds.map((round: string) => (
-              <button
-                key={round}
-                onClick={() => setSelectedRound(round)}
-                className={`px-4 py-2 rounded ${
-                  selectedRound === round ? 'bg-blue-500 text-white' : 'bg-gray-600 text-white'
-                }`}
-              >
-                {round}
-              </button>
-            ))
-          ) : (
-            <p className="text-[#FFFFFF]">Раунды не найдены</p>
-          )}
-        </div>
-
-        {selectedRound ? (
-          <MatchList
-            picks={picks}
-            round={selectedRound}
-            comparison={comparison}
-            handlePick={handlePick}
-            canEdit={canEdit}
-            styles={styles}
-          />
-        ) : (
-          <p className="text-[#FFFFFF]">Выберите раунд</p>
-        )}
-
-        {canEdit && (
-          <div className="flex justify-center mt-4">
-            <button
-              onClick={handleSave}
-              className="Rectangle532 w-[176px] h-10 p-2.5 rounded-[20px] border border-[#D6D6D6] flex justify-center items-center gap-2.5"
-            >
-              <span className="text-[#D6D6D6] text-base font-bold leading-[19.2px]">
-                Сохранить сетку
-              </span>
-            </button>
-          </div>
-        )}
-      </main>
-
-      <div className="h-[19px]"></div>
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <a href="/tournaments" className={styles.backArrow}>
+          ←
+        </a>
+        <h1>{tournament.name}</h1>
+      </div>
+      <div className={styles.banner} />
+      <div className={styles.rounds}>
+        {rounds.map(renderRound)}
+      </div>
+      {tournament.status === 'ACTIVE' && (
+        <button onClick={savePicks} className={styles.saveButton}>
+          Сохранить пики
+        </button>
+      )}
     </div>
   );
 }

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Optional
 from database.db import get_db
 from database import models
-from schemas import Tournament, TrueDraw, UserPick
+from schemas import Tournament
 import logging
 from utils.auth import get_current_user
 
@@ -26,7 +26,6 @@ async def get_tournament(tournament_id: int, db: Session = Depends(get_db), user
         models.UserPick.user_id == user_id
     ).all()
     
-    # Преобразование в Pydantic-объекты
     tournament_data = Tournament(
         id=tournament.id,
         name=tournament.name,
@@ -38,8 +37,8 @@ async def get_tournament(tournament_id: int, db: Session = Depends(get_db), user
         start=tournament.start,
         close=tournament.close,
         tag=tournament.tag,
-        true_draws=[TrueDraw.from_orm(draw) for draw in true_draws],
-        user_picks=[UserPick.from_orm(pick) for pick in user_picks]
+        true_draws=true_draws,
+        user_picks=user_picks
     )
     
     logger.info(f"Returning tournament with id={tournament_id}, true_draws count={len(true_draws)}, user_picks count={len(user_picks)}")
