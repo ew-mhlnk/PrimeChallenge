@@ -1,7 +1,7 @@
 'use client';
 
 import { useTournamentLogic } from '@/hooks/useTournamentLogic';
-import { Match } from '@/types'; // Импорт интерфейса Match
+import { Match } from '@/types';
 import styles from './BracketPage.module.css';
 
 interface BracketPageProps {
@@ -80,7 +80,7 @@ export default function BracketPage({ params }: BracketPageProps) {
         <a href="/tournaments" className={styles.backArrow}>
           ←
         </a>
-        <h1>{tournament.name}</h1>
+        <h1 className={styles.tournamentTitle}>{tournament.name}</h1> {/* Добавлен класс tournamentTitle */}
       </div>
       <div className={styles.banner} />
       <div className={styles.rounds}>

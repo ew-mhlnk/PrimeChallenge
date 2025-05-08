@@ -19,7 +19,7 @@
   text-decoration: none;
 }
 
-h1 {
+.tournamentTitle { /* Новый локальный класс вместо h1 */
   font-size: 25px;
   font-weight: bold;
   color: #00B2FF;
