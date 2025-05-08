@@ -34,18 +34,22 @@ export default function Navigation() {
 
   return (
     <div className="fixed bottom-[50px] w-full flex justify-center z-50">
-      <nav className="bg-[#1B1A1F] h-[39px] px-4 flex justify-center items-center">
+      <nav
+        className="relative bg-[#1B1A1F] h-[39px] flex items-center"
+        style={{ paddingLeft: 55, paddingRight: 55 }}
+      >
         <div
           ref={containerRef}
-          className="relative flex gap-[32px] items-center h-[39px] max-w-[90vw]"
+          className="relative flex items-center h-full"
+          style={{ columnGap: 61 }}
         >
-          {/* Индикатор */}
+          {/* Индикатор активного пункта */}
           <div
+            className="absolute top-1/2 -translate-y-1/2 h-[29px] bg-[#131215] border border-[#141414] rounded-[14.5px] transition-all duration-300 ease-in-out"
             style={{
               width: indicatorStyle.width,
-              transform: `translateX(${indicatorStyle.left}px)`,
+              transform: `translateX(${indicatorStyle.left}px) translateY(-50%)`,
             }}
-            className="absolute top-1/2 -translate-y-1/2 h-[29px] bg-[#131215] border border-[#141414] transition-all duration-300 ease-in-out"
           />
 
           {/* Кнопки */}
@@ -55,7 +59,7 @@ export default function Navigation() {
               <button
                 key={item.path}
                 onClick={() => router.push(item.path)}
-                className={`relative z-10 px-[15px] py-[5px] text-[16px] font-medium transition-all duration-300 ease-in-out ${
+                className={`relative z-10 px-[15px] py-[5px] text-[16px] font-medium transition-colors duration-300 ${
                   isActive ? 'text-[#CCCCCC]' : 'text-[#5F6067]'
                 }`}
               >
