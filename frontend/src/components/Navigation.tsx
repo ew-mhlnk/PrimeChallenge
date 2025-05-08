@@ -34,14 +34,10 @@ export default function Navigation() {
 
   return (
     <div className="fixed bottom-[50px] w-full flex justify-center z-50">
-      <nav
-        className="relative bg-[#1B1A1F] h-[39px] flex items-center"
-        style={{ paddingLeft: 55, paddingRight: 55 }}
-      >
+      <nav className="relative bg-[#1B1A1F] h-[39px] flex items-center w-full max-w-[600px] px-[55px]">
         <div
           ref={containerRef}
-          className="relative flex items-center h-full"
-          style={{ columnGap: 61 }}
+          className="relative flex items-center justify-between w-full h-full"
         >
           {/* Индикатор активного пункта */}
           <div
