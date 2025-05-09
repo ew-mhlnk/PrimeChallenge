@@ -1,3 +1,4 @@
+/* frontend\src\components\BracketPage.module.css */
 .container {
   padding: 20px;
   max-width: 1200px;
@@ -19,7 +20,7 @@
   text-decoration: none;
 }
 
-.tournamentTitle { /* Новый локальный класс вместо h1 */
+.tournamentTitle {
   font-size: 25px;
   font-weight: bold;
   color: #00B2FF;
@@ -34,80 +35,25 @@
 
 .rounds {
   display: flex;
-  gap: 40px;
+  gap: 10px;
   overflow-x: auto;
 }
 
-.round {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 10px;
-}
-
-.inactiveRound h3 {
-  font-size: 14px;
-  color: #5F6067;
-  cursor: pointer;
-}
-
-.activeRound h3 {
-  font-size: 14px;
-  color: #CBCBCB;
-  cursor: pointer;
+.activeRound {
   padding: 10px 20px;
   background: url('data:image/svg+xml;utf8,<svg width="53" height="36" viewBox="0 0 53 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="51" height="34" rx="17" fill="url(%23paint0_linear_1611_14)" fill-opacity="0.26" stroke="%2300B3FF" stroke-width="2"/><defs><linearGradient id="paint0_linear_1611_14" x1="0.605023" y1="36" x2="51.2727" y2="34.0699" gradientUnits="userSpaceOnUse"><stop stop-color="%23008CFF"/><stop offset="1" stop-color="%230077FF"/></linearGradient></defs></svg>');
   border-radius: 18px;
-}
-
-.matchContainer {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.playerCell {
-  width: 280px;
-  height: 40px;
-  background: linear-gradient(90deg, #161616 0%, #161616 100%);
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #5F6067;
+  color: #CBCBCB;
   font-size: 14px;
+  border: none;
   cursor: pointer;
 }
 
-.selectedPlayer {
-  background: linear-gradient(90deg, #102F51 0%, #102E51 100%);
-  border: 1px solid rgba(0, 178, 255, 0.18);
-  color: #CBCBCB;
-}
-
-.correctPick {
-  background: linear-gradient(90deg, #1D1F1A 0%, #161616 100%);
-  color: #5B7E60;
-}
-
-.incorrectPick {
-  background: linear-gradient(90deg, #201212 0%, #161616 100%);
-  color: #7E5B5B;
-  text-decoration: line-through;
-}
-
-.actualWinner {
-  margin-left: 10px;
+.inactiveRound {
+  padding: 10px 20px;
+  background: none;
+  border: none;
   color: #5F6067;
   font-size: 14px;
-}
-
-.saveButton {
-  padding: 10px 20px;
-  background-color: #00B2FF;
-  color: white;
-  border: none;
-  border-radius: 5px;
   cursor: pointer;
 }

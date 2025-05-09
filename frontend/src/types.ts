@@ -1,3 +1,4 @@
+// frontend\src\types.ts
 export interface User {
   id: number;
   firstName: string;
@@ -19,6 +20,7 @@ export interface Tournament {
   true_draws?: Match[]; // Добавляем матчи
   user_picks?: UserPick[]; // Добавляем пики пользователя
   scores?: UserScore[]; // Добавляем очки
+  rounds?: string[]; // Добавлено новое поле для списка раундов
 }
 
 export interface Match {

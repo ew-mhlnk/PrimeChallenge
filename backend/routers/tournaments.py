@@ -84,6 +84,11 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     
     comparison_data = compute_comparison_and_scores(tournament, user_id, db) if tournament.status in ["CLOSED", "COMPLETED"] else {}
     
+    # Определяем список всех раундов
+    all_rounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'W']
+    starting_index = all_rounds.index(tournament.starting_round)
+    rounds = all_rounds[starting_index:]
+    
     # Явное преобразование в Pydantic-модель
     tournament_data = Tournament(
         id=tournament.id,
@@ -102,7 +107,7 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     )
     
     logger.info(f"Returning tournament with id={id}, true_draws count={len(true_draws)}, user_picks count={len(user_picks)}")
-    return {**tournament_data.dict(), **comparison_data}
+    return {**tournament_data.dict(), "rounds": rounds, **comparison_data}
 
 @router.get("/picks/", response_model=List[dict])
 async def get_picks(tournament_id: int, user_id: int, db: Session = Depends(get_db)):
