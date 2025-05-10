@@ -1,8 +1,7 @@
-// frontend\src\hooks\useTournamentLogic.ts
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Tournament, UserPick, ComparisonResult, Match } from '@/types';
+import { Tournament, ComparisonResult, BracketMatch } from '@/types';
 
 interface UseTournamentLogicProps {
   id?: string;
@@ -10,8 +9,8 @@ interface UseTournamentLogicProps {
 
 export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
   const [tournament, setTournament] = useState<Tournament | null>(null);
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [picks, setPicks] = useState<UserPick[]>([]);
+  const [bracket, setBracket] = useState<{ [round: string]: { [matchNumber: number]: BracketMatch } }>({});
+  const [hasPicks, setHasPicks] = useState<boolean>(false);
   const [comparison, setComparison] = useState<ComparisonResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -56,13 +55,8 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
           scores: data.scores || null,
         };
         setTournament(tournamentData);
-
-        const fetchedMatches = data.true_draws || [];
-        setMatches(fetchedMatches);
-
-        const fetchedPicks = data.user_picks || [];
-        setPicks(fetchedPicks);
-
+        setBracket(data.bracket || {});
+        setHasPicks(data.has_picks || false);
         setRounds(data.rounds || []);
         setSelectedRound(data.rounds[0] || null);
 
@@ -81,32 +75,40 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
     fetchTournamentData();
   }, [id]);
 
-  const handlePick = (match: Match, player: string | null) => {
+  const handlePick = async (round: string, matchNumber: number, player: string) => {
     if (tournament?.status !== 'ACTIVE') {
       setError('Турнир закрыт, пики нельзя изменить');
       return;
     }
 
-    const newPicks = [...picks];
-    const pickIndex = newPicks.findIndex(
-      (p) => p.round === match.round && p.match_number === match.match_number
-    );
-    const newPick: UserPick = {
-      id: match.id,
-      user_id: userId,
-      tournament_id: parseInt(id || '0'),
-      round: match.round,
-      match_number: match.match_number,
-      player1: match.player1,
-      player2: match.player2,
-      predicted_winner: player,
-    };
-    if (pickIndex !== -1) {
-      newPicks[pickIndex] = newPick;
-    } else {
-      newPicks.push(newPick);
+    try {
+      const initData = window.Telegram?.WebApp?.initData;
+      if (!initData) throw new Error('Telegram initData not available');
+
+      const response = await fetch('https://primechallenge.onrender.com/picks/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: initData },
+        body: JSON.stringify({
+          user_id: userId,
+          tournament_id: parseInt(id || '0'),
+          round,
+          match_number: matchNumber,
+          predicted_winner: player,
+        }),
+      });
+      if (!response.ok) throw new Error('Ошибка при сохранении пика');
+
+      // Обновляем данные после сохранения
+      const updatedResponse = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
+        headers: { Authorization: initData },
+      });
+      if (!updatedResponse.ok) throw new Error('Ошибка при обновлении данных турнира');
+      const updatedData = await updatedResponse.json();
+      setBracket(updatedData.bracket || {});
+      setHasPicks(updatedData.has_picks || false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Неизвестная ошибка');
     }
-    setPicks(newPicks);
   };
 
   const savePicks = async () => {
@@ -119,10 +121,25 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
       const initData = window.Telegram?.WebApp?.initData;
       if (!initData) throw new Error('Telegram initData not available');
 
+      const picksToSave = [];
+      for (const round of rounds) {
+        for (const [matchNum, match] of Object.entries(bracket[round] || {})) {
+          if (match.predicted_winner) {
+            picksToSave.push({
+              user_id: userId,
+              tournament_id: parseInt(id || '0'),
+              round,
+              match_number: parseInt(matchNum),
+              predicted_winner: match.predicted_winner,
+            });
+          }
+        }
+      }
+
       const response = await fetch('https://primechallenge.onrender.com/picks/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: initData },
-        body: JSON.stringify(picks),
+        body: JSON.stringify(picksToSave),
       });
       if (!response.ok) throw new Error('Ошибка при сохранении пиков');
 
@@ -131,7 +148,8 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
       });
       if (!updatedResponse.ok) throw new Error('Ошибка при обновлении данных турнира');
       const updatedData = await updatedResponse.json();
-      setPicks(updatedData.user_picks || []);
+      setBracket(updatedData.bracket || {});
+      setHasPicks(updatedData.has_picks || false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Неизвестная ошибка');
     }
@@ -139,8 +157,8 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
 
   return {
     tournament,
-    matches,
-    picks,
+    bracket,
+    hasPicks,
     error,
     isLoading,
     comparison,

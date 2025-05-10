@@ -1,163 +1,63 @@
-// frontend\src\components\MatchListActive.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Match, UserPick } from '@/types';
+import { BracketMatch } from '@/types';
 import styles from './MatchListActive.module.css';
 
-interface BracketMatch {
-  round: string;
-  match_number: number;
-  player1: string;
-  player2: string;
-  predicted_winner: string | null;
-}
-
 interface MatchListActiveProps {
-  matches: Match[];
-  picks: UserPick[];
-  handlePick: (match: Match, player: string | null) => void;
+  bracket: { [round: string]: { [matchNumber: number]: BracketMatch } };
+  handlePick: (round: string, matchNumber: number, player: string) => void;
   savePicks: () => void;
-  rounds: string[];
   selectedRound: string | null;
 }
 
 export default function MatchListActive({
-  matches,
-  picks,
+  bracket,
   handlePick,
   savePicks,
-  rounds,
   selectedRound,
 }: MatchListActiveProps) {
-  const [bracket, setBracket] = useState<BracketMatch[][]>([]);
+  const [displayBracket, setDisplayBracket] = useState<{ round: string; matchNumber: number; match: BracketMatch }[]>([]);
 
   useEffect(() => {
-    const generateBracket = () => {
-      const matchCounts = [64, 32, 16, 8, 4, 2, 1, 1]; // R128, R64, R32, R16, QF, SF, F, W
-      const newBracket: BracketMatch[][] = rounds.map((round, i) => {
-        const count = matchCounts[i] || 1;
-        return Array(count)
-          .fill(null)
-          .map((_, matchIdx) => {
-            if (i === 0) {
-              // Первый раунд из true_draws
-              const match = matches.find(
-                (m) => m.match_number === matchIdx + 1 && m.round === round
-              );
-              return match
-                ? {
-                    round: match.round,
-                    match_number: match.match_number,
-                    player1: match.player1 || 'TBD',
-                    player2: match.player2 || 'TBD',
-                    predicted_winner:
-                      picks.find(
-                        (p) =>
-                          p.match_number === match.match_number &&
-                          p.round === match.round
-                      )?.predicted_winner || null,
-                  }
-                : {
-                    round,
-                    match_number: matchIdx + 1,
-                    player1: 'TBD',
-                    player2: 'TBD',
-                    predicted_winner: null,
-                  };
-            }
-            const prevRoundPicks = bracket[i - 1] || [];
-            const winner1 = prevRoundPicks[matchIdx * 2]?.predicted_winner;
-            const winner2 = prevRoundPicks[matchIdx * 2 + 1]?.predicted_winner;
-            const existingPick = picks.find(
-              (p) => p.round === round && p.match_number === matchIdx + 1
-            );
-            return {
-              round,
-              match_number: matchIdx + 1,
-              player1: winner1 || 'TBD',
-              player2: winner2 || 'TBD',
-              predicted_winner: existingPick?.predicted_winner || null,
-            };
-          });
-      });
-      setBracket(newBracket);
-    };
+    if (!selectedRound || !bracket[selectedRound]) return;
 
-    generateBracket();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matches, picks, rounds, selectedRound]);
+    const matches = Object.entries(bracket[selectedRound]).map(([matchNum, match]) => ({
+      round: selectedRound,
+      matchNumber: parseInt(matchNum),
+      match,
+    }));
+    setDisplayBracket(matches);
+  }, [selectedRound, bracket]);
 
-  const onPick = (match: BracketMatch, player: string) => {
-    const roundIdx = rounds.indexOf(match.round);
-    const newBracket = [...bracket];
-    newBracket[roundIdx][match.match_number - 1].predicted_winner = player;
-
-    // Обновляем следующий раунд
-    if (roundIdx < rounds.length - 1) {
-      const nextRound = newBracket[roundIdx + 1];
-      const nextMatchIdx = Math.floor((match.match_number - 1) / 2);
-      if (match.match_number % 2 === 1) {
-        nextRound[nextMatchIdx].player1 = player;
-      } else {
-        nextRound[nextMatchIdx].player2 = player;
-      }
-      // Очищаем последующие раунды
-      for (let i = roundIdx + 2; i < rounds.length; i++) {
-        newBracket[i].forEach((m, idx) => {
-          const prevMatchIdx = idx * 2;
-          m.player1 = newBracket[i - 1][prevMatchIdx]?.predicted_winner || 'TBD';
-          m.player2 =
-            newBracket[i - 1][prevMatchIdx + 1]?.predicted_winner || 'TBD';
-          m.predicted_winner = null;
-        });
-      }
-    }
-    setBracket(newBracket);
-
-    // Формируем объект типа Match для handlePick
-    const matchForPick: Match = {
-      id: match.match_number, // Используем match_number как id
-      tournament_id: Number(picks[0]?.tournament_id || 0), // Предполагаем, что tournament_id берётся из picks
-      round: match.round,
-      match_number: match.match_number,
-      player1: match.player1,
-      player2: match.player2,
-      set1: null,
-      set2: null,
-      set3: null,
-      set4: null,
-      set5: null,
-      winner: null,
-    };
-    handlePick(matchForPick, player);
+  const renderMatch = (item: { round: string; matchNumber: number; match: BracketMatch }) => {
+    const { round, matchNumber, match } = item;
+    return (
+      <div key={`${round}-${matchNumber}`} className={styles.matchContainer}>
+        <div
+          className={`${styles.playerCell} ${
+            match.predicted_winner === match.player1 ? styles.selectedPlayer : ''
+          }`}
+          onClick={() => match.player1 && handlePick(round, matchNumber, match.player1)}
+        >
+          {match.player1 || 'TBD'}
+        </div>
+        <div className={styles.connector} />
+        <div
+          className={`${styles.playerCell} ${
+            match.predicted_winner === match.player2 ? styles.selectedPlayer : ''
+          }`}
+          onClick={() => match.player2 && handlePick(round, matchNumber, match.player2)}
+        >
+          {match.player2 || 'TBD'}
+        </div>
+      </div>
+    );
   };
-
-  const renderMatch = (match: BracketMatch, index: number) => (
-    <div key={index} className={styles.matchContainer}>
-      <div
-        className={`${styles.playerCell} ${
-          match.predicted_winner === match.player1 ? styles.selectedPlayer : ''
-        }`}
-        onClick={() => onPick(match, match.player1)}
-      >
-        {match.player1}
-      </div>
-      <div className={styles.connector} />
-      <div
-        className={`${styles.playerCell} ${
-          match.predicted_winner === match.player2 ? styles.selectedPlayer : ''
-        }`}
-        onClick={() => onPick(match, match.player2)}
-      >
-        {match.player2}
-      </div>
-    </div>
-  );
 
   return (
     <div className={styles.bracketContainer}>
-      {bracket[rounds.indexOf(selectedRound || '')]?.map(renderMatch)}
+      {displayBracket.map(renderMatch)}
       <button onClick={savePicks} className={styles.saveButton}>
         Сохранить пики
       </button>

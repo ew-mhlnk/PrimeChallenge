@@ -38,6 +38,13 @@ export interface Match {
   winner: string | null;
 }
 
+export interface BracketMatch {
+  player1: string | null;
+  player2: string | null;
+  predicted_winner: string | null;
+  source_matches: { round: string; match_number: number }[];
+}
+
 export interface UserPick {
   id: number; // Добавляем
   user_id: number; // Добавляем

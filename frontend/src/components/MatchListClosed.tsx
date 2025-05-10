@@ -1,35 +1,54 @@
-// frontend\src\components\MatchListClosed.tsx
 'use client';
 
-import { Match, UserPick, ComparisonResult } from '@/types';
+import { ComparisonResult, BracketMatch } from '@/types';
 import styles from './MatchListClosed.module.css';
 
 interface MatchListClosedProps {
-  matches: Match[];
-  picks: UserPick[];
+  bracket: { [round: string]: { [matchNumber: number]: BracketMatch } };
   comparison: ComparisonResult[];
+  selectedRound: string | null;
 }
 
-export default function MatchListClosed({ matches, picks, comparison }: MatchListClosedProps) {
-  const renderMatch = (match: Match, index: number) => {
-    const userPick = picks.find(p => p.round === match.round && p.match_number === match.match_number);
-    const compResult = comparison.find(c => c.round === match.round && c.match_number === match.match_number);
+export default function MatchListClosed({ bracket, comparison, selectedRound }: MatchListClosedProps) {
+  if (!selectedRound || !bracket[selectedRound]) return null;
+
+  const matches = Object.entries(bracket[selectedRound]).map(([matchNum, match]) => ({
+    round: selectedRound,
+    matchNumber: parseInt(matchNum),
+    match,
+  }));
+
+  const renderMatch = (item: { round: string; matchNumber: number; match: BracketMatch }) => {
+    const { round, matchNumber, match } = item;
+    const compResult = comparison.find(c => c.round === round && c.match_number === matchNumber);
 
     const isCorrect = compResult?.correct;
     const isIncorrect = compResult && !compResult.correct;
 
     return (
-      <div key={index} className={styles.matchContainer}>
+      <div key={`${round}-${matchNumber}`} className={styles.matchContainer}>
         <div
-          className={`${styles.playerCell} ${isCorrect && compResult?.actual_winner === match.player1 ? styles.correctPick : ''} ${isIncorrect && userPick?.predicted_winner === match.player1 ? styles.incorrectPick : ''} ${userPick?.predicted_winner === match.player1 ? styles.selectedPlayer : ''}`}
+          className={`${styles.playerCell} ${
+            isCorrect && compResult?.actual_winner === match.player1 ? styles.correctPick : ''
+          } ${
+            isIncorrect && match.predicted_winner === match.player1 ? styles.incorrectPick : ''
+          } ${
+            match.predicted_winner === match.player1 ? styles.selectedPlayer : ''
+          }`}
         >
-          {match.player1 || 'TBD'} {match.set1 && `(${match.set1} ${match.set2 || ''} ${match.set3 || ''})`}
+          {match.player1 || 'TBD'}
         </div>
         <div className={styles.connector} />
         <div
-          className={`${styles.playerCell} ${isCorrect && compResult?.actual_winner === match.player2 ? styles.correctPick : ''} ${isIncorrect && userPick?.predicted_winner === match.player2 ? styles.incorrectPick : ''} ${userPick?.predicted_winner === match.player2 ? styles.selectedPlayer : ''}`}
+          className={`${styles.playerCell} ${
+            isCorrect && compResult?.actual_winner === match.player2 ? styles.correctPick : ''
+          } ${
+            isIncorrect && match.predicted_winner === match.player2 ? styles.incorrectPick : ''
+          } ${
+            match.predicted_winner === match.player2 ? styles.selectedPlayer : ''
+          }`}
         >
-          {match.player2 || 'TBD'} {match.set1 && `(${match.set1} ${match.set2 || ''} ${match.set3 || ''})`}
+          {match.player2 || 'TBD'}
         </div>
         {isIncorrect && compResult?.actual_winner && (
           <div className={styles.actualWinner}>

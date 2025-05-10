@@ -57,3 +57,31 @@
   font-size: 14px;
   cursor: pointer;
 }
+
+.bracketWrapper {
+  display: flex;
+  gap: 40px;
+  overflow-x: auto;
+  padding: 20px 0;
+}
+
+.roundContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 300px;
+}
+
+.roundTitle {
+  font-size: 18px;
+  color: #00B2FF;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.noPicksMessage {
+  font-size: 16px;
+  color: #5F6067;
+  text-align: center;
+  margin-top: 20px;
+}
