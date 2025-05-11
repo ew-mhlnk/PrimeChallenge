@@ -18,7 +18,6 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
   const [rounds, setRounds] = useState<string[]>([]);
   const [score, setScore] = useState<number>(0);
   const [correctPicks, setCorrectPicks] = useState<number>(0);
-  const [userId, setUserId] = useState<number>(0);
 
   useEffect(() => {
     const fetchTournamentData = async () => {
@@ -28,11 +27,6 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
       try {
         const initData = window.Telegram?.WebApp?.initData;
         if (!initData) throw new Error('Telegram initData not available');
-
-        const userIdMatch = initData.match(/user=([^&]+)/);
-        const userData = userIdMatch ? JSON.parse(decodeURIComponent(userIdMatch[1])) : null;
-        const fetchedUserId = userData?.id || 0;
-        setUserId(fetchedUserId);
 
         const response = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
           headers: { Authorization: initData },
@@ -48,18 +42,23 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
         const tournamentData: Tournament = {
           id: data.id,
           name: data.name,
-          dates: data.dates,
-          status: data.status,
-          sheet_name: data.sheet_name || null,
-          starting_round: data.starting_round || null,
-          type: data.type || null,
-          start: data.start || null,
-          close: data.close || null,
-          tag: data.tag || null,
+          dates: data.dates || undefined,
+          status: data.status as 'ACTIVE' | 'CLOSED' | 'COMPLETED',
+          sheet_name: data.sheet_name || undefined,
+          starting_round: data.starting_round || undefined,
+          type: data.type || undefined,
+          start: data.start || undefined,
+          close: data.close || undefined,
+          tag: data.tag || undefined,
           true_draws: data.true_draws || [],
           user_picks: data.user_picks || [],
-          scores: data.scores || null,
+          scores: data.scores || [],
           rounds: data.rounds || [],
+          bracket: data.bracket || {},
+          has_picks: data.has_picks || false,
+          comparison: data.comparison || [],
+          score: data.score || 0,
+          correct_picks: data.correct_picks || 0,
         };
         setTournament(tournamentData);
         setBracket(data.bracket || {});
@@ -82,39 +81,22 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
     fetchTournamentData();
   }, [id]);
 
-  const handlePick = async (round: string, matchNumber: number, player: string) => {
+  const handlePick = (round: string, matchNumber: number, player: string) => {
     if (tournament?.status !== 'ACTIVE') {
       setError('Турнир закрыт, пики нельзя изменить');
       return;
     }
 
-    try {
-      const initData = window.Telegram?.WebApp?.initData;
-      if (!initData) throw new Error('Telegram initData not available');
-
-      const response = await fetch('https://primechallenge.onrender.com/picks/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: initData },
-        body: JSON.stringify({
-          user_id: userId,
-          tournament_id: parseInt(id || '0'),
-          round,
-          match_number: matchNumber,
-          predicted_winner: player,
-        }),
-      });
-      if (!response.ok) throw new Error('Ошибка при сохранении пика');
-
-      const updatedResponse = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
-        headers: { Authorization: initData },
-      });
-      if (!updatedResponse.ok) throw new Error('Ошибка при обновлении данных турнира');
-      const updatedData = await updatedResponse.json();
-      setBracket(updatedData.bracket || {});
-      setHasPicks(updatedData.has_picks || false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Неизвестная ошибка');
-    }
+    setBracket((prevBracket) => {
+      const newBracket = { ...prevBracket };
+      if (!newBracket[round]) newBracket[round] = {};
+      newBracket[round][matchNumber] = {
+        ...newBracket[round][matchNumber],
+        predicted_winner: player,
+      };
+      return newBracket;
+    });
+    setHasPicks(true);
   };
 
   const savePicks = async () => {
@@ -132,7 +114,6 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
         for (const [matchNum, match] of Object.entries(bracket[round] || {})) {
           if (match.predicted_winner) {
             picksToSave.push({
-              user_id: userId,
               tournament_id: parseInt(id || '0'),
               round,
               match_number: parseInt(matchNum),
@@ -142,12 +123,18 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
         }
       }
 
+      console.log('Saving picks:', picksToSave); // Для отладки
+
       const response = await fetch('https://primechallenge.onrender.com/picks/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: initData },
         body: JSON.stringify(picksToSave),
       });
-      if (!response.ok) throw new Error('Ошибка при сохранении пиков');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to save picks:', response.status, errorText);
+        throw new Error('Ошибка при сохранении пиков');
+      }
 
       const updatedResponse = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
         headers: { Authorization: initData },

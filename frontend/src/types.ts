@@ -8,27 +8,32 @@ export interface User {
 export interface Tournament {
   id: number;
   name: string;
-  dates?: string; // Может быть null
+  dates?: string;
   status: 'ACTIVE' | 'CLOSED' | 'COMPLETED';
   sheet_name?: string;
-  starting_round?: string; // Делаем необязательным
-  type?: string; // Делаем необязательным
-  start?: string; // Делаем необязательным
-  close?: string; // Делаем необязательным
+  starting_round?: string;
+  type?: string;
+  start?: string;
+  close?: string;
   tag?: string;
-  true_draws?: Match[]; // Добавляем матчи
-  user_picks?: UserPick[]; // Добавляем пики пользователя
-  scores?: UserScore[]; // Добавляем очки
-  rounds?: string[]; // Добавлено новое поле для списка раундов
+  true_draws?: Match[];
+  user_picks?: UserPick[];
+  scores?: UserScore[];
+  rounds?: string[];
+  bracket?: { [round: string]: { [matchNumber: number]: BracketMatch } }; // Добавлено
+  has_picks?: boolean; // Добавлено
+  comparison?: ComparisonResult[]; // Добавлено
+  score?: number; // Добавлено
+  correct_picks?: number; // Добавлено
 }
 
 export interface Match {
   id: number;
-  tournament_id: number; // Добавляем
+  tournament_id: number;
   round: string;
   match_number: number;
-  player1: string | null; // Может быть null
-  player2: string | null; // Может быть null
+  player1: string | null;
+  player2: string | null;
   set1: string | null;
   set2: string | null;
   set3: string | null;
@@ -45,18 +50,18 @@ export interface BracketMatch {
 }
 
 export interface UserPick {
-  id: number; // Добавляем
-  user_id: number; // Добавляем
+  id: number;
+  user_id: number;
   tournament_id: number;
   round: string;
   match_number: number;
-  player1: string | null; // Может быть null
-  player2: string | null; // Может быть null
+  player1: string | null;
+  player2: string | null;
   predicted_winner: string | null;
-  created_at?: string; // Добавляем
-  updated_at?: string; // Добавляем
-  user?: User; // Добавляем связанного пользователя
-  tournament?: Tournament; // Добавляем связанный турнир
+  created_at?: string;
+  updated_at?: string;
+  user?: User;
+  tournament?: Tournament;
 }
 
 export interface UserScore {

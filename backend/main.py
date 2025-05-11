@@ -28,16 +28,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Временный middleware для отладки CORS
+# Логирование запросов для отладки
 @app.middleware("http")
-async def add_cors_headers(request: Request, call_next):
-    logger.info(f"Processing request from origin: {request.headers.get('origin')}")
+async def log_requests(request: Request, call_next):
+    logger.info(f"Received request: {request.method} {request.url}")
+    logger.info(f"Origin: {request.headers.get('origin')}")
     response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "https://prime-challenge.vercel.app"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    logger.info(f"CORS headers added: {response.headers}")
+    logger.info(f"Response status: {response.status_code}")
+    logger.info(f"Response headers: {response.headers}")
     return response
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])

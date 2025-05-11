@@ -1,70 +1,67 @@
 'use client';
 
-import { useTournamentLogic } from '@/hooks/useTournamentLogic';
-import MatchListActive from './MatchListActive';
-import MatchListClosed from './MatchListClosed';
-import styles from './BracketPage.module.css';
+import { useTournamentLogic } from '../hooks/useTournamentLogic';
 
-interface BracketPageProps {
-  params: { id: string };
-}
-
-export default function BracketPage({ params }: BracketPageProps) {
+export default function Bracket({ id }: { id: string }) {
   const {
     tournament,
     bracket,
     hasPicks,
-    handlePick,
-    savePicks,
     error,
     isLoading,
-    comparison,
     selectedRound,
     setSelectedRound,
     rounds,
-  } = useTournamentLogic({ id: params.id });
+    handlePick,
+    savePicks,
+  } = useTournamentLogic({ id });
 
-  if (isLoading) return <div>Загрузка...</div>;
-  if (error) return <div>Ошибка: {error}</div>;
-  if (!tournament) return <div>Турнир не найден</div>;
+  if (isLoading) return <p>Загрузка...</p>;
+  if (error) return <p className="text-red-500">{error}</p>;
+  if (!tournament) return <p>Турнир не найден</p>;
 
-  const isActive = tournament.status === 'ACTIVE';
+  const handlePlayerClick = (round: string, matchNumber: number, player: string) => {
+    handlePick(round, matchNumber, player);
+  };
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <a href="/tournaments" className={styles.backArrow}>
-          ←
-        </a>
-        <h1 className={styles.tournamentTitle}>{tournament.name} | Турнирная сетка</h1>
-      </div>
-      <div className={styles.banner} />
-      <div className={styles.rounds}>
+    <div>
+      <h2>{tournament.name}</h2>
+      <select value={selectedRound || ''} onChange={(e) => setSelectedRound(e.target.value || null)}>
         {rounds.map((round) => (
-          <button
-            key={round}
-            className={selectedRound === round ? styles.activeRound : styles.inactiveRound}
-            onClick={() => setSelectedRound(round)}
-          >
+          <option key={round} value={round}>
             {round}
-          </button>
+          </option>
         ))}
-      </div>
-      {tournament.status === 'CLOSED' && !hasPicks ? (
-        <div className={styles.noPicksMessage}>Вы не принимали участие в турнире</div>
-      ) : isActive ? (
-        <MatchListActive
-          bracket={bracket}
-          handlePick={handlePick}
-          savePicks={savePicks}
-          selectedRound={selectedRound}
-        />
-      ) : (
-        <MatchListClosed
-          bracket={bracket}
-          comparison={comparison}
-          selectedRound={selectedRound}
-        />
+      </select>
+      {selectedRound && bracket[selectedRound] && (
+        <div>
+          {Object.entries(bracket[selectedRound]).map(([matchNum, match]) => (
+            <div key={matchNum}>
+              <p>
+                {match.player1} vs {match.player2}
+              </p>
+              <button
+                onClick={() => handlePlayerClick(selectedRound, parseInt(matchNum), match.player1 || '')}
+                disabled={tournament.status !== 'ACTIVE'}
+              >
+                Выбрать {match.player1}
+              </button>
+              <button
+                onClick={() => handlePlayerClick(selectedRound, parseInt(matchNum), match.player2 || '')}
+                disabled={tournament.status !== 'ACTIVE'}
+              >
+                Выбрать {match.player2}
+              </button>
+              {match.predicted_winner && <p>Выбор: {match.predicted_winner}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+      {tournament.status === 'ACTIVE' && (
+        <button onClick={savePicks} disabled={!hasPicks}>
+          Сохранить пики
+        </button>
       )}
     </div>
   );

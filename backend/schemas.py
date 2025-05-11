@@ -3,14 +3,13 @@ from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 
-# Перечисление статусов турнира (должно совпадать с TournamentStatus в models.py)
+# Перечисление статусов турнира
 class TournamentStatus(str, Enum):
     ACTIVE = "ACTIVE"
     CLOSED = "CLOSED"
     COMPLETED = "COMPLETED"
 
 # Базовые модели для сериализации
-
 class UserBase(BaseModel):
     user_id: int
     first_name: str
@@ -90,10 +89,16 @@ class LeaderboardBase(BaseModel):
     class Config:
         orm_mode = True
 
-# Модели с отношениями (для вложенных данных)
+# Модели для создания
+class UserPickCreate(BaseModel):
+    tournament_id: int
+    round: str
+    match_number: int
+    predicted_winner: str
 
+# Модели с отношениями
 class TrueDraw(TrueDrawBase):
-    pass  # Убрали tournament, так как фронтенд его не использует
+    pass
 
 class UserPick(UserPickBase):
     user: Optional[UserBase] = None
@@ -111,3 +116,9 @@ class Tournament(TournamentBase):
     true_draws: Optional[List[TrueDraw]] = None
     user_picks: Optional[List[UserPick]] = None
     scores: Optional[List[UserScore]] = None
+    rounds: Optional[List[str]] = None  # Добавлено для соответствия фронтенду
+    bracket: Optional[dict] = None      # Добавлено для передачи данных сетки
+    has_picks: Optional[bool] = None    # Добавлено для флага
+    comparison: Optional[List[dict]] = None  # Добавлено для сравнения
+    score: Optional[int] = None         # Добавлено для общего счёта
+    correct_picks: Optional[int] = None # Добавлено для количества правильных пиков
