@@ -93,7 +93,7 @@ class LeaderboardBase(BaseModel):
 # Модели с отношениями (для вложенных данных)
 
 class TrueDraw(TrueDrawBase):
-    tournament: Optional[TournamentBase] = None
+    pass  # Убрали tournament, так как фронтенд его не использует
 
 class UserPick(UserPickBase):
     user: Optional[UserBase] = None

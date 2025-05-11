@@ -37,8 +37,14 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
         const response = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
           headers: { Authorization: initData },
         });
-        if (!response.ok) throw new Error('Ошибка при загрузке турнира');
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Failed to fetch tournament:', response.status, errorText);
+          throw new Error('Ошибка при загрузке турнира');
+        }
         const data = await response.json();
+        console.log('Tournament data:', data);  // Добавляем для отладки
+
         const tournamentData: Tournament = {
           id: data.id,
           name: data.name,
@@ -53,6 +59,7 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
           true_draws: data.true_draws || [],
           user_picks: data.user_picks || [],
           scores: data.scores || null,
+          rounds: data.rounds || [],  // Убедись, что rounds обрабатывается
         };
         setTournament(tournamentData);
         setBracket(data.bracket || {});
