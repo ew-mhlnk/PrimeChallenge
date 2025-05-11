@@ -1,4 +1,3 @@
-// frontend\src\types.ts
 export interface User {
   id: number;
   firstName: string;

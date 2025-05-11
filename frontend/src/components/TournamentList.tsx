@@ -9,14 +9,18 @@ interface TournamentListProps {
 }
 
 export default function TournamentList({ filterStatus }: TournamentListProps) {
-  const { tournaments, error } = useTournaments();
+  const { tournaments, error, isLoading } = useTournaments();
+
+  if (isLoading) {
+    return <p>Загрузка турниров...</p>;
+  }
 
   if (error) {
     return <p className="text-red-500">{error}</p>;
   }
 
-  if (!tournaments) {
-    return <p>Загрузка турниров...</p>;
+  if (!tournaments || tournaments.length === 0) {
+    return <p>Нет доступных турниров</p>;
   }
 
   const filteredTournaments = tournaments.filter(
@@ -24,7 +28,7 @@ export default function TournamentList({ filterStatus }: TournamentListProps) {
   );
 
   if (filteredTournaments.length === 0) {
-    return <p>Нет доступных турниров</p>;
+    return <p>Нет турниров с указанным статусом</p>;
   }
 
   return (

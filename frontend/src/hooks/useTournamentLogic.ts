@@ -43,7 +43,7 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
           throw new Error('Ошибка при загрузке турнира');
         }
         const data = await response.json();
-        console.log('Tournament data:', data);  // Добавляем для отладки
+        console.log('Tournament data:', data); // Для отладки
 
         const tournamentData: Tournament = {
           id: data.id,
@@ -59,7 +59,7 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
           true_draws: data.true_draws || [],
           user_picks: data.user_picks || [],
           scores: data.scores || null,
-          rounds: data.rounds || [],  // Убедись, что rounds обрабатывается
+          rounds: data.rounds || [],
         };
         setTournament(tournamentData);
         setBracket(data.bracket || {});
@@ -105,7 +105,6 @@ export const useTournamentLogic = ({ id }: UseTournamentLogicProps) => {
       });
       if (!response.ok) throw new Error('Ошибка при сохранении пика');
 
-      // Обновляем данные после сохранения
       const updatedResponse = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
         headers: { Authorization: initData },
       });
