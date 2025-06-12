@@ -11,7 +11,7 @@ export default function Header({ user }: HeaderProps) {
         Prime Bracket Challenge
       </h1>
       <p className="text-gray-400 mt-2">
-        {user ? `Привет, ${user.firstName}!` : 'Загрузка пользователя...'}
+        {user ? `Привет, ${user.first_name}!` : 'Загрузка пользователя...'}
       </p>
     </header>
   );

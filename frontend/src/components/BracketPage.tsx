@@ -1,8 +1,10 @@
+// frontend/src/components/BracketPage.tsx
 'use client';
 
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
+import MatchList from './MatchList';
 
-export default function Bracket({ id }: { id: string }) {
+export default function BracketPage({ id }: { id: string }) {
   const {
     tournament,
     bracket,
@@ -12,6 +14,7 @@ export default function Bracket({ id }: { id: string }) {
     selectedRound,
     setSelectedRound,
     rounds,
+    comparison,
     handlePick,
     savePicks,
   } = useTournamentLogic({ id });
@@ -20,46 +23,41 @@ export default function Bracket({ id }: { id: string }) {
   if (error) return <p className="text-red-500">{error}</p>;
   if (!tournament) return <p>Турнир не найден</p>;
 
-  const handlePlayerClick = (round: string, matchNumber: number, player: string) => {
-    handlePick(round, matchNumber, player);
-  };
-
   return (
-    <div>
-      <h2>{tournament.name}</h2>
-      <select value={selectedRound || ''} onChange={(e) => setSelectedRound(e.target.value || null)}>
-        {rounds.map((round) => (
-          <option key={round} value={round}>
-            {round}
+    <div className="container mx-auto p-4">
+      <h2 className="text-2xl font-bold mb-4">{tournament.name}</h2>
+      <div className="mb-4">
+        <label className="mr-2">Раунд:</label>
+        <select
+          value={selectedRound || ''}
+          onChange={(e) => setSelectedRound(e.target.value || null)}
+          className="select select-bordered rounded-lg"
+        >
+          <option value="" disabled>
+            Выберите раунд
           </option>
-        ))}
-      </select>
-      {selectedRound && bracket[selectedRound] && (
-        <div>
-          {Object.entries(bracket[selectedRound]).map(([matchNum, match]) => (
-            <div key={matchNum}>
-              <p>
-                {match.player1} vs {match.player2}
-              </p>
-              <button
-                onClick={() => handlePlayerClick(selectedRound, parseInt(matchNum), match.player1 || '')}
-                disabled={tournament.status !== 'ACTIVE'}
-              >
-                Выбрать {match.player1}
-              </button>
-              <button
-                onClick={() => handlePlayerClick(selectedRound, parseInt(matchNum), match.player2 || '')}
-                disabled={tournament.status !== 'ACTIVE'}
-              >
-                Выбрать {match.player2}
-              </button>
-              {match.predicted_winner && <p>Выбор: {match.predicted_winner}</p>}
-            </div>
+          {rounds.map((round) => (
+            <option key={round} value={round}>
+              {round}
+            </option>
           ))}
-        </div>
+        </select>
+      </div>
+      {selectedRound && bracket[selectedRound] && (
+        <MatchList
+          round={selectedRound}
+          matches={bracket[selectedRound]}
+          tournamentStatus={tournament.status}
+          comparison={comparison}
+          onPlayerClick={handlePick}
+        />
       )}
-      {tournament.status === 'ACTIVE' && (
-        <button onClick={savePicks} disabled={!hasPicks}>
+      {tournament.status === TournamentStatus.ACTIVE && (
+        <button
+          onClick={savePicks}
+          disabled={!hasPicks}
+          className="btn btn-primary mt-4 rounded-lg"
+        >
           Сохранить пики
         </button>
       )}
