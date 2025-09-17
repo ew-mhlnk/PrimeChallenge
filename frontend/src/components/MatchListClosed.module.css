@@ -1,73 +1,40 @@
-/* frontend\src\components\MatchListClosed.module.css */
 .bracketContainer {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 20px;
-  background: #141414;
-  border-radius: 29px;
-  border: 0.5px solid #4C4C4C;
-  animation: slideIn 0.5s ease-in-out;
 }
 
 .matchContainer {
-  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  width: 280px;
+  gap: 2px;
+  background: #2A2C36;
+  border-radius: 8px;
+  padding: 8px;
 }
 
 .playerCell {
-  width: 100%;
-  height: 40px;
-  background: linear-gradient(90deg, #161616 0%, #161616 100%);
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #5F6067;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
+  padding: 8px;
+  background: #4C4C4C;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
 }
 
-.selectedPlayer {
-  background: linear-gradient(90deg, #102F51 0%, #102E51 100%);
-  border: 1px solid rgba(0, 178, 255, 0.18);
-  color: #CBCBCB;
+.playerCell.tbd {
+  background: #5F6067;
+  color: #A0A0A0;
+  cursor: not-allowed;
 }
 
-.correctPick {
-  background: linear-gradient(90deg, #1D1F1A 0%, #161616 100%);
-  color: #5B7E60;
-}
-
-.incorrectPick {
-  background: linear-gradient(90deg, #201212 0%, #161616 100%);
-  color: #7E5B5B;
-  text-decoration: line-through;
+.playerCell.selectedPlayer {
+  background: #28A745;
+  color: white;
 }
 
 .connector {
-  position: absolute;
-  right: -22px;
-  top: 0;
-  width: 22px;
-  height: 43px;
-  background: url('data:image/svg+xml;utf8,<svg width="22" height="43" viewBox="0 0 22 43" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13.4639 0.0117188C18.2189 0.25313 22 4.18501 22 9V34L21.9883 34.4629C21.7551 39.0647 18.0655 42.7547 13.4639 42.9883L13 43H0V42H13C17.4182 41.9999 21 38.4182 21 34V9C21 4.58181 17.4182 1.00015 13 1H0V0H13L13.4639 0.0117188Z" fill="%23434343"/></svg>');
-}
-
-.actualWinner {
-  font-size: 14px;
-  color: #5F6067;
-  margin-top: 5px;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
+  height: 2px;
+  background: #ffffff;
+  margin: 2px 0;
 }

@@ -9,7 +9,7 @@ class TournamentStatus(str, Enum):
     CLOSED = "CLOSED"
     COMPLETED = "COMPLETED"
 
-# Базовые модели
+# Базовые модели для сериализации
 class UserBase(BaseModel):
     user_id: int
     first_name: str
@@ -89,6 +89,13 @@ class LeaderboardBase(BaseModel):
     class Config:
         orm_mode = True
 
+# Модели для создания
+class UserPickCreate(BaseModel):
+    tournament_id: int
+    round: str
+    match_number: int
+    predicted_winner: str
+
 # Модель для игрока
 class Player(BaseModel):
     name: str
@@ -102,13 +109,6 @@ class BracketMatch(BaseModel):
     player2: Player
     predicted_winner: Optional[str] = None
     source_matches: List[Dict[str, Any]] = []
-
-# Модели для создания
-class UserPickCreate(BaseModel):
-    tournament_id: int
-    round: str
-    match_number: int
-    predicted_winner: str
 
 # Модели с отношениями
 class TrueDraw(TrueDrawBase):
@@ -130,9 +130,9 @@ class Tournament(TournamentBase):
     true_draws: Optional[List[TrueDraw]] = None
     user_picks: Optional[List[UserPick]] = None
     scores: Optional[List[UserScore]] = None
-    rounds: Optional[List[str]] = None
-    bracket: Optional[Dict[str, List[BracketMatch]]] = None  # Обновлено
-    has_picks: Optional[bool] = None
-    comparison: Optional[List[Dict]] = None
-    score: Optional[int] = None
-    correct_picks: Optional[int] = None
+    rounds: Optional[List[str]] = None  # Добавлено для соответствия фронтенду
+    bracket: Optional[Dict[str, List[BracketMatch]]] = None      # Добавлено для передачи данных сетки
+    has_picks: Optional[bool] = None    # Добавлено для флага
+    comparison: Optional[List[Dict]] = None  # Добавлено для сравнения
+    score: Optional[int] = None         # Добавлено для общего счёта
+    correct_picks: Optional[int] = None # Добавлено для количества правильных пиков

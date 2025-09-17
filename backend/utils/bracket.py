@@ -40,7 +40,7 @@ def generate_bracket(tournament, true_draws, user_picks, rounds):
             user_pick = next((p for p in user_picks if p.round == round_name and p.match_number == match_number), None)
             predicted_winner = user_pick.predicted_winner if user_pick else None
 
-            # Игроки: Для R32 — из true_draw, для поздних — TBD
+            # Игроки: Для starting_round — из true_draw, для поздних — TBD
             if round_name == tournament.starting_round and true_match:
                 player1 = parse_player(true_match.player1)
                 player2 = parse_player(true_match.player2)

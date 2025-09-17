@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Tournament, BracketMatch, ComparisonResult } from '@/types';
 
 interface UseTournamentLogicProps {
@@ -21,15 +22,23 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     const fetchTournament = async () => {
       setIsLoading(true);
       try {
+        console.log('Fetching tournament with ID:', id); // Отладка
         const initData = window.Telegram?.WebApp?.initData;
+        console.log('initData:', initData); // Отладка
         if (!initData) throw new Error('Telegram initData not available');
+        if (!id || id === 'undefined') throw new Error('Invalid tournament ID');
 
         const response = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
           headers: { Authorization: initData },
         });
-        if (!response.ok) throw new Error('Failed to fetch tournament');
+        console.log('Response status:', response.status); // Отладка
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.log('Response error:', errorText); // Отладка
+          throw new Error(`Failed to fetch tournament: ${errorText}`);
+        }
         const data = await response.json();
-
+        console.log('Tournament data:', data); // Отладка
         setTournament(data);
         setBracket(data.bracket || {});
         setHasPicks(data.has_picks || false);
@@ -37,7 +46,9 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         setComparison(data.comparison || []);
         setSelectedRound(data.rounds?.[0] || null);
       } catch (err) {
+        console.error('Fetch error:', err); // Отладка
         setError(err instanceof Error ? err.message : 'Unknown error');
+        toast.error(err instanceof Error ? err.message : 'Ошибка загрузки турнира');
       } finally {
         setIsLoading(false);
       }
@@ -60,6 +71,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   const savePicks = async () => {
     try {
       const initData = window.Telegram?.WebApp?.initData;
+      console.log('Saving picks, initData:', initData); // Отладка
       if (!initData) throw new Error('Telegram initData not available');
 
       const picks = Object.values(bracket)
@@ -72,6 +84,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
           predicted_winner: match.predicted_winner,
         }));
 
+      console.log('Picks to save:', picks); // Отладка
       const response = await fetch('https://primechallenge.onrender.com/picks/bulk', {
         method: 'POST',
         headers: {
@@ -80,10 +93,17 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         },
         body: JSON.stringify(picks),
       });
-      if (!response.ok) throw new Error('Failed to save picks');
+      console.log('Save picks response:', response.status); // Отладка
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to save picks: ${errorText}`);
+      }
       setHasPicks(true);
+      toast.success('Пики сохранены!');
     } catch (err) {
+      console.error('Save picks error:', err); // Отладка
       setError(err instanceof Error ? err.message : 'Unknown error');
+      toast.error(err instanceof Error ? err.message : 'Ошибка сохранения пиков');
     }
   };
 

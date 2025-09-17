@@ -38,13 +38,3 @@
   background: #ffffff;
   margin: 2px 0;
 }
-
-.saveButton {
-  margin-top: 10px;
-  padding: 8px 16px;
-  background: #00B2FF;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}

@@ -50,7 +50,7 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     ).all()
     logger.info(f"Fetched {len(user_picks)} user_picks for user {user_id}")
     
-    all_rounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F']
+    all_rounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'W']
     starting_index = all_rounds.index(tournament.starting_round) if tournament.starting_round in all_rounds else 0
     rounds = all_rounds[starting_index:]
     logger.info(f"Rounds for tournament {id}: {rounds}")

@@ -34,7 +34,7 @@ export default function TournamentList({ filterStatus }: TournamentListProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {filteredTournaments.map((tournament: Tournament) => (
-        <Link href={`/bracket/${tournament.id}`} key={tournament.id}>
+        <Link href={`/tournament/${tournament.id}`} key={tournament.id}>
           <div className="bg-gray-800 p-4 rounded-lg shadow-md hover:bg-gray-700 transition">
             <h2 className="text-xl font-bold">{tournament.name}</h2>
             <p>{tournament.dates || 'Даты не указаны'}</p>
