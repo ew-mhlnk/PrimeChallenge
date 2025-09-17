@@ -1,61 +1,73 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from database.db import init_db
+from routers import auth, picks, tournaments, sync_service
 import logging
-import asyncio
-from database.db import init_db, engine
-from routers import auth, tournaments, picks, results
-from services.sync_service import sync_google_sheets_with_db
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+from apscheduler.triggers.interval import IntervalTrigger
+import asyncio
+from config import settings
 
 app = FastAPI()
+scheduler = AsyncIOScheduler()
 
-# Настройка CORS
+# Логирование
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Middleware для CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://prime-challenge.vercel.app",
-        "https://primechallenge.onrender.com",
-        "http://localhost:3000",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Логирование запросов для отладки
+# Middleware для логирования запросов
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    logger.info(f"Received request: {request.method} {request.url}")
-    logger.info(f"Origin: {request.headers.get('origin')}")
+    logger.info(f"Request: {request.method} {request.url}")
     response = await call_next(request)
-    logger.info(f"Response status: {response.status_code}")
-    logger.info(f"Response headers: {response.headers}")
+    logger.info(f"Response: {response.status_code}")
     return response
 
+# Подключение роутеров
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(tournaments.router, prefix="", tags=["tournaments"])
 app.include_router(picks.router, prefix="/picks", tags=["picks"])
-app.include_router(results.router, prefix="/results", tags=["results"])
+app.include_router(tournaments.router, prefix="/tournaments", tags=["tournaments"])
+app.include_router(sync_service.router, prefix="/sync", tags=["sync"])
 
-scheduler = AsyncIOScheduler()
-
+# Инициализация БД при старте
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Application startup")
     init_db()
-    scheduler.add_job(sync_google_sheets_with_db, "interval", minutes=5, args=[engine])
+    logger.info("Database initialized")
+    scheduler.add_job(
+        sync_service.sync_all_tournaments,
+        trigger=IntervalTrigger(minutes=5),
+        args=[app],
+        id="sync_tournaments",
+        replace_existing=True,
+    )
     scheduler.start()
-    await sync_google_sheets_with_db(engine)
-    logger.info("Initial sync completed on startup")
+    logger.info("Scheduler started")
 
-@app.get("/sync")
-@app.post("/sync")
-async def manual_sync():
-    await sync_google_sheets_with_db(engine)
-    return {"message": "Sync completed successfully"}
+@app.on_event("shutdown")
+async def shutdown_event():
+    scheduler.shutdown()
+    logger.info("Scheduler shutdown")
+
+# Обработка ошибок
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unexpected error: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content={"message": f"An error occurred: {str(exc)}"},
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
