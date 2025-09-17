@@ -5,6 +5,20 @@ export interface User {
   photoUrl?: string;
 }
 
+export interface Player {
+  name: string;
+  seed?: number;
+}
+
+export interface BracketMatch {
+  id: string;
+  round: string;
+  player1: Player;
+  player2: Player;
+  predicted_winner?: string | null;
+  source_matches: Array<{ round: string; match_number: number }>;
+}
+
 export interface Tournament {
   id: number;
   name: string;
@@ -20,11 +34,11 @@ export interface Tournament {
   user_picks?: UserPick[];
   scores?: UserScore[];
   rounds?: string[];
-  bracket?: { [round: string]: { [matchNumber: number]: BracketMatch } }; // Добавлено
-  has_picks?: boolean; // Добавлено
-  comparison?: ComparisonResult[]; // Добавлено
-  score?: number; // Добавлено
-  correct_picks?: number; // Добавлено
+  bracket?: { [round: string]: BracketMatch[] }; // Обновлено
+  has_picks?: boolean;
+  comparison?: ComparisonResult[];
+  score?: number;
+  correct_picks?: number;
 }
 
 export interface Match {
@@ -40,13 +54,6 @@ export interface Match {
   set4: string | null;
   set5: string | null;
   winner: string | null;
-}
-
-export interface BracketMatch {
-  player1: string | null;
-  player2: string | null;
-  predicted_winner: string | null;
-  source_matches: { round: string; match_number: number }[];
 }
 
 export interface UserPick {

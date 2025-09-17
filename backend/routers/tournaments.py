@@ -6,7 +6,8 @@ from database.db import get_db
 from database import models
 from schemas import Tournament, TrueDraw, UserPick
 from utils.auth import get_current_user
-from utils.bracket import generate_bracket, compute_comparison_and_scores  # Исправленный импорт
+from utils.score_calculator import compute_comparison_and_scores
+from utils.bracket import generate_bracket
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -49,8 +50,8 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     ).all()
     logger.info(f"Fetched {len(user_picks)} user_picks for user {user_id}")
     
-    all_rounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'W']
-    starting_index = all_rounds.index(tournament.starting_round)
+    all_rounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F']
+    starting_index = all_rounds.index(tournament.starting_round) if tournament.starting_round in all_rounds else 0
     rounds = all_rounds[starting_index:]
     logger.info(f"Rounds for tournament {id}: {rounds}")
     
@@ -75,7 +76,7 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     )
     
     logger.info(f"Returning tournament with id={id}, true_draws count={len(true_draws)}, user_picks count={len(user_picks)}")
-    logger.info(f"Tournament data: {tournament_data.dict()}")
+    logger.info(f"Bracket structure: {bracket}")
     
     return {
         **tournament_data.dict(),

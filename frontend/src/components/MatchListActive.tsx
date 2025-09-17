@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BracketMatch } from '@/types';
 import styles from './MatchListActive.module.css';
 
 interface MatchListActiveProps {
-  bracket: { [round: string]: { [matchNumber: number]: BracketMatch } };
-  handlePick: (round: string, matchNumber: number, player: string) => void;
+  bracket: { [round: string]: Array<{ id: string; player1: { name: string; seed?: number }; player2: { name: string; seed?: number }; predicted_winner?: string | null; source_matches: Array<{ round: string; match_number: number }> }> };
+  handlePick: (round: string, matchId: string, player: string) => void;
   savePicks: () => void;
   selectedRound: string | null;
 }
@@ -17,39 +16,38 @@ export default function MatchListActive({
   savePicks,
   selectedRound,
 }: MatchListActiveProps) {
-  const [displayBracket, setDisplayBracket] = useState<{ round: string; matchNumber: number; match: BracketMatch }[]>([]);
+  const [displayBracket, setDisplayBracket] = useState<Array<{ round: string; matchId: string; match: { id: string; player1: { name: string; seed?: number }; player2: { name: string; seed?: number }; predicted_winner?: string | null; source_matches: Array<{ round: string; match_number: number }> } }>>([]);
 
   useEffect(() => {
     if (!selectedRound || !bracket[selectedRound]) return;
 
-    const matches = Object.entries(bracket[selectedRound]).map(([matchNum, match]) => ({
+    const matches = bracket[selectedRound].map((match) => ({
       round: selectedRound,
-      matchNumber: parseInt(matchNum),
+      matchId: match.id,
       match,
     }));
     setDisplayBracket(matches);
   }, [selectedRound, bracket]);
 
-  const renderMatch = (item: { round: string; matchNumber: number; match: BracketMatch }) => {
-    const { round, matchNumber, match } = item;
+  const renderMatch = (item: { round: string; matchId: string; match: { id: string; player1: { name: string; seed?: number }; player2: { name: string; seed?: number }; predicted_winner?: string | null; source_matches: Array<{ round: string; match_number: number }> } }) => {
+    const { round, matchId, match } = item;
+    const player1Name = match.player1.name + (match.player1.seed ? ` (${match.player1.seed})` : '');
+    const player2Name = match.player2.name + (match.player2.seed ? ` (${match.player2.seed})` : '');
+
     return (
-      <div key={`${round}-${matchNumber}`} className={styles.matchContainer}>
+      <div key={matchId} className={styles.matchContainer}>
         <div
-          className={`${styles.playerCell} ${
-            match.predicted_winner === match.player1 ? styles.selectedPlayer : ''
-          }`}
-          onClick={() => match.player1 && handlePick(round, matchNumber, match.player1)}
+          className={`${styles.playerCell} ${match.predicted_winner === match.player1.name ? styles.selectedPlayer : ''}`}
+          onClick={() => match.player1.name !== 'TBD' && handlePick(round, matchId, match.player1.name)}
         >
-          {match.player1 || 'TBD'}
+          {player1Name}
         </div>
         <div className={styles.connector} />
         <div
-          className={`${styles.playerCell} ${
-            match.predicted_winner === match.player2 ? styles.selectedPlayer : ''
-          }`}
-          onClick={() => match.player2 && handlePick(round, matchNumber, match.player2)}
+          className={`${styles.playerCell} ${match.predicted_winner === match.player2.name ? styles.selectedPlayer : ''}`}
+          onClick={() => match.player2.name !== 'TBD' && handlePick(round, matchId, match.player2.name)}
         >
-          {match.player2 || 'TBD'}
+          {player2Name}
         </div>
       </div>
     );

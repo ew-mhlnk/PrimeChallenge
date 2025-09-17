@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -9,7 +9,7 @@ class TournamentStatus(str, Enum):
     CLOSED = "CLOSED"
     COMPLETED = "COMPLETED"
 
-# Базовые модели для сериализации
+# Базовые модели
 class UserBase(BaseModel):
     user_id: int
     first_name: str
@@ -89,6 +89,20 @@ class LeaderboardBase(BaseModel):
     class Config:
         orm_mode = True
 
+# Модель для игрока
+class Player(BaseModel):
+    name: str
+    seed: Optional[int] = None
+
+# Модель для матча в сетке
+class BracketMatch(BaseModel):
+    id: str
+    round: str
+    player1: Player
+    player2: Player
+    predicted_winner: Optional[str] = None
+    source_matches: List[Dict[str, Any]] = []
+
 # Модели для создания
 class UserPickCreate(BaseModel):
     tournament_id: int
@@ -116,9 +130,9 @@ class Tournament(TournamentBase):
     true_draws: Optional[List[TrueDraw]] = None
     user_picks: Optional[List[UserPick]] = None
     scores: Optional[List[UserScore]] = None
-    rounds: Optional[List[str]] = None  # Добавлено для соответствия фронтенду
-    bracket: Optional[dict] = None      # Добавлено для передачи данных сетки
-    has_picks: Optional[bool] = None    # Добавлено для флага
-    comparison: Optional[List[dict]] = None  # Добавлено для сравнения
-    score: Optional[int] = None         # Добавлено для общего счёта
-    correct_picks: Optional[int] = None # Добавлено для количества правильных пиков
+    rounds: Optional[List[str]] = None
+    bracket: Optional[Dict[str, List[BracketMatch]]] = None  # Обновлено
+    has_picks: Optional[bool] = None
+    comparison: Optional[List[Dict]] = None
+    score: Optional[int] = None
+    correct_picks: Optional[int] = None
