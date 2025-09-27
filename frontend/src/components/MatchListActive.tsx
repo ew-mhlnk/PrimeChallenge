@@ -31,6 +31,7 @@ export default function MatchListActive({
   >([]);
 
   useEffect(() => {
+    console.log('MatchListActive useEffect:', { selectedRound, bracket }); // Отладка
     if (!selectedRound || !bracket[selectedRound]) {
       console.log(`No matches for round ${selectedRound}`, { bracket }); // Отладка
       setDisplayBracket([]);
@@ -55,24 +56,35 @@ export default function MatchListActive({
     match: BracketMatch;
   }) => {
     const { round, matchId, match } = item;
-    const player1Name = match.player1?.name
-      ? `${match.player1.name}${match.player1.seed ? ` (${match.player1.seed})` : ''}`
-      : 'TBD';
-    const player2Name = match.player2?.name
-      ? `${match.player2.name}${match.player2.seed ? ` (${match.player2.seed})` : ''}`
-      : 'TBD';
+    console.log('Rendering match:', match); // Отладка
+
+    // Жёсткие проверки для player1 и player2
+    const player1Name =
+      match.player1 &&
+      typeof match.player1 === 'object' &&
+      match.player1.name &&
+      typeof match.player1.name === 'string'
+        ? `${match.player1.name}${match.player1.seed != null ? ` (${match.player1.seed})` : ''}`
+        : 'TBD';
+    const player2Name =
+      match.player2 &&
+      typeof match.player2 === 'object' &&
+      match.player2.name &&
+      typeof match.player2.name === 'string'
+        ? `${match.player2.name}${match.player2.seed != null ? ` (${match.player2.seed})` : ''}`
+        : 'TBD';
 
     return (
       <div key={matchId} className={styles.matchContainer}>
         <div
-          className={`${styles.playerCell} ${match.predicted_winner === match.player1?.name ? styles.selectedPlayer : ''} ${match.player1?.name === 'TBD' ? styles.tbd : ''}`}
+          className={`${styles.playerCell} ${match.predicted_winner === match.player1?.name ? styles.selectedPlayer : ''} ${player1Name === 'TBD' ? styles.tbd : ''}`}
           onClick={() => match.player1?.name && match.player1.name !== 'TBD' && handlePick(round, matchId, match.player1.name)}
         >
           {player1Name}
         </div>
         <div className={styles.connector} />
         <div
-          className={`${styles.playerCell} ${match.predicted_winner === match.player2?.name ? styles.selectedPlayer : ''} ${match.player2?.name === 'TBD' ? styles.tbd : ''}`}
+          className={`${styles.playerCell} ${match.predicted_winner === match.player2?.name ? styles.selectedPlayer : ''} ${player2Name === 'TBD' ? styles.tbd : ''}`}
           onClick={() => match.player2?.name && match.player2.name !== 'TBD' && handlePick(round, matchId, match.player2.name)}
         >
           {player2Name}
@@ -84,7 +96,9 @@ export default function MatchListActive({
   return (
     <div className={styles.bracketContainer}>
       {displayBracket.length > 0 ? (
-        displayBracket.map(renderMatch)
+        displayBracket.map((item) => (
+          <div key={item.matchId}>{renderMatch(item)}</div>
+        ))
       ) : (
         <p>Нет матчей для отображения</p>
       )}

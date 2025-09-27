@@ -39,12 +39,13 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         }
         const data = await response.json();
         console.log('Tournament data:', data); // Отладка
+        console.log('Bracket structure:', data.bracket); // Отладка
         setTournament(data);
         setBracket(data.bracket || {});
         setHasPicks(data.has_picks || false);
         setRounds(data.rounds || []);
         setComparison(data.comparison || []);
-        setSelectedRound(data.rounds?.[0] || null);
+        setSelectedRound(data.starting_round || data.rounds?.[0] || null);
       } catch (err) {
         console.error('Fetch error:', err); // Отладка
         setError(err instanceof Error ? err.message : 'Unknown error');
@@ -57,6 +58,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   }, [id]);
 
   const handlePick = (round: string, matchId: string, player: string) => {
+    console.log('Handle pick:', { round, matchId, player }); // Отладка
     setBracket((prev) => {
       const newBracket = { ...prev };
       const matchIndex = newBracket[round].findIndex((m) => m.id === matchId);
