@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 import logging
@@ -50,7 +50,8 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     ).all()
     logger.info(f"Fetched {len(user_picks)} user_picks for user {user_id}")
     
-    all_rounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'W']
+    # Динамические раунды в зависимости от starting_round
+    all_rounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'Champion']
     starting_index = all_rounds.index(tournament.starting_round) if tournament.starting_round in all_rounds else 0
     rounds = all_rounds[starting_index:]
     logger.info(f"Rounds for tournament {id}: {rounds}")
@@ -85,24 +86,3 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
         "has_picks": has_picks,
         **comparison_data
     }
-
-@router.get("/leaderboard/", response_model=List[dict])
-async def get_leaderboard(db: Session = Depends(get_db)):
-    logger.info("Fetching leaderboard")
-    try:
-        leaderboard = db.query(models.Leaderboard).order_by(models.Leaderboard.score.desc()).all()
-        logger.info(f"Found {len(leaderboard)} leaderboard entries")
-        if not leaderboard:
-            return []
-        result = [
-            {"user_id": entry.user_id, "username": entry.user.username if entry.user else "Unknown", "score": entry.score}
-            for entry in leaderboard
-        ]
-        logger.info(f"Returning {len(result)} leaderboard entries")
-        return result
-    except AttributeError as e:
-        logger.error(f"AttributeError in get_leaderboard: {str(e)}")
-        raise HTTPException(status_code=500, detail="Leaderboard table not found in database")
-    except Exception as e:
-        logger.error(f"Unexpected error in get_leaderboard: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error fetching leaderboard: {str(e)}")

@@ -24,6 +24,8 @@ export default function Bracket({ id }: { id: string }) {
   if (error) return <p className="text-red-500">{error}</p>;
   if (!tournament) return <p>Турнир не найден</p>;
 
+  console.log('Bracket data:', bracket); // Отладка
+
   return (
     <div className={styles.container}>
       <h2 className={styles.tournamentTitle}>{tournament.name}</h2>
@@ -43,12 +45,16 @@ export default function Bracket({ id }: { id: string }) {
           <div key={round} className={styles.roundContainer}>
             <div className={styles.roundTitle}>{round}</div>
             {tournament.status === 'ACTIVE' ? (
-              <MatchListActive
-                bracket={bracket}
-                handlePick={handlePick}
-                savePicks={savePicks}
-                selectedRound={round}
-              />
+              bracket[round] && bracket[round].length > 0 ? (
+                <MatchListActive
+                  bracket={bracket}
+                  handlePick={handlePick}
+                  savePicks={savePicks}
+                  selectedRound={round}
+                />
+              ) : (
+                <p>Матчи для {round} отсутствуют</p>
+              )
             ) : (
               <MatchListClosed
                 bracket={bracket}
