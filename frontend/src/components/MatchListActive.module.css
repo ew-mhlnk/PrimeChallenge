@@ -8,33 +8,36 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  background: #2A2C36;
+  background: #2A2A2A;
   border-radius: 8px;
   padding: 8px;
 }
 
 .playerCell {
   padding: 8px;
-  background: #4C4C4C;
-  color: white;
+  background: #3C3C3C;
+  color: #ffffff;
   border-radius: 4px;
   cursor: pointer;
   text-align: center;
 }
 
-.playerCell.tbd {
-  background: #5F6067;
-  color: #A0A0A0;
-  cursor: not-allowed;
+.playerCell:hover {
+  background: #4C4C4C;
 }
 
-.playerCell.selectedPlayer {
-  background: #28A745;
+.selectedPlayer {
+  background: #00B2FF !important;
   color: white;
 }
 
 .connector {
   height: 2px;
-  background: #ffffff;
+  background: #4C4C4C;
   margin: 2px 0;
+}
+
+.tbd {
+  color: #888888;
+  font-style: italic;
 }

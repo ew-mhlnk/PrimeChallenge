@@ -5,7 +5,7 @@ import MatchListClosed from './MatchListClosed';
 import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 
-export default function Bracket({ id }: { id: string }) {
+export default function BracketPage({ id }: { id: string }) {
   const {
     tournament,
     bracket,
@@ -45,16 +45,11 @@ export default function Bracket({ id }: { id: string }) {
           <div key={round} className={styles.roundContainer}>
             <div className={styles.roundTitle}>{round}</div>
             {tournament.status === 'ACTIVE' ? (
-              bracket[round] && bracket[round].length > 0 ? (
-                <MatchListActive
-                  bracket={bracket}
-                  handlePick={handlePick}
-                  savePicks={savePicks}
-                  selectedRound={round}
-                />
-              ) : (
-                <p>Матчи для {round} отсутствуют</p>
-              )
+              <MatchListActive
+                bracket={bracket}
+                handlePick={handlePick}
+                selectedRound={round}
+              />
             ) : (
               <MatchListClosed
                 bracket={bracket}
@@ -66,7 +61,11 @@ export default function Bracket({ id }: { id: string }) {
         ))}
       </div>
       {tournament.status === 'ACTIVE' && (
-        <button onClick={savePicks} disabled={!hasPicks} className={styles.saveButton}>
+        <button
+          onClick={savePicks}
+          disabled={!hasPicks}
+          className={hasPicks ? styles.saveButton : `${styles.saveButton} ${styles.disabled}`}
+        >
           Сохранить пики
         </button>
       )}

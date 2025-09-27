@@ -78,3 +78,15 @@
   background: #5F6067;
   cursor: not-allowed;
 }
+
+.noMatches {
+  color: #ffffff;
+  text-align: center;
+  font-size: 16px;
+  padding: 10px;
+}
+
+.tbd {
+  color: #888888;
+  font-style: italic;
+}
