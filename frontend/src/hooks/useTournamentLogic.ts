@@ -38,8 +38,8 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
           throw new Error(`Failed to fetch tournament: ${errorText}`);
         }
         const data = await response.json();
-        console.log('Tournament data:', data); // Отладка
-        console.log('Bracket structure:', data.bracket); // Отладка
+        console.log('Tournament data:', JSON.stringify(data, null, 2)); // Отладка
+        console.log('Bracket structure:', JSON.stringify(data.bracket, null, 2)); // Отладка
         setTournament(data);
         setBracket(data.bracket || {});
         setHasPicks(data.has_picks || false);

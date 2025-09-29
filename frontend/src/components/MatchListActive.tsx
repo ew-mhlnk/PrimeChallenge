@@ -39,14 +39,14 @@ export default function MatchListActive({
     }
 
     const matches = bracket[selectedRound].map((match) => {
-      console.log('Processing match:', match); // Отладка
+      console.log('Processing match:', JSON.stringify(match, null, 2)); // Отладка
       return {
         round: selectedRound,
         matchId: match.id,
         match,
       };
     });
-    console.log('Display bracket:', matches); // Отладка
+    console.log('Display bracket:', JSON.stringify(matches, null, 2)); // Отладка
     setDisplayBracket(matches);
   }, [selectedRound, bracket]);
 
@@ -56,21 +56,23 @@ export default function MatchListActive({
     match: BracketMatch;
   }) => {
     const { round, matchId, match } = item;
-    console.log('Rendering match:', match); // Отладка
+    console.log('Rendering match:', JSON.stringify(match, null, 2)); // Отладка
 
-    // Жёсткие проверки для player1 и player2
+    // Максимально строгие проверки
     const player1Name =
       match.player1 &&
       typeof match.player1 === 'object' &&
-      match.player1.name &&
-      typeof match.player1.name === 'string'
+      'name' in match.player1 &&
+      typeof match.player1.name === 'string' &&
+      match.player1.name
         ? `${match.player1.name}${match.player1.seed != null ? ` (${match.player1.seed})` : ''}`
         : 'TBD';
     const player2Name =
       match.player2 &&
       typeof match.player2 === 'object' &&
-      match.player2.name &&
-      typeof match.player2.name === 'string'
+      'name' in match.player2 &&
+      typeof match.player2.name === 'string' &&
+      match.player2.name
         ? `${match.player2.name}${match.player2.seed != null ? ` (${match.player2.seed})` : ''}`
         : 'TBD';
 

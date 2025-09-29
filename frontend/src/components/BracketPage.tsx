@@ -21,20 +21,17 @@ export default function BracketPage({ id }: { id: string }) {
     comparison,
   } = useTournamentLogic({ id });
 
-  // Устанавливаем selectedRound в starting_round, если не выбрано
   useEffect(() => {
-    console.log('Tournament:', tournament); // Отладка
-    console.log('Bracket data:', bracket); // Отладка
-    console.log('Selected round:', selectedRound); // Отладка
+    console.log('BracketPage useEffect:', { tournament, bracket, selectedRound }); // Отладка
     if (!selectedRound && tournament?.starting_round) {
       console.log('Setting selectedRound to starting_round:', tournament.starting_round);
       setSelectedRound(tournament.starting_round);
     }
-  }, [tournament, bracket, selectedRound, setSelectedRound]); // Добавлен bracket
+  }, [tournament, bracket, selectedRound, setSelectedRound]);
 
   if (isLoading) return <p>Загрузка...</p>;
   if (error) return <p className="text-red-500">{error}</p>;
-  if (!tournament) return <p>Турнир не найден</p>;
+  if (!tournament || !selectedRound) return <p>Ожидание данных турнира...</p>;
 
   return (
     <div className={styles.container}>
