@@ -58,7 +58,6 @@ export default function MatchListActive({
     const { round, matchId, match } = item;
     console.log('Rendering match:', JSON.stringify(match, null, 2)); // Отладка
 
-    // Максимально строгие проверки
     const player1Name =
       match.player1 &&
       typeof match.player1 === 'object' &&
@@ -76,20 +75,23 @@ export default function MatchListActive({
         ? `${match.player2.name}${match.player2.seed != null ? ` (${match.player2.seed})` : ''}`
         : 'TBD';
 
+    console.log('player1Name:', player1Name, typeof player1Name); // Отладка
+    console.log('player2Name:', player2Name, typeof player2Name); // Отладка
+
     return (
       <div key={matchId} className={styles.matchContainer}>
         <div
           className={`${styles.playerCell} ${match.predicted_winner === match.player1?.name ? styles.selectedPlayer : ''} ${player1Name === 'TBD' ? styles.tbd : ''}`}
           onClick={() => match.player1?.name && match.player1.name !== 'TBD' && handlePick(round, matchId, match.player1.name)}
         >
-          {player1Name}
+          {typeof player1Name === 'string' ? player1Name : 'TBD'}
         </div>
         <div className={styles.connector} />
         <div
           className={`${styles.playerCell} ${match.predicted_winner === match.player2?.name ? styles.selectedPlayer : ''} ${player2Name === 'TBD' ? styles.tbd : ''}`}
           onClick={() => match.player2?.name && match.player2.name !== 'TBD' && handlePick(round, matchId, match.player2.name)}
         >
-          {player2Name}
+          {typeof player2Name === 'string' ? player2Name : 'TBD'}
         </div>
       </div>
     );

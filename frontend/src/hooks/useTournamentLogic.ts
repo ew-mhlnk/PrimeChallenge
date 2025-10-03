@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Tournament, BracketMatch, ComparisonResult } from '@/types';
+import { Tournament, BracketMatch } from '@/types';
 
 interface UseTournamentLogicProps {
   id: string;
@@ -16,7 +16,6 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
   const [rounds, setRounds] = useState<string[]>([]);
-  const [comparison, setComparison] = useState<ComparisonResult[]>([]);
 
   useEffect(() => {
     const fetchTournament = async () => {
@@ -40,11 +39,11 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         const data = await response.json();
         console.log('Tournament data:', JSON.stringify(data, null, 2)); // Отладка
         console.log('Bracket structure:', JSON.stringify(data.bracket, null, 2)); // Отладка
+        console.log('Tournament status:', data.status); // Отладка
         setTournament(data);
         setBracket(data.bracket || {});
         setHasPicks(data.has_picks || false);
         setRounds(data.rounds || []);
-        setComparison(data.comparison || []);
         setSelectedRound(data.starting_round || data.rounds?.[0] || null);
       } catch (err) {
         console.error('Fetch error:', err); // Отладка
@@ -120,6 +119,5 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     rounds,
     handlePick,
     savePicks,
-    comparison,
   };
 }

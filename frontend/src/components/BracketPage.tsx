@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react';
 import MatchListActive from './MatchListActive';
-import MatchListClosed from './MatchListClosed';
 import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 
@@ -18,7 +17,6 @@ export default function BracketPage({ id }: { id: string }) {
     rounds,
     handlePick,
     savePicks,
-    comparison,
   } = useTournamentLogic({ id });
 
   useEffect(() => {
@@ -51,18 +49,14 @@ export default function BracketPage({ id }: { id: string }) {
         {rounds.map((round) => (
           <div key={round} className={styles.roundContainer}>
             <div className={styles.roundTitle}>{round}</div>
-            {tournament.status === 'ACTIVE' ? (
+            {bracket[round]?.length > 0 ? (
               <MatchListActive
                 bracket={bracket}
                 handlePick={handlePick}
                 selectedRound={round}
               />
             ) : (
-              <MatchListClosed
-                bracket={bracket}
-                comparison={comparison || []}
-                selectedRound={round}
-              />
+              <p>Нет матчей для отображения</p>
             )}
           </div>
         ))}
