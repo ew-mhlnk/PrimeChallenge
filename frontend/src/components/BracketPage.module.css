@@ -7,6 +7,20 @@
   gap: 20px;
 }
 
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.backButton {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #00B2FF;
+}
+
 .tournamentTitle {
   font-size: 24px;
   font-weight: bold;
@@ -77,16 +91,4 @@
 .saveButton:disabled {
   background: #5F6067;
   cursor: not-allowed;
-}
-
-.noMatches {
-  color: #ffffff;
-  text-align: center;
-  font-size: 16px;
-  padding: 10px;
-}
-
-.tbd {
-  color: #888888;
-  font-style: italic;
 }

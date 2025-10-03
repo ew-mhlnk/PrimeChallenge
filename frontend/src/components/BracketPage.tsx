@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation'; // Импорт для кнопки назад
 import MatchListActive from './MatchListActive';
 import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 
 export default function BracketPage({ id }: { id: string }) {
+  const router = useRouter();
   const {
     tournament,
     bracket,
@@ -33,7 +35,10 @@ export default function BracketPage({ id }: { id: string }) {
 
   return (
     <div className={styles.container}>
-      <h2 className={styles.tournamentTitle}>{tournament.name}</h2>
+      <div className={styles.header}>
+        <button onClick={() => router.back()} className={styles.backButton}>←</button> {/* Кнопка назад */}
+        <h2 className={styles.tournamentTitle}>{tournament.name}</h2>
+      </div>
       <div className={styles.rounds}>
         {rounds.map((round) => (
           <button
