@@ -18,7 +18,7 @@
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #00B2FF;
+  color: #ffffff;
 }
 
 .tournamentTitle {
@@ -59,23 +59,53 @@
   gap: 40px;
   overflow-x: auto;
   padding: 20px 0;
+  position: relative;
 }
 
-.roundContainer {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.roundColumn {
   min-width: 280px;
-  border: 1px solid #4C4C4C;
-  border-radius: 10px;
-  padding: 10px;
+  position: relative;
 }
 
 .roundTitle {
   font-size: 18px;
-  color: #00B2FF;
-  text-align: center;
+  color: #ffffff;
   margin-bottom: 10px;
+}
+
+.matchItem {
+  list-style: none;
+  margin-bottom: 20px;
+}
+
+.matchCard {
+  background-color: #333;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.player {
+  padding: 10px;
+  border-radius: 5px;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.player p {
+  margin: 0;
+}
+
+.connectorLine {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  width: 40px;
+  height: 100%;
 }
 
 .saveButton {
