@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
@@ -20,8 +20,6 @@ export default function BracketPage({ id }: { id: string }) {
     savePicks,
   } = useTournamentLogic({ id });
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     console.log('BracketPage useEffect:', { tournament, bracket, selectedRound }); // Отладка
     if (!selectedRound && tournament?.starting_round) {
@@ -29,18 +27,6 @@ export default function BracketPage({ id }: { id: string }) {
       setSelectedRound(tournament.starting_round);
     }
   }, [tournament, bracket, selectedRound, setSelectedRound]);
-
-  useEffect(() => {
-    if (scrollContainerRef.current && selectedRound) {
-      const roundIndex = rounds.indexOf(selectedRound);
-      if (roundIndex !== -1) {
-        const roundElement = scrollContainerRef.current.children[roundIndex] as HTMLElement;
-        if (roundElement) {
-          roundElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-        }
-      }
-    }
-  }, [selectedRound, rounds]);
 
   if (isLoading) return <p>Загрузка...</p>;
   if (error) return <p className="text-red-500">{error}</p>;
@@ -65,37 +51,32 @@ export default function BracketPage({ id }: { id: string }) {
       </div>
       <div className={styles.box}>
         <div className={styles.rectangle}>
-          <div className={styles.scrollContainer} ref={scrollContainerRef}>
-            {rounds.map((round, index) => (
-              <div key={round} className={styles.roundContainer}>
-                <div className={styles.roundTitle}>{round}</div>
-                <ul className={styles.matchList}>
-                  {bracket[round]?.length > 0 ? (
-                    bracket[round].map((match) => (
-                      <li key={match.id} className={styles.matchItem}>
-                        <div className={styles.matchCard}>
-                          <div
-                            className={`${styles.player} ${match.predicted_winner === match.player1?.name ? styles.selectedPlayer : ''}`}
-                            onClick={() => tournament.status === 'ACTIVE' && match.player1?.name && match.player1.name !== 'Bye' && handlePick(round, match.id, match.player1.name)}
-                          >
-                            <p>{match.player1?.name || 'TBD'} {match.player1?.seed ? `(${match.player1.seed})` : ''}</p>
-                          </div>
-                          <div
-                            className={`${styles.player} ${match.predicted_winner === match.player2?.name ? styles.selectedPlayer : ''}`}
-                            onClick={() => tournament.status === 'ACTIVE' && match.player2?.name && match.player2.name !== 'Bye' && handlePick(round, match.id, match.player2.name)}
-                          >
-                            <p>{match.player2?.name || 'TBD'} {match.player2?.seed ? `(${match.player2.seed})` : ''}</p>
-                          </div>
-                        </div>
-                      </li>
-                    ))
-                  ) : (
-                    <p className={styles.noMatches}>Нет матчей для отображения</p>
-                  )}
-                </ul>
-                {index < rounds.length - 1 && <div className={styles.connectorLine}></div>}
-              </div>
-            ))}
+          <div className={styles.roundContainer}>
+            <div className={styles.roundTitle}>{selectedRound}</div>
+            <ul className={styles.matchList}>
+              {bracket[selectedRound]?.length > 0 ? (
+                bracket[selectedRound].map((match) => (
+                  <li key={match.id} className={styles.matchItem}>
+                    <div className={styles.matchCard}>
+                      <div
+                        className={`${styles.player} ${match.predicted_winner === match.player1?.name ? styles.selectedPlayer : ''}`}
+                        onClick={() => tournament.status === 'ACTIVE' && match.player1?.name && match.player1.name !== 'Bye' && handlePick(selectedRound, match.id, match.player1.name)}
+                      >
+                        <p>{match.player1?.name || 'TBD'} {match.player1?.seed ? `(${match.player1.seed})` : ''}</p>
+                      </div>
+                      <div
+                        className={`${styles.player} ${match.predicted_winner === match.player2?.name ? styles.selectedPlayer : ''}`}
+                        onClick={() => tournament.status === 'ACTIVE' && match.player2?.name && match.player2.name !== 'Bye' && handlePick(selectedRound, match.id, match.player2.name)}
+                      >
+                        <p>{match.player2?.name || 'TBD'} {match.player2?.seed ? `(${match.player2.seed})` : ''}</p>
+                      </div>
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <p className={styles.noMatches}>Нет матчей для отображения</p>
+              )}
+            </ul>
           </div>
         </div>
       </div>
