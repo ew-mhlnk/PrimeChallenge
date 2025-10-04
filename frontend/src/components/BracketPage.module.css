@@ -1,6 +1,6 @@
 .container {
   padding: 20px;
-  max-width: 1200px;
+  max-width: 389px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -54,58 +54,98 @@
   cursor: pointer;
 }
 
-.bracketWrapper {
-  display: flex;
-  gap: 40px;
-  overflow-x: auto;
-  padding: 20px 0;
-  position: relative;
+.box {
+  height: 487px;
+  width: 389px;
 }
 
-.roundColumn {
+.rectangle {
+  background-color: #131313;
+  border: 0.5px solid #4c4c4c;
+  border-radius: 29px;
+  height: 487px;
+  position: relative;
+  width: 389px;
+  overflow: hidden;
+}
+
+.scrollContainer {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  gap: 40px;
+  padding: 20px;
+  height: 100%;
+}
+
+.roundContainer {
   min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  scroll-snap-align: start;
   position: relative;
 }
 
 .roundTitle {
   font-size: 18px;
-  color: #ffffff;
+  color: #00B2FF;
+  text-align: center;
   margin-bottom: 10px;
 }
 
-.matchItem {
+.matchList {
   list-style: none;
-  margin-bottom: 20px;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.matchItem {
+  position: relative;
 }
 
 .matchCard {
-  background-color: #333;
-  border-radius: 8px;
-  padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 5px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .player {
   padding: 10px;
-  border-radius: 5px;
+  background-color: #333;
+  border-radius: 8px;
   color: #ffffff;
   cursor: pointer;
-  transition: background-color 0.2s;
+  text-align: center;
+  transition: background-color 0.3s ease;
 }
 
 .player p {
   margin: 0;
+  font-weight: bold;
+}
+
+.selectedPlayer {
+  background-color: #00B2FF !important;
 }
 
 .connectorLine {
   position: absolute;
-  top: 0;
-  left: 100%;
+  top: 50%;
+  right: -20px;
   width: 40px;
-  height: 100%;
+  height: 1px;
+  background-color: #4C4C4C;
+  transform: translateY(-50%);
+}
+
+.noMatches {
+  color: #ffffff;
+  text-align: center;
+  font-size: 16px;
+  padding: 10px;
 }
 
 .saveButton {

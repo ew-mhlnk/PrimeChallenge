@@ -1,10 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ScrollMenu, VisibilityContext } from 'react-horizontal-scrolling-menu';
-import 'react-horizontal-scrolling-menu/dist/styles.css';
 import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 
@@ -23,29 +20,31 @@ export default function BracketPage({ id }: { id: string }) {
     savePicks,
   } = useTournamentLogic({ id });
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    console.log('BracketPage useEffect:', { tournament, bracket, selectedRound });
+    console.log('BracketPage useEffect:', { tournament, bracket, selectedRound }); // Отладка
     if (!selectedRound && tournament?.starting_round) {
       console.log('Setting selectedRound to starting_round:', tournament.starting_round);
       setSelectedRound(tournament.starting_round);
     }
   }, [tournament, bracket, selectedRound, setSelectedRound]);
 
+  useEffect(() => {
+    if (scrollContainerRef.current && selectedRound) {
+      const roundIndex = rounds.indexOf(selectedRound);
+      if (roundIndex !== -1) {
+        const roundElement = scrollContainerRef.current.children[roundIndex] as HTMLElement;
+        if (roundElement) {
+          roundElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+        }
+      }
+    }
+  }, [selectedRound, rounds]);
+
   if (isLoading) return <p>Загрузка...</p>;
   if (error) return <p className="text-red-500">{error}</p>;
   if (!tournament || !selectedRound) return <p>Ожидание данных турнира...</p>;
-
-  const onWheel = (apiObj: typeof VisibilityContext, ev: WheelEvent): void => {
-    const isThrottled = !apiObj.visibleElementsWithSeparators.length;
-    if (isThrottled) return;
-    ev.preventDefault();
-
-    if (ev.deltaY < 0) {
-      apiObj.scrollPrev();
-    } else if (ev.deltaY > 0) {
-      apiObj.scrollNext();
-    }
-  };
 
   return (
     <div className={styles.container}>
@@ -64,63 +63,42 @@ export default function BracketPage({ id }: { id: string }) {
           </button>
         ))}
       </div>
-      <ScrollMenu onWheel={onWheel}>
-        <div className={styles.bracketWrapper}>
-          {rounds.map((round, index) => (
-            <motion.div
-              key={round}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className={styles.roundColumn}
-            >
-              <div className={styles.roundTitle}>{round}</div>
-              <AnimatePresence>
-                {selectedRound === round && bracket[round]?.length > 0 ? (
-                  bracket[round].map((match) => (
-                    <motion.li
-                      key={match.id}
-                      className={styles.matchItem}
-                      initial={{ scale: 1 }}
-                      animate={{ scale: match.predicted_winner ? 1.02 : 1 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <div className={styles.matchCard}>
-                        <div
-                          className={styles.player}
-                          onClick={() => handlePick(round, match.id, match.player1.name)}
-                          style={{
-                            backgroundColor: match.predicted_winner === match.player1.name ? '#00B2FF' : '#333',
-                          }}
-                        >
-                          <p>{match.player1.name} {match.player1.seed ? `(${match.player1.seed})` : ''}</p>
+      <div className={styles.box}>
+        <div className={styles.rectangle}>
+          <div className={styles.scrollContainer} ref={scrollContainerRef}>
+            {rounds.map((round, index) => (
+              <div key={round} className={styles.roundContainer}>
+                <div className={styles.roundTitle}>{round}</div>
+                <ul className={styles.matchList}>
+                  {bracket[round]?.length > 0 ? (
+                    bracket[round].map((match) => (
+                      <li key={match.id} className={styles.matchItem}>
+                        <div className={styles.matchCard}>
+                          <div
+                            className={`${styles.player} ${match.predicted_winner === match.player1?.name ? styles.selectedPlayer : ''}`}
+                            onClick={() => tournament.status === 'ACTIVE' && match.player1?.name && match.player1.name !== 'Bye' && handlePick(round, match.id, match.player1.name)}
+                          >
+                            <p>{match.player1?.name || 'TBD'} {match.player1?.seed ? `(${match.player1.seed})` : ''}</p>
+                          </div>
+                          <div
+                            className={`${styles.player} ${match.predicted_winner === match.player2?.name ? styles.selectedPlayer : ''}`}
+                            onClick={() => tournament.status === 'ACTIVE' && match.player2?.name && match.player2.name !== 'Bye' && handlePick(round, match.id, match.player2.name)}
+                          >
+                            <p>{match.player2?.name || 'TBD'} {match.player2?.seed ? `(${match.player2.seed})` : ''}</p>
+                          </div>
                         </div>
-                        <div
-                          className={styles.player}
-                          onClick={() => handlePick(round, match.id, match.player2.name)}
-                          style={{
-                            backgroundColor: match.predicted_winner === match.player2.name ? '#00B2FF' : '#333',
-                          }}
-                        >
-                          <p>{match.player2.name} {match.player2.seed ? `(${match.player2.seed})` : ''}</p>
-                        </div>
-                      </div>
-                    </motion.li>
-                  ))
-                ) : (
-                  selectedRound === round && <p>Нет матчей для отображения</p>
-                )}
-              </AnimatePresence>
-              {index < rounds.length - 1 && (
-                <svg className={styles.connectorLine}>
-                  <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#4C4C4C" strokeWidth="2" />
-                </svg>
-              )}
-            </motion.div>
-          ))}
+                      </li>
+                    ))
+                  ) : (
+                    <p className={styles.noMatches}>Нет матчей для отображения</p>
+                  )}
+                </ul>
+                {index < rounds.length - 1 && <div className={styles.connectorLine}></div>}
+              </div>
+            ))}
+          </div>
         </div>
-      </ScrollMenu>
+      </div>
       {tournament.status === 'ACTIVE' && (
         <button
           onClick={savePicks}
