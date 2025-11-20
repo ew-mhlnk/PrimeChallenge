@@ -10,16 +10,13 @@ interface UseTournamentLogicProps {
 
 export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   const [tournament, setTournament] = useState<Tournament | null>(null);
-  // Указываем явный тип для состояния bracket
   const [bracket, setBracket] = useState<{ [round: string]: BracketMatch[] }>({});
   const [hasPicks, setHasPicks] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [selectedRound, setSelectedRound] = useState<string | null>(null);
   const [rounds, setRounds] = useState<string[]>([]);
 
-  // Логика "проноса" победителя вперед
-  // Оборачиваем в useCallback, чтобы использовать внутри других функций без предупреждений линтера
+  // Логика проноса победителя (propagateWinner) - ОСТАВЛЯЕМ КАК БЫЛО
   const propagateWinner = useCallback((
     bracketState: { [round: string]: BracketMatch[] },
     roundList: string[],
@@ -40,7 +37,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       const nextMatch = bracketState[nextRound][nextMatchIndex];
 
       if (!winnerName) {
-        // Если "отжали" выбор
+        // Сброс
         if (isPlayer1InNext) nextMatch.player1 = { name: 'TBD', seed: undefined };
         else nextMatch.player2 = { name: 'TBD', seed: undefined };
 
@@ -49,14 +46,13 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
           propagateWinner(bracketState, roundList, nextRound, nextMatchNumber, null);
         }
       } else {
-        // Если выбрали победителя
+        // Установка
         if (isPlayer1InNext) {
           nextMatch.player1 = { name: winnerName, seed: undefined };
         } else {
           nextMatch.player2 = { name: winnerName, seed: undefined };
         }
 
-        // Сброс следующего выбора, если изменился участник
         if (nextMatch.predicted_winner && nextMatch.predicted_winner !== winnerName) {
           nextMatch.predicted_winner = null;
           propagateWinner(bracketState, roundList, nextRound, nextMatchNumber, null);
@@ -65,10 +61,9 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     }
   }, []);
 
-  // Обработка BYE
+  // Обработка BYE (processInitialByes) - ОСТАВЛЯЕМ КАК БЫЛО
   const processInitialByes = useCallback((initialBracket: { [round: string]: BracketMatch[] }, roundList: string[]) => {
     const newBracket = JSON.parse(JSON.stringify(initialBracket));
-
     const firstRound = roundList[0];
     if (!newBracket[firstRound]) return newBracket;
 
@@ -77,7 +72,6 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         propagateWinner(newBracket, roundList, firstRound, match.match_number, match.predicted_winner);
         return;
       }
-
       if (match.player1?.name === 'Bye' && match.player2?.name && match.player2.name !== 'TBD') {
         match.predicted_winner = match.player2.name;
         propagateWinner(newBracket, roundList, firstRound, match.match_number, match.player2.name);
@@ -87,7 +81,6 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         propagateWinner(newBracket, roundList, firstRound, match.match_number, match.player1.name);
       }
     });
-
     return newBracket;
   }, [propagateWinner]);
 
@@ -104,18 +97,18 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         });
 
         if (!response.ok) throw new Error('Failed to fetch');
-
         const data = await response.json();
+
+        // !!! НОРМАЛИЗАЦИЯ СТАТУСА !!!
+        if (data.status) data.status = data.status.toUpperCase();
 
         setTournament(data);
         setRounds(data.rounds || []);
-        setSelectedRound(data.starting_round || data.rounds?.[0]);
-
-        // Инициализируем сетку
+        
         const initializedBracket = processInitialByes(data.bracket, data.rounds || []);
         setBracket(initializedBracket);
         
-        // Если есть сохраненные пики, кнопку можно активировать (по желанию)
+        // Если уже есть пики, разрешаем сохранять
         if (data.has_picks) setHasPicks(true);
 
       } catch (err) {
@@ -125,11 +118,19 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       }
     };
     fetchTournament();
-  }, [id, processInitialByes]); // Теперь processInitialByes в зависимостях, но он стабилен благодаря useCallback
+  }, [id, processInitialByes]);
 
-  // Обработчик клика
+  // Обработчик клика (ИСПРАВЛЕННЫЙ)
   const handlePick = (round: string, matchId: string, player: string) => {
-    if (tournament?.status !== 'ACTIVE') return;
+    console.log('Click detected:', { round, matchId, player });
+    
+    // Проверка статуса с приведением к верхнему регистру на всякий случай
+    const status = tournament?.status?.toUpperCase();
+    if (status !== 'ACTIVE') {
+        console.warn('Tournament is not active. Current status:', status);
+        toast.error('Выбор закрыт (турнир идет или завершен)');
+        return;
+    }
 
     setBracket((prev) => {
       const newBracket = JSON.parse(JSON.stringify(prev));
@@ -140,16 +141,20 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         const matchNum = match.match_number;
 
         if (match.predicted_winner === player) {
+          // Отжатие (удаление выбора)
+          console.log('Deselecting:', player);
           match.predicted_winner = null;
           propagateWinner(newBracket, rounds, round, matchNum, null);
         } else {
+          // Выбор
+          console.log('Selecting:', player);
           match.predicted_winner = player;
           propagateWinner(newBracket, rounds, round, matchNum, player);
         }
       }
       return newBracket;
     });
-    setHasPicks(true);
+    setHasPicks(true); // Включаем кнопку сохранения
   };
 
   const savePicks = async () => {
@@ -160,10 +165,6 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     for (const r of rounds) {
       if (!bracket[r]) continue;
       for (const m of bracket[r]) {
-        // Сохраняем даже пустые пики (null), если нужно перезаписать выбор
-        // Но обычно отправляют только сделанные.
-        // Если нужно отправлять пустые, чтобы стереть выбор в БД, логика бэкенда должна это поддерживать.
-        // Сейчас отправляем только победителей.
         if (m.predicted_winner) {
           picks.push({
             tournament_id: parseInt(id),
@@ -184,8 +185,12 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         },
         body: JSON.stringify(picks),
       });
-      if (response.ok) toast.success('Пики сохранены!');
-    } catch (e: unknown) {
+      if (response.ok) {
+        toast.success('Пики успешно сохранены!');
+      } else {
+        throw new Error('Save failed');
+      }
+    } catch (e) {
       console.error(e);
       toast.error('Ошибка сохранения');
     }
@@ -197,8 +202,6 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     hasPicks,
     error,
     isLoading,
-    selectedRound,
-    setSelectedRound,
     rounds,
     handlePick,
     savePicks,
