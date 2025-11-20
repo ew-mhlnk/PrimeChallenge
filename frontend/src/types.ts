@@ -12,6 +12,7 @@ export interface Player {
 
 export interface BracketMatch {
   id: string;
+  match_number: number;
   round: string;
   player1: Player;
   player2: Player;
