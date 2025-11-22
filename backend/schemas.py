@@ -17,7 +17,7 @@ class UserBase(BaseModel):
     username: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True  # ИЗМЕНЕНО: было orm_mode
 
 class TournamentBase(BaseModel):
     id: int
@@ -32,7 +32,7 @@ class TournamentBase(BaseModel):
     tag: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True  # ИЗМЕНЕНО
 
 class TrueDrawBase(BaseModel):
     id: int
@@ -49,7 +49,7 @@ class TrueDrawBase(BaseModel):
     winner: Optional[str] = None
 
     class Config:
-        from_attributes = True
+        from_attributes = True  # ИЗМЕНЕНО
 
 class UserPickBase(BaseModel):
     id: int
@@ -64,7 +64,7 @@ class UserPickBase(BaseModel):
     updated_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True  # ИЗМЕНЕНО
 
 class UserScoreBase(BaseModel):
     id: int
@@ -75,7 +75,7 @@ class UserScoreBase(BaseModel):
     updated_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True  # ИЗМЕНЕНО
 
 class LeaderboardBase(BaseModel):
     id: int
@@ -87,7 +87,7 @@ class LeaderboardBase(BaseModel):
     updated_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True  # ИЗМЕНЕНО
 
 # Модели для создания
 class UserPickCreate(BaseModel):
@@ -108,6 +108,7 @@ class BracketMatch(BaseModel):
     player1: Player
     player2: Player
     predicted_winner: Optional[str] = None
+    actual_winner: Optional[str] = None # Добавлено для отображения результатов
     source_matches: List[Dict[str, Any]] = []
 
 # Модели с отношениями
@@ -130,9 +131,9 @@ class Tournament(TournamentBase):
     true_draws: Optional[List[TrueDraw]] = None
     user_picks: Optional[List[UserPick]] = None
     scores: Optional[List[UserScore]] = None
-    rounds: Optional[List[str]] = None  # Добавлено для соответствия фронтенду
-    bracket: Optional[Dict[str, List[BracketMatch]]] = None      # Добавлено для передачи данных сетки
-    has_picks: Optional[bool] = None    # Добавлено для флага
-    comparison: Optional[List[Dict]] = None  # Добавлено для сравнения
-    score: Optional[int] = None         # Добавлено для общего счёта
-    correct_picks: Optional[int] = None # Добавлено для количества правильных пиков
+    rounds: Optional[List[str]] = None
+    bracket: Optional[Dict[str, List[BracketMatch]]] = None
+    has_picks: Optional[bool] = None
+    comparison: Optional[List[Dict]] = None
+    score: Optional[int] = None
+    correct_picks: Optional[int] = None

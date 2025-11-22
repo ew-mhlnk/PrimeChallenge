@@ -65,10 +65,17 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     rounds = all_rounds[starting_index:]
     logger.info(f"Rounds for tournament {id}: {rounds}")
     
+    # Генерация сетки (используем функцию из utils/bracket.py)
     bracket = generate_bracket(tournament, true_draws, user_picks, rounds)
+    
     has_picks = any(p.predicted_winner for p in user_picks)
     comparison_data = compute_comparison_and_scores(tournament, user_id, db) if tournament.status in ["CLOSED", "COMPLETED"] else {}
     
+    # ФИКС: Используем model_validate вместо from_orm для Pydantic v2
+    # Если объект пустой, передаем пустой список, чтобы не было ошибки
+    true_draws_data = [TrueDraw.model_validate(draw) for draw in true_draws]
+    user_picks_data = [UserPick.model_validate(pick) for pick in user_picks]
+
     tournament_data = Tournament(
         id=tournament.id,
         name=tournament.name,
@@ -80,13 +87,12 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
         start=tournament.start,
         close=tournament.close,
         tag=tournament.tag,
-        true_draws=[TrueDraw.from_orm(draw) for draw in true_draws],
-        user_picks=[UserPick.from_orm(pick) for pick in user_picks],
+        true_draws=true_draws_data,
+        user_picks=user_picks_data,
         scores=None
     )
     
-    logger.info(f"Returning tournament with id={id}, true_draws count={len(true_draws)}, user_picks count={len(user_picks)}")
-    logger.info(f"Bracket structure: {bracket}")
+    logger.info(f"Returning tournament with id={id}")
     
     return {
         **tournament_data.dict(),
