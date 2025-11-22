@@ -50,9 +50,18 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     ).all()
     logger.info(f"Fetched {len(user_picks)} user_picks for user {user_id}")
     
-    # Динамические раунды в зависимости от starting_round
+    # Динамические раунды
     all_rounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'Champion']
-    starting_index = all_rounds.index(tournament.starting_round) if tournament.starting_round in all_rounds else 0
+    
+    # Безопасное определение стартового раунда
+    start_round_clean = tournament.starting_round.strip() if tournament.starting_round else "R32"
+    
+    try:
+        starting_index = all_rounds.index(start_round_clean)
+    except ValueError:
+        logger.warning(f"Unknown starting round '{start_round_clean}' for tournament {id}. Defaulting to R32.")
+        starting_index = 2 # Индекс R32 по умолчанию
+        
     rounds = all_rounds[starting_index:]
     logger.info(f"Rounds for tournament {id}: {rounds}")
     
