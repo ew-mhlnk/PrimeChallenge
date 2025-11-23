@@ -17,8 +17,8 @@ export default function Navigation() {
   const scrollDirection = useScrollDirection();
   const [isVisible, setIsVisible] = useState(true);
 
-  // Логика скрытия: если скроллим вниз — скрываем, если вверх или мы на самом верху — показываем
   useEffect(() => {
+    // Скрываем, если скроллим вниз и прокрутили больше 50px
     if (scrollDirection === 'down' && window.scrollY > 50) {
       setIsVisible(false);
     } else {
@@ -27,7 +27,11 @@ export default function Navigation() {
   }, [scrollDirection]);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pb-[30px] px-4 pointer-events-none">
+    <div 
+      className="fixed left-0 right-0 z-50 flex justify-center pointer-events-none"
+      // Добавляем отступ для safe-area (айфоны) + 20px от края
+      style={{ bottom: 'calc(20px + env(safe-area-inset-bottom))' }} 
+    >
       <AnimatePresence>
         {isVisible && (
           <motion.nav
@@ -38,14 +42,13 @@ export default function Navigation() {
             className="
               pointer-events-auto
               bg-[#1B1A1F]/90 
-              backdrop-blur-md 
+              backdrop-blur-xl 
               border border-white/10 
               rounded-full 
               p-1.5 
-              shadow-2xl 
-              shadow-black/50
+              shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]
               flex items-center gap-1
-              max-w-[400px] w-full justify-between sm:w-auto
+              w-auto
             "
           >
             {navItems.map((item) => {
@@ -55,18 +58,15 @@ export default function Navigation() {
                 <Link 
                   key={item.path} 
                   href={item.path}
-                  className="relative flex-1 sm:flex-none text-center"
+                  className="relative"
                 >
                   <button
                     className={`
-                      relative z-10 px-5 py-2.5 text-sm font-medium transition-colors duration-200 w-full
+                      relative z-10 px-5 py-2.5 text-sm font-medium transition-colors duration-200 rounded-full
                       ${isActive ? 'text-white' : 'text-[#8E8E93] hover:text-white/70'}
                     `}
                   >
-                    {/* Текст кнопки */}
                     {item.label}
-
-                    {/* Плавающая плашка (индикатор) */}
                     {isActive && (
                       <motion.div
                         layoutId="active-pill"

@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import styles from './BracketPage.module.css'; // Используем styles здесь
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 
 export default function BracketPage({ id }: { id: string }) {
@@ -8,7 +9,7 @@ export default function BracketPage({ id }: { id: string }) {
   const {
     tournament,
     bracket,
-    // hasPicks, <--- УДАЛЕНО
+    hasPicks,
     error,
     isLoading,
     selectedRound,
@@ -18,158 +19,111 @@ export default function BracketPage({ id }: { id: string }) {
     savePicks,
   } = useTournamentLogic({ id });
 
-  if (isLoading) return <div className="flex justify-center pt-20 text-white">Загрузка турнира...</div>;
-  if (error) return <div className="text-red-500 text-center pt-10">Ошибка: {error}</div>;
-  if (!tournament || !selectedRound) return <div className="text-center pt-10 text-white">Турнир не найден</div>;
+  if (isLoading) return <div className="flex justify-center pt-20 text-white">Загрузка...</div>;
+  if (error) return <div className="text-red-500 text-center pt-10">{error}</div>;
+  if (!tournament || !selectedRound) return null;
 
-  const isTournamentActive = tournament.status === 'ACTIVE';
-  const currentMatches = bracket[selectedRound] || [];
-
-  console.log('Render BracketPage:', { 
-      status: tournament.status, 
-      round: selectedRound, 
-      matches: currentMatches?.length 
-  });
+  const canEdit = tournament.status === 'ACTIVE';
+  // Показываем кнопку только если есть изменения (hasPicks) ИЛИ турнир активен (чтобы можно было начать выбирать)
+  const showSaveButton = canEdit; 
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#141414] text-white pb-24">
+    // Используем styles.container
+    <div className={styles.container}>
       
-      {/* --- HEADER --- */}
-      <div className="sticky top-0 z-20 bg-[#1B1A1F] border-b border-gray-800 shadow-md">
-        <div className="flex items-center justify-between p-4">
-            <button onClick={() => router.back()} className="text-2xl text-white w-8">←</button>
-            <div className="text-center">
-                <h2 className="text-lg font-bold leading-tight max-w-[200px] truncate mx-auto">
-                    {tournament.name}
-                </h2>
-                <div className="mt-1">
-                     <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold ${
-                        isTournamentActive ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-                    }`}>
-                        {isTournamentActive ? 'ПРИЕМ СТАВОК' : tournament.status}
-                    </span>
-                </div>
-            </div>
-            <div className="w-8"></div> 
-        </div>
-
-        {/* --- ROUND TABS --- */}
-        <div className="w-full overflow-x-auto no-scrollbar border-t border-[#2A2A2A]">
-            <div className="flex p-2 min-w-max gap-2">
-                {rounds.map((round) => {
-                    const isActive = selectedRound === round;
-                    return (
-                        <button
-                            key={round}
-                            onClick={() => setSelectedRound(round)}
-                            className={`
-                                px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap
-                                ${isActive 
-                                    ? 'bg-[#00B2FF] text-white shadow-lg' 
-                                    : 'bg-[#2A2A2A] text-gray-400 hover:bg-[#333]'}
-                            `}
-                        >
-                            {round}
-                        </button>
-                    );
-                })}
-            </div>
-        </div>
+      {/* Хедер: styles.header, styles.backButton, styles.tournamentTitle */}
+      <div className={styles.header}>
+        <button onClick={() => router.back()} className={styles.backButton}>←</button>
+        <h2 className={styles.tournamentTitle}>{tournament.name}</h2>
+        <span className={`text-xs px-2 py-1 rounded font-medium ${
+            tournament.status === 'ACTIVE' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'
+        }`}>
+            {tournament.status === 'ACTIVE' ? 'LIVE' : 'CLOSED'}
+        </span>
       </div>
 
-      {/* --- CONTENT --- */}
-      <div className="flex-1 p-4 overflow-y-auto">
-        
-        {/* --- ЛОГИКА ДЛЯ CHAMPION (Один слот) --- */}
-        {selectedRound === 'Champion' ? (
-             <div className="flex flex-col items-center justify-center h-full mt-10">
-                <div className="text-[#00B2FF] font-bold mb-4 text-xl">🏆 ПОБЕДИТЕЛЬ</div>
-                {currentMatches.length > 0 ? (
-                    <div className="bg-[#1E1E1E] border-2 border-[#FFD700] rounded-2xl p-6 shadow-[0_0_30px_rgba(255,215,0,0.2)] w-full max-w-[300px] text-center">
-                        <span className="text-2xl font-bold block truncate">
-                             {currentMatches[0].predicted_winner || '???'}
-                        </span>
-                        <span className="text-gray-500 text-sm mt-2 block">
-                            {currentMatches[0].predicted_winner ? 'Ваш выбор' : 'Выберите в финале'}
-                        </span>
+      {/* Навигация по раундам: styles.rounds, styles.activeRound */}
+      <div className={styles.rounds}>
+        {rounds.map((round) => (
+          <button
+            key={round}
+            onClick={() => setSelectedRound(round)}
+            className={selectedRound === round ? styles.activeRound : styles.inactiveRound}
+          >
+            {round}
+          </button>
+        ))}
+      </div>
+
+      {/* Сетка: styles.box, styles.rectangle */}
+      <div className={styles.box}>
+        <div className={styles.rectangle}>
+          <div className={styles.roundContainer}>
+            <div className={styles.roundTitle}>{selectedRound}</div>
+            <ul className={styles.matchList}>
+              {bracket[selectedRound]?.length > 0 ? (
+                bracket[selectedRound].map((match) => {
+                  const p1Name = match.player1?.name || 'TBD';
+                  const p2Name = match.player2?.name || 'TBD';
+                  const p1Selected = match.predicted_winner === p1Name && p1Name !== 'TBD';
+                  const p2Selected = match.predicted_winner === p2Name && p2Name !== 'TBD';
+                  
+                  return (
+                  <li key={match.id} className={styles.matchItem}>
+                    <div className={styles.matchCard}>
+                      {/* Игрок 1 */}
+                      <div
+                        className={`${styles.player} 
+                          ${p1Selected ? styles.selectedPlayer : ''}
+                          ${p1Name === 'TBD' ? 'opacity-50 cursor-default' : ''}
+                        `}
+                        onClick={() => canEdit && p1Name !== 'TBD' && p1Name !== 'Bye' && handlePick(selectedRound!, match.id, p1Name)}
+                      >
+                        <p className="truncate font-medium">
+                            {p1Name} {match.player1?.seed ? <span className="text-xs opacity-70">({match.player1.seed})</span> : ''}
+                        </p>
+                      </div>
+
+                      {/* Разделитель (опционально, можно убрать если есть отступы в CSS) */}
+                      {/* <div className="h-[1px] bg-[#2C2C2E] w-full my-[2px]"></div> */}
+
+                      {/* Игрок 2 */}
+                      <div
+                        className={`${styles.player} 
+                          ${p2Selected ? styles.selectedPlayer : ''}
+                          ${p2Name === 'TBD' ? 'opacity-50 cursor-default' : ''}
+                        `}
+                        onClick={() => canEdit && p2Name !== 'TBD' && p2Name !== 'Bye' && handlePick(selectedRound!, match.id, p2Name)}
+                      >
+                        <p className="truncate font-medium">
+                            {p2Name} {match.player2?.seed ? <span className="text-xs opacity-70">({match.player2.seed})</span> : ''}
+                        </p>
+                      </div>
                     </div>
-                ) : (
-                    <div className="text-gray-500">Данные загружаются...</div>
-                )}
-             </div>
-        ) : (
-            /* --- ЛОГИКА ДЛЯ ОБЫЧНЫХ РАУНДОВ (Список матчей) --- */
-            !currentMatches || currentMatches.length === 0 ? (
-                <div className="text-center text-gray-500 mt-10">
-                    Загрузка матчей или раунд пуст...
-                </div>
-            ) : (
-                <div className="flex flex-col gap-3">
-                    {currentMatches.map((match) => {
-                        const p1Name = match.player1?.name || 'TBD';
-                        const p1Seed = match.player1?.seed;
-                        const p1Selected = match.predicted_winner === p1Name && p1Name !== 'TBD';
-                        
-                        const p2Name = match.player2?.name || 'TBD';
-                        const p2Seed = match.player2?.seed;
-                        const p2Selected = match.predicted_winner === p2Name && p2Name !== 'TBD';
-
-                        const canClickP1 = isTournamentActive && p1Name !== 'TBD' && p1Name !== 'Bye';
-                        const canClickP2 = isTournamentActive && p2Name !== 'TBD' && p2Name !== 'Bye';
-
-                        return (
-                            <div key={match.id} className="bg-[#1E1E1E] border border-[#333] rounded-xl overflow-hidden shadow-sm">
-                                {/* Верхний слот */}
-                                <div
-                                    onClick={() => {
-                                        if (canClickP1) handlePick(selectedRound!, match.id, p1Name);
-                                    }}
-                                    className={`
-                                        flex justify-between items-center p-3 border-b border-[#2A2A2A] transition-colors
-                                        ${p1Selected ? 'bg-[#00B2FF] text-white' : ''}
-                                        ${canClickP1 ? 'cursor-pointer active:bg-[#2A2A2A]' : 'cursor-default opacity-70'}
-                                    `}
-                                >
-                                    <span className="font-medium truncate max-w-[80%]">
-                                        {p1Name}
-                                    </span>
-                                    {p1Seed && <span className="text-[10px] opacity-60">({p1Seed})</span>}
-                                </div>
-
-                                {/* Нижний слот */}
-                                <div
-                                    onClick={() => {
-                                        if (canClickP2) handlePick(selectedRound!, match.id, p2Name);
-                                    }}
-                                    className={`
-                                        flex justify-between items-center p-3 transition-colors
-                                        ${p2Selected ? 'bg-[#00B2FF] text-white' : ''}
-                                        ${canClickP2 ? 'cursor-pointer active:bg-[#2A2A2A]' : 'cursor-default opacity-70'}
-                                    `}
-                                >
-                                    <span className="font-medium truncate max-w-[80%]">
-                                        {p2Name}
-                                    </span>
-                                    {p2Seed && <span className="text-[10px] opacity-60">({p2Seed})</span>}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )
-        )}
+                  </li>
+                )})
+              ) : (
+                <p className={styles.noMatches}>Нет матчей в этом раунде</p>
+              )}
+            </ul>
+          </div>
+        </div>
       </div>
 
-      {/* --- SAVE BUTTON --- */}
-      {isTournamentActive && (
-        <div className="fixed bottom-20 left-0 right-0 px-4 z-30 flex justify-center">
+      {/* Кнопка Сохранить */}
+      {showSaveButton && (
+        <div className="fixed bottom-[100px] w-full max-w-[600px] px-8 z-40 flex justify-center pointer-events-none">
             <button
-                onClick={savePicks}
-                className={`
-                    w-full max-w-md py-3.5 rounded-xl font-bold text-white shadow-xl transition-all bg-[#00B2FF] active:scale-95 hover:bg-[#0095D6] cursor-pointer
-                `}
+            onClick={savePicks}
+            disabled={!hasPicks}
+            className={`
+                pointer-events-auto
+                w-full py-3.5 
+                font-bold rounded-[14px] shadow-lg active:scale-95 transition-all duration-200
+                ${hasPicks ? 'bg-[#00B2FF] text-white hover:bg-[#0099DD]' : 'bg-[#2C2C2E] text-[#5F6067] cursor-not-allowed'}
+            `}
             >
-                СОХРАНИТЬ ПРОГНОЗ
+            СОХРАНИТЬ
             </button>
         </div>
       )}
