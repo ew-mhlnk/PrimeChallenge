@@ -9,54 +9,78 @@ export default function useTournaments() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchTournaments = async () => {
       setIsLoading(true);
       try {
+        // Ждем до 2 секунд, пока появится initData
+        let attempts = 0;
+        while (!window.Telegram?.WebApp?.initData && attempts < 20) {
+            await new Promise(r => setTimeout(r, 100));
+            attempts++;
+        }
+
         const initData = window.Telegram?.WebApp?.initData;
+        
         if (!initData) {
-          throw new Error('Telegram initData not available');
+            console.warn('Telegram initData missing after wait');
+            // Для веба можно не выбрасывать ошибку, а просто логировать
+            // throw new Error('Не удалось авторизоваться.');
         }
 
         const response = await fetch('https://primechallenge.onrender.com/tournaments/', {
           headers: {
-            Authorization: initData,
+            Authorization: initData || '',
           },
         });
+        
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('Failed to fetch tournaments:', response.status, errorText);
-          throw new Error('Ошибка при загрузке турниров');
+          // ИСПРАВЛЕНО: используем errorText в сообщении
+          throw new Error(`Ошибка загрузки: ${response.status} - ${errorText}`);
         }
+        
         const data = await response.json();
-        console.log('Tournaments data:', data); // Для отладки
-
-        // Типизация данных от бэкенда
-        const tournamentData: Tournament[] = data.map((item: { id: number; name: string; status: string; dates?: string; start?: string; close?: string; tag?: string }) => ({
-          id: item.id,
-          name: item.name,
-          dates: item.dates || undefined,
-          status: item.status as 'ACTIVE' | 'CLOSED' | 'COMPLETED',
-          sheet_name: undefined,
-          starting_round: undefined,
-          type: undefined,
-          start: item.start || undefined,
-          close: item.close || undefined,
-          tag: item.tag || undefined,
-          true_draws: [],
-          user_picks: [],
-          scores: [],
-          rounds: [],
-        }));
-        setTournaments(tournamentData);
+        
+        if (isMounted) {
+            // ИСПРАВЛЕНО: заменили any на явный тип
+            const tournamentData: Tournament[] = data.map((item: {
+              id: number;
+              name: string;
+              dates?: string;
+              status: string;
+              start?: string;
+              close?: string;
+              tag?: string;
+            }) => ({
+              id: item.id,
+              name: item.name,
+              dates: item.dates || undefined,
+              status: item.status as 'ACTIVE' | 'CLOSED' | 'COMPLETED',
+              start: item.start || undefined,
+              close: item.close || undefined,
+              tag: item.tag || undefined,
+              true_draws: [],
+              user_picks: [],
+              scores: [],
+              rounds: [],
+            }));
+            setTournaments(tournamentData);
+        }
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
-        setError(message);
+        if (isMounted) {
+            const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
+            setError(message);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
     fetchTournaments();
+
+    return () => { isMounted = false; };
   }, []);
 
   return { tournaments, error, isLoading };

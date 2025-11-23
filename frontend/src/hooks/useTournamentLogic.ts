@@ -8,12 +8,21 @@ interface UseTournamentLogicProps {
   id: string;
 }
 
-// Тип для отправки на бэкенд
 type PickPayload = {
   tournament_id: number;
   round: string;
   match_number: number;
   predicted_winner: string;
+};
+
+const waitForTelegram = async (retries = 20, delay = 100): Promise<string | null> => {
+    for (let i = 0; i < retries; i++) {
+        if (window.Telegram?.WebApp?.initData) {
+            return window.Telegram.WebApp.initData;
+        }
+        await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    return null;
 };
 
 export function useTournamentLogic({ id }: UseTournamentLogicProps) {
@@ -31,18 +40,12 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
 
     for (let i = 0; i < roundList.length; i++) {
       const roundName = roundList[i];
-      
-      if (!newBracket[roundName]) {
-        newBracket[roundName] = [];
-      }
+      if (!newBracket[roundName]) newBracket[roundName] = [];
 
-      let expectedMatches = 0;
-      if (i === 0) {
-        expectedMatches = newBracket[roundName].length;
-      } else {
-        const prevRoundName = roundList[i - 1];
-        expectedMatches = Math.ceil(newBracket[prevRoundName].length / 2);
-      }
+      // ИСПРАВЛЕНО: let -> const
+      const expectedMatches = i === 0 
+          ? newBracket[roundName].length 
+          : Math.ceil(newBracket[roundList[i - 1]].length / 2);
 
       if (newBracket[roundName].length < expectedMatches) {
         for (let m = 1; m <= expectedMatches; m++) {
@@ -64,7 +67,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     return newBracket;
   }, []);
 
-  // === 2. ПРОНОС ПОБЕДИТЕЛЯ (РЕКУРСИВНО) ===
+  // === 2. ПРОНОС ПОБЕДИТЕЛЯ ===
   const propagateWinner = useCallback((
     bracketState: { [round: string]: BracketMatch[] },
     roundList: string[],
@@ -85,10 +88,8 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       const targetSlot = isPlayer1InNext ? 'player1' : 'player2';
       const oldPlayerName = nextMatch[targetSlot]?.name;
 
-      // Обновляем слот
       nextMatch[targetSlot] = { name: winnerName || 'TBD' };
 
-      // Если слот изменился, и этот игрок был выбран победителем в следующем раунде -> сброс
       if (nextMatch.predicted_winner && nextMatch.predicted_winner === oldPlayerName && oldPlayerName !== winnerName) {
           nextMatch.predicted_winner = null;
           propagateWinner(bracketState, roundList, nextRound, nextMatchNumber, null);
@@ -96,32 +97,26 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     }
   }, []);
 
-  // === 3. ВОССТАНОВЛЕНИЕ СЕТКИ (BYE + SAVED PICKS) ===
-  // ИСПРАВЛЕНО: Теперь проходим по ВСЕМ раундам последовательно
+  // === 3. ОБРАБОТКА BYE И ПИКОВ ===
   const processSavedPicksAndByes = useCallback((initialBracket: { [round: string]: BracketMatch[] }, roundList: string[]) => {
-    // Важно: идем последовательно от первого раунда к последнему
     for (let i = 0; i < roundList.length; i++) {
         const roundName = roundList[i];
         const matches = initialBracket[roundName];
-        
         if (!matches) continue;
 
         matches.forEach((match: BracketMatch) => {
-            // 1. Если это первый раунд, проверяем BYE
             if (i === 0) {
                 if (match.player1?.name === 'Bye' && match.player2?.name && match.player2.name !== 'TBD') {
                     match.predicted_winner = match.player2.name;
                     propagateWinner(initialBracket, roundList, roundName, match.match_number, match.player2.name);
-                    return; // Bye обработан
+                    return;
                 }
                 else if (match.player2?.name === 'Bye' && match.player1?.name && match.player1.name !== 'TBD') {
                     match.predicted_winner = match.player1.name;
                     propagateWinner(initialBracket, roundList, roundName, match.match_number, match.player1.name);
-                    return; // Bye обработан
+                    return;
                 }
             }
-
-            // 2. Если есть сохраненный выбор (Predicted Winner), проталкиваем его дальше
             if (match.predicted_winner) {
                 propagateWinner(initialBracket, roundList, roundName, match.match_number, match.predicted_winner);
             }
@@ -132,43 +127,48 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
 
   // === 4. ЗАГРУЗКА ТУРНИРА ===
   useEffect(() => {
+    let isMounted = true;
+
     const fetchTournament = async () => {
       setIsLoading(true);
       try {
-        const initData = window.Telegram?.WebApp?.initData;
-        // if (!initData) throw new Error('Telegram initData not available');
+        const initData = await waitForTelegram();
+        if (!initData) {
+            // Не блокируем интерфейс, если initData нет, но предупреждаем
+            console.warn("Telegram initData not available");
+        }
 
         const response = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
           headers: { Authorization: initData || '' },
         });
 
-        if (!response.ok) throw new Error(`API Error: ${response.status}`);
+        if (!response.ok) throw new Error(`Ошибка сервера: ${response.status}`);
         const data = await response.json();
 
-        if (data.status) data.status = data.status.trim().toUpperCase();
+        if (isMounted) {
+            if (data.status) data.status = data.status.trim().toUpperCase();
+            setTournament(data);
+            setRounds(data.rounds || []);
+            setSelectedRound(data.starting_round || data.rounds?.[0] || null);
 
-        setTournament(data);
-        setRounds(data.rounds || []);
-        setSelectedRound(data.starting_round || data.rounds?.[0] || null);
-
-        // 1. Строим пустые ячейки
-        let fullBracket = ensureBracketStructure(data.bracket || {}, data.rounds || [], data.id);
-        
-        // 2. Заполняем их данными из базы (восстанавливаем цепочку)
-        fullBracket = processSavedPicksAndByes(fullBracket, data.rounds || []);
-        
-        setBracket(fullBracket);
-        if (data.has_picks) setHasPicks(true);
+            let fullBracket = ensureBracketStructure(data.bracket || {}, data.rounds || [], data.id);
+            fullBracket = processSavedPicksAndByes(fullBracket, data.rounds || []);
+            
+            setBracket(fullBracket);
+            if (data.has_picks) setHasPicks(true);
+        }
 
       } catch (err) {
         console.error("Fetch error:", err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
+        if (isMounted) setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
     
     if (id) fetchTournament();
+
+    return () => { isMounted = false; };
   }, [id, ensureBracketStructure, processSavedPicksAndByes]);
 
   // === 5. КЛИК ПОЛЬЗОВАТЕЛЯ ===
@@ -198,14 +198,14 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
 
   // === 6. СОХРАНЕНИЕ ===
   const savePicks = async () => {
-    const initData = window.Telegram?.WebApp?.initData;
+    const initData = await waitForTelegram() || window.Telegram?.WebApp?.initData;
+    
     if (!initData) {
-        toast.error('Ошибка авторизации Telegram');
+        toast.error('Ошибка: нет связи с Telegram');
         return;
     }
 
     const picks: PickPayload[] = [];
-    
     Object.keys(bracket).forEach(r => {
         bracket[r].forEach(m => {
             if (m.predicted_winner) {
@@ -219,7 +219,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         });
     });
 
-    console.log(`Sending ${picks.length} picks to DB:`, picks);
+    console.log(`Sending ${picks.length} picks to DB`);
 
     try {
       const response = await fetch('https://primechallenge.onrender.com/picks/bulk', {
@@ -234,13 +234,11 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       if (response.ok) {
           toast.success('Прогноз сохранен!');
       } else {
-          const txt = await response.text();
-          console.error('Server error:', txt);
-          throw new Error('Failed to save');
+          throw new Error('Не удалось сохранить');
       }
     } catch (error) {
       console.error(error);
-      toast.error('Ошибка сохранения');
+      toast.error('Ошибка сохранения. Попробуйте еще раз.');
     }
   };
 
