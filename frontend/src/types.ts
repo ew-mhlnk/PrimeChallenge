@@ -17,8 +17,14 @@ export interface BracketMatch {
   player1: Player;
   player2: Player;
   predicted_winner?: string | null;
+  
+  // --- ДОБАВИТЬ ТОЛЬКО ЭТУ СТРОКУ ---
+  actual_winner?: string | null; 
+  // ----------------------------------
+
   source_matches: Array<{ round: string; match_number: number }>;
 }
+
 
 export interface Tournament {
   id: number;
@@ -100,3 +106,4 @@ export interface LeaderboardEntry {
   score: number;
   correct_picks: number;
 }
+
