@@ -1,7 +1,10 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useScrollDirection } from '@/hooks/useScrollDirection';
+import { useEffect, useState } from 'react';
 
 const navItems = [
   { label: 'Активные', path: '/' },
@@ -9,62 +12,75 @@ const navItems = [
   { label: 'Лидерборд', path: '/leaderboard' },
 ];
 
-export default function FancyTabs() {
+export default function Navigation() {
   const pathname = usePathname();
-  const router = useRouter();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+  const scrollDirection = useScrollDirection();
+  const [isVisible, setIsVisible] = useState(true);
 
+  // Логика скрытия: если скроллим вниз — скрываем, если вверх или мы на самом верху — показываем
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const buttons = container.querySelectorAll('button');
-    const index = navItems.findIndex((item) => item.path === pathname);
-    const activeButton = buttons[index] as HTMLButtonElement;
-
-    if (activeButton) {
-      const { offsetLeft, offsetWidth } = activeButton;
-      setIndicator({
-        left: offsetLeft,
-        width: offsetWidth,
-      });
+    if (scrollDirection === 'down' && window.scrollY > 50) {
+      setIsVisible(false);
+    } else {
+      setIsVisible(true);
     }
-  }, [pathname]);
+  }, [scrollDirection]);
 
   return (
-    <div className="fixed bottom-[50px] w-full flex justify-center z-50">
-      <nav className="relative bg-[#1B1A1F] h-[39px] flex items-center w-full max-w-[600px] px-[55px] rounded-none">
-        <div
-          ref={containerRef}
-          className="relative flex items-center justify-between w-full h-full"
-        >
-          {/* Анимированный индикатор */}
-          <div
-            className="absolute top-1/2 -translate-y-1/2 h-[29px] bg-[#131215] border border-[#141414] rounded-[14.5px] transition-all duration-300 ease-[cubic-bezier(0.4, 0, 0.2, 1)]"
-            style={{
-              width: indicator.width,
-              transform: `translateX(${indicator.left}px) translateY(-50%)`,
-            }}
-          />
+    <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pb-[30px] px-4 pointer-events-none">
+      <AnimatePresence>
+        {isVisible && (
+          <motion.nav
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className="
+              pointer-events-auto
+              bg-[#1B1A1F]/90 
+              backdrop-blur-md 
+              border border-white/10 
+              rounded-full 
+              p-1.5 
+              shadow-2xl 
+              shadow-black/50
+              flex items-center gap-1
+              max-w-[400px] w-full justify-between sm:w-auto
+            "
+          >
+            {navItems.map((item) => {
+              const isActive = pathname === item.path;
 
-          {/* Кнопки */}
-          {navItems.map((item) => {
-            const isActive = pathname === item.path;
-            return (
-              <button
-                key={item.path}
-                onClick={() => router.push(item.path)}
-                className={`relative z-10 text-[16px] font-medium px-[15px] py-[5px] transition-colors duration-200 ${
-                  isActive ? 'text-[#CCCCCC]' : 'text-[#5F6067]'
-                }`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+              return (
+                <Link 
+                  key={item.path} 
+                  href={item.path}
+                  className="relative flex-1 sm:flex-none text-center"
+                >
+                  <button
+                    className={`
+                      relative z-10 px-5 py-2.5 text-sm font-medium transition-colors duration-200 w-full
+                      ${isActive ? 'text-white' : 'text-[#8E8E93] hover:text-white/70'}
+                    `}
+                  >
+                    {/* Текст кнопки */}
+                    {item.label}
+
+                    {/* Плавающая плашка (индикатор) */}
+                    {isActive && (
+                      <motion.div
+                        layoutId="active-pill"
+                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                        className="absolute inset-0 bg-[#323236] rounded-full -z-10 border border-white/5"
+                      />
+                    )}
+                  </button>
+                </Link>
+              );
+            })}
+          </motion.nav>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
