@@ -1,69 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Адрес твоего бэкенда
+// Адрес бэкенда
 const BACKEND_URL = 'https://primechallenge.onrender.com';
 
-// В Next.js 15 params — это Promise. Нужно обновить тип и добавить await.
-async function proxyHandler(
+// В Next.js 15 второй аргумент (context) содержит params как Promise
+export async function POST(
   req: NextRequest, 
   { params }: { params: Promise<{ path: string[] }> }
 ) {
-  // 1. Ждем разрешения Promise и получаем путь
-  const resolvedParams = await params;
-  const pathArray = resolvedParams.path;
-  let path = pathArray.join('/');
+  return handleRequest(req, params);
+}
 
-  // 2. ЛОГИКА СЛЕШЕЙ
-  // Добавляем слеш в конце только для определенных роутов, где FastAPI этого требует
-  if (path === 'tournaments' || path === 'auth') {
-     path += '/';
-  }
+export async function GET(
+  req: NextRequest, 
+  { params }: { params: Promise<{ path: string[] }> }
+) {
+  return handleRequest(req, params);
+}
 
-  const url = `${BACKEND_URL}/${path}`;
-  
-  console.log(`[PROXY] Пересылаю ${req.method} на: ${url}`);
-
+// Общая функция для обработки (чтобы не дублировать код)
+async function handleRequest(req: NextRequest, paramsPromise: Promise<{ path: string[] }>) {
   try {
-    // 3. Подготовка тела запроса (если это POST)
+    // 1. Ждем параметры (Next.js 15 requirement)
+    const resolvedParams = await paramsPromise;
+    const pathArray = resolvedParams.path;
+    let path = pathArray.join('/');
+
+    // 2. Логика слешей (FastAPI требует слеш для tournaments и auth)
+    if (path === 'tournaments' || path === 'auth' || path === 'leaderboard') {
+       path += '/';
+    }
+
+    const url = `${BACKEND_URL}/${path}`;
+    console.log(`[PROXY] ${req.method} -> ${url}`);
+
+    // 3. Тело запроса
     let body;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
         try {
             const jsonBody = await req.json();
             body = JSON.stringify(jsonBody);
         } catch {
-            // Игнорируем ошибки парсинга JSON (если тело пустое)
+            // Игнорируем, если тела нет
         }
     }
 
-    // 4. Пересылка запроса
+    // 4. Заголовки
     const headers = new Headers(req.headers);
-    headers.delete('host'); // Убираем хост Vercel
-    
-    // ВАЖНО: Принудительно ставим Content-Type для POST с JSON
+    headers.delete('host');
     if (req.method === 'POST' && body) {
         headers.set('Content-Type', 'application/json');
     }
 
+    // 5. Запрос к Render
     const backendResponse = await fetch(url, {
       method: req.method,
       headers: headers,
       body: body,
-      cache: 'no-store', // Не кэшировать API запросы
+      cache: 'no-store',
     });
 
-    // 5. Возврат ответа фронтенду
+    // 6. Ответ
     const contentType = backendResponse.headers.get("content-type");
     let data;
     if (contentType && contentType.includes("application/json")) {
         data = await backendResponse.json();
     } else {
-        // Если вернулся не JSON (например, текст ошибки), читаем как текст
-        const textData = await backendResponse.text();
-        try {
-             data = JSON.parse(textData);
-        } catch {
-             data = textData; // Возвращаем просто текст, если это не JSON
-        }
+        const text = await backendResponse.text();
+        try { data = JSON.parse(text); } catch { data = text; }
     }
 
     return NextResponse.json(data, { status: backendResponse.status });
@@ -73,5 +77,3 @@ async function proxyHandler(
     return NextResponse.json({ error: 'Proxy failed' }, { status: 500 });
   }
 }
-
-export { proxyHandler as GET, proxyHandler as POST };
