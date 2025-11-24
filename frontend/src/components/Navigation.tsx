@@ -17,8 +17,10 @@ export default function Navigation() {
   const scrollDirection = useScrollDirection();
   const [isVisible, setIsVisible] = useState(true);
 
+  // 1. Скрываем навигацию на странице турнира
+  const isTournamentPage = pathname.startsWith('/tournament/');
+
   useEffect(() => {
-    // Скрываем, если скроллим вниз и прокрутили больше 50px
     if (scrollDirection === 'down' && window.scrollY > 50) {
       setIsVisible(false);
     } else {
@@ -26,10 +28,14 @@ export default function Navigation() {
     }
   }, [scrollDirection]);
 
+  // Если мы внутри турнира — не показываем меню вообще
+  if (isTournamentPage) {
+    return null;
+  }
+
   return (
     <div 
       className="fixed left-0 right-0 z-50 flex justify-center pointer-events-none"
-      // Добавляем отступ для safe-area (айфоны) + 20px от края
       style={{ bottom: 'calc(20px + env(safe-area-inset-bottom))' }} 
     >
       <AnimatePresence>

@@ -13,7 +13,6 @@ const BackIcon = () => (
   </svg>
 );
 
-// Варианты анимации слайда
 const slideVariants = {
   enter: (direction: number) => ({
     x: direction > 0 ? 100 : -100,
@@ -67,6 +66,10 @@ export default function BracketPage({ id }: { id: string }) {
     setTimeout(() => setIsSaving(false), 1000);
   };
 
+  // Определяем, нужно ли использовать компактный режим
+  // Обычно это SF (2 матча), F (1 матч), Champion (1 победитель)
+  const isCompactRound = ['SF', 'F', 'Champion'].includes(selectedRound);
+
   return (
     <div className={styles.container}>
       
@@ -80,7 +83,7 @@ export default function BracketPage({ id }: { id: string }) {
         </h2>
       </div>
 
-      {/* Баннер (чуть уменьшил высоту до 100px, чтобы дать место сетке) */}
+      {/* Баннер */}
       <div className="w-full px-6 mb-4 shrink-0">
          <div className="w-full h-[100px] bg-[#D9D9D9] rounded-[20px]"></div>
       </div>
@@ -98,8 +101,9 @@ export default function BracketPage({ id }: { id: string }) {
         ))}
       </div>
 
-      {/* 3. Bracket Container (Заполняет всё свободное место) */}
-      <div className={styles.bracketWindow}>
+      {/* 3. Bracket Container */}
+      {/* Динамически меняем класс в зависимости от раунда */}
+      <div className={isCompactRound ? styles.bracketWindowCompact : styles.bracketWindow}>
         <div className={styles.scrollArea}>
           
           <AnimatePresence initial={false} custom={direction} mode="wait">
@@ -199,9 +203,8 @@ export default function BracketPage({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* 4. Footer с кнопкой. Убрал условие isLiveOrClosed для теста! */}
+      {/* 4. Footer. Проверка isLiveOrClosed возвращена! */}
       <div className={styles.footer}>
-        {/* Верни условие {!isLiveOrClosed && ...} когда убедишься, что кнопка видна */}
          {!isLiveOrClosed && (
             <motion.button
                 onClick={onSaveClick}

@@ -1,11 +1,11 @@
-/* --- Основной контейнер на весь экран --- */
+/* --- Основной контейнер --- */
 .container {
-  height: 100dvh; /* Строго высота экрана */
+  height: 100dvh;
   width: 100%;
   background-color: #141414;
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Запрещаем скролл всей страницы, скроллим только окно */
+  overflow: hidden;
 }
 
 /* --- Шапка --- */
@@ -35,7 +35,7 @@
   letter-spacing: 0.5px;
 }
 
-/* --- Навигация по раундам --- */
+/* --- Навигация --- */
 .roundsContainer {
   flex-shrink: 0;
   display: flex;
@@ -73,19 +73,33 @@
   transition: color 0.2s;
 }
 
-/* --- КОНТЕЙНЕР СЕТКИ (Тот самый прямоугольник) --- */
+/* --- СТАНДАРТНЫЙ КОНТЕЙНЕР (На весь экран) --- */
 .bracketWindow {
-  flex: 1; /* Занимает все свободное место, но... */
-  min-height: 0; /* ...позволяет содержимому сжиматься */
-  margin: 0 24px 20px 24px; /* Добавили 20px снизу, чтобы не прилипало к кнопке */
+  flex: 1; /* Растягивается */
+  min-height: 0;
+  margin: 0 24px 20px 24px;
   background: #141414;
   border-radius: 29px;
   border: 0.5px solid #4C4C4C;
   position: relative;
   overflow: hidden;
+  transition: all 0.3s ease; /* Плавное изменение размера */
 }
 
-/* Область скролла ВНУТРИ окна */
+/* --- КОМПАКТНЫЙ КОНТЕЙНЕР (Для SF/F) --- */
+.bracketWindowCompact {
+  flex: 0; /* НЕ растягивается */
+  height: auto; /* Высота по содержимому */
+  min-height: 200px; /* Минимальная красота */
+  margin: 0 24px 20px 24px;
+  background: #141414;
+  border-radius: 29px;
+  border: 0.5px solid #4C4C4C;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
 .scrollArea {
   height: 100%;
   overflow-y: auto;
@@ -100,50 +114,14 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding-bottom: 40px; /* Доп. место внутри скролла */
+  /* Убрали большой padding-bottom, так как контейнер сам ужмется */
 }
 
-.matchWrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.matchContainer {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  position: relative;
-  z-index: 10;
-}
-
-/* --- Карточка игрока --- */
-.playerCard {
-  height: 48px;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #1B1B1B;
-  color: #FFFFFF;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s ease, border 0.2s ease;
-  position: relative;
-}
-
-.playerInfo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-}
-
+/* ... (Остальные стили карточек без изменений) ... */
+.matchWrapper { position: relative; display: flex; align-items: center; }
+.matchContainer { display: flex; flex-direction: column; gap: 6px; width: 100%; position: relative; z-index: 10; }
+.playerCard { height: 48px; width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); background: #1B1B1B; color: #FFFFFF; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s ease, border 0.2s ease; position: relative; }
+.playerInfo { display: flex; align-items: center; gap: 8px; overflow: hidden; }
 .seed { color: #5F6067; font-size: 12px; }
 .selected { background: linear-gradient(90deg, rgba(0, 179, 255, 0.15) 0%, rgba(0, 119, 255, 0.15) 100%); border: 1px solid #00B3FF; box-shadow: 0 0 15px rgba(0, 178, 255, 0.1); }
 .correct { background: rgba(76, 175, 80, 0.15); border: 1px solid #4CAF50; color: #4CAF50; }
@@ -151,32 +129,22 @@
 .strikethrough { text-decoration: line-through; color: #7E5B5B; }
 .correctAnswerHint { font-size: 11px; color: #5F6067; margin-left: auto; }
 .tbd { color: #444; font-style: italic; cursor: default; }
+.bracketConnector { position: absolute; right: -12px; top: 50%; transform: translateY(-50%); height: 54px; width: 8px; border-right: 1px solid #4C4C4C; border-top: 1px solid #4C4C4C; border-bottom: 1px solid #4C4C4C; border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
 
-.bracketConnector {
-  position: absolute;
-  right: -12px;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 54px;
-  width: 8px;
-  border-right: 1px solid #4C4C4C;
-  border-top: 1px solid #4C4C4C;
-  border-bottom: 1px solid #4C4C4C;
-  border-top-right-radius: 4px;
-  border-bottom-right-radius: 4px;
-}
-
-/* --- Footer (Место под кнопку) --- */
+/* --- Footer --- */
 .footer {
-  flex-shrink: 0; /* Не сжиматься, всегда занимать свое место */
-  padding-bottom: max(20px, env(safe-area-inset-bottom)); /* Учитываем "челку" снизу на iPhone */
-  padding-top: 0px;
+  flex-shrink: 0;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
   display: flex;
-  align-items: flex-start; /* Прижимаем кнопку к верху футера */
+  align-items: flex-start;
   justify-content: center;
   background: transparent;
   z-index: 50;
-  min-height: 80px; /* Резервируем место */
+  /* Если контейнер компактный, кнопка подтянется вверх, но футер займет остаток места? 
+     Нет, во flex-col футер просто встанет следом. 
+     Если нужно прибить кнопку к низу экрана даже при маленьком контейнере, нужно добавить margin-top: auto к футеру.
+  */
+  margin-top: auto; /* ЭТО ВАЖНО: Прибивает футер к низу экрана, если контейнер маленький */
 }
 
 .saveButton {
@@ -194,7 +162,6 @@
   cursor: pointer;
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
 }
-
 .saveButtonSaving {
   background: #00B3FF;
   border-color: #00B3FF;
