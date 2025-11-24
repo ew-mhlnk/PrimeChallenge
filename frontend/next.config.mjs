@@ -1,16 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Важно: FastAPI (твой бэкенд) требует слеши в конце (например /tournaments/).
-  // Этот параметр помогает Next.js не удалять их при перенаправлении.
-  skipTrailingSlashRedirect: true,
+  // === ВАЖНО: Эта настройка заставляет Next.js всегда добавлять "/" в конце ===
+  // Это критично для FastAPI, который ждет /tournaments/, а не /tournaments
+  trailingSlash: true,
 
   async rewrites() {
     return [
       {
-        // Перехватываем всё, что начинается с /api/
+        // Ловим всё, что начинается с /api/
         source: '/api/:path*',
-        // Отправляем на Render. 
-        // Важно: :path* переносит и "хвост", и параметры запроса
+        // Пересылаем на Render.
+        // Vercel сам разберется с параметрами, благодаря trailingSlash
         destination: 'https://primechallenge.onrender.com/:path*',
       },
     ];
