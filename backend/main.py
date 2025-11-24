@@ -14,20 +14,30 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# === ИСПРАВЛЕННЫЙ CORS (МАКСИМАЛЬНО РАЗРЕШАЮЩИЙ) ===
+# === ЖЕЛЕЗОБЕТОННЫЙ СПИСОК DOMAINS ===
+# Мы указываем конкретные адреса, которым можно стучаться к нам.
+origins = [
+    "http://localhost:3000",
+    "https://prime-challenge.vercel.app",        # Твой фронт без слэша
+    "https://prime-challenge.vercel.app/",       # Твой фронт со слэшем (на всякий случай)
+    "https://primechallenge.onrender.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    # Вместо списка origins используем regex, который разрешает ВСЁ
-    # Это решит проблему, если ты заходишь с www или без, или с http/https
-    allow_origin_regex="https?://.*", 
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,    # Явный список
+    allow_credentials=True,   # Разрешаем куки и заголовки авторизации
+    allow_methods=["*"],      # Разрешаем все методы (GET, POST, OPTIONS...)
+    allow_headers=["*"],      # Разрешаем все заголовки (Authorization и т.д.)
 )
 
+# Middleware для логирования
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    logger.info(f"Received request: {request.method} {request.url}")
+    # Логируем origin, чтобы понять, кто стучится
+    origin = request.headers.get("origin")
+    logger.info(f"Request from Origin: {origin} -> {request.method} {request.url}")
+    
     try:
         response = await call_next(request)
         return response
@@ -43,7 +53,7 @@ scheduler = AsyncIOScheduler()
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Application startup")
+    logger.info("Application startup - CORS FIXED VERSION") # Метка в логах
     init_db()
     scheduler.add_job(sync_google_sheets_with_db, "interval", minutes=5, args=[engine])
     scheduler.start()
@@ -54,3 +64,8 @@ async def startup_event():
 async def manual_sync():
     await sync_google_sheets_with_db(engine)
     return {"message": "Sync completed successfully"}
+
+# Тестовый роут, чтобы проверить, что деплой прошел
+@app.get("/ping")
+async def ping():
+    return {"message": "pong", "cors": "fixed"}
