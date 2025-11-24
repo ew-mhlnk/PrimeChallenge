@@ -14,6 +14,24 @@ const BackIcon = () => (
   </svg>
 );
 
+// Варианты анимации слайда
+const slideVariants = {
+  enter: (direction: number) => ({
+    x: direction > 0 ? 100 : -100, // Если вперед - выезжаем справа, если назад - слева
+    opacity: 0
+  }),
+  center: {
+    zIndex: 1,
+    x: 0,
+    opacity: 1
+  },
+  exit: (direction: number) => ({
+    zIndex: 0,
+    x: direction < 0 ? 100 : -100, // Если вперед - уезжаем влево, если назад - уезжаем вправо
+    opacity: 0
+  })
+};
+
 export default function BracketPage({ id }: { id: string }) {
   const router = useRouter();
   const {
@@ -29,6 +47,9 @@ export default function BracketPage({ id }: { id: string }) {
   } = useTournamentLogic({ id });
   
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Состояние для направления анимации: 1 (вправо/вперед) или -1 (влево/назад)
+  const [direction, setDirection] = useState(0);
 
   if (isLoading) return <div className="flex justify-center pt-20 text-[#5F6067]">Загрузка...</div>;
   if (error) return <div className="text-red-500 text-center pt-10">{error}</div>;
@@ -36,17 +57,20 @@ export default function BracketPage({ id }: { id: string }) {
 
   const isLiveOrClosed = tournament.status !== 'ACTIVE';
 
+  // Функция переключения раунда с вычислением направления
+  const changeRound = (newRound: string) => {
+    const currentIndex = rounds.indexOf(selectedRound);
+    const newIndex = rounds.indexOf(newRound);
+    
+    // Определяем направление: если индекс растет -> 1, иначе -> -1
+    setDirection(newIndex > currentIndex ? 1 : -1);
+    setSelectedRound(newRound);
+  };
+
   const onSaveClick = async () => {
     setIsSaving(true);
     await savePicks();
     setTimeout(() => setIsSaving(false), 1000);
-  };
-
-  // Варианты анимации для списка матчей
-  const matchesVariants = {
-    hidden: { opacity: 0, x: 20 },
-    visible: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: -20 }
   };
 
   return (
@@ -62,9 +86,9 @@ export default function BracketPage({ id }: { id: string }) {
         </h2>
       </div>
 
-      {/* Баннер-заглушка (серый прямоугольник из скриншота) */}
-      <div className="w-full px-6 mb-6">
-         <div className="w-full h-[140px] bg-[#D9D9D9] rounded-[29px]"></div>
+      {/* Баннер (как на макете) */}
+      <div className="w-full px-6 mb-4 shrink-0">
+         <div className="w-full h-[120px] bg-[#D9D9D9] rounded-[29px]"></div>
       </div>
 
       {/* 2. Rounds Navigation */}
@@ -72,7 +96,7 @@ export default function BracketPage({ id }: { id: string }) {
         {rounds.map((round) => (
           <button
             key={round}
-            onClick={() => setSelectedRound(round)}
+            onClick={() => changeRound(round)}
             className={selectedRound === round ? styles.activeRound : styles.inactiveRound}
           >
             {round}
@@ -80,18 +104,22 @@ export default function BracketPage({ id }: { id: string }) {
         ))}
       </div>
 
-      {/* 3. Bracket Container (Окно с сеткой) */}
+      {/* 3. Bracket Container (Заполняет всё место) */}
       <div className={styles.bracketWindow}>
         <div className={styles.scrollArea}>
           
-          <AnimatePresence mode="wait">
+          <AnimatePresence initial={false} custom={direction} mode="wait">
             <motion.div
-              key={selectedRound} // Ключ важен для перезапуска анимации
-              variants={matchesVariants}
-              initial="hidden"
-              animate="visible"
+              key={selectedRound}
+              custom={direction}
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
               exit="exit"
-              transition={{ duration: 0.2, ease: "easeInOut" }}
+              transition={{
+                x: { type: "spring", stiffness: 300, damping: 30 },
+                opacity: { duration: 0.2 }
+              }}
               className={styles.matchList}
             >
               {bracket[selectedRound]?.length > 0 ? (
@@ -102,7 +130,6 @@ export default function BracketPage({ id }: { id: string }) {
                   const p1Name = p1?.name || 'TBD';
                   const p2Name = p2?.name || 'TBD';
                   
-                  // Логика выбора и стилей
                   const isP1Picked = match.predicted_winner === p1Name;
                   const isP2Picked = match.predicted_winner === p2Name;
                   const realWinner = match.actual_winner;
@@ -161,7 +188,7 @@ export default function BracketPage({ id }: { id: string }) {
                         </motion.div>
                       </div>
 
-                      {/* Скобка (рисуем только если это не финал) */}
+                      {/* Скобка */}
                       {selectedRound !== 'F' && selectedRound !== 'Champion' && (
                          <div className={styles.bracketConnector}></div>
                       )}
@@ -169,19 +196,21 @@ export default function BracketPage({ id }: { id: string }) {
                   );
                 })
               ) : (
-                  <p className="text-center text-[#5F6067] mt-10">Нет матчей</p>
+                  <div className="flex h-full items-center justify-center">
+                    <p className="text-[#5F6067]">Нет матчей</p>
+                  </div>
               )}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
 
-      {/* 4. Кнопка Сохранить (Фиксирована внизу) */}
+      {/* 4. Footer с кнопкой */}
       {!isLiveOrClosed && (
         <div className={styles.footer}>
             <motion.button
                 onClick={onSaveClick}
-                whileTap={{ scale: 0.95 }} // Эффект нажатия без изменения формы
+                whileTap={{ scale: 0.95 }}
                 className={`${styles.saveButton} ${isSaving ? styles.saveButtonSaving : ''}`}
                 animate={{
                    backgroundColor: isSaving ? '#00B3FF' : '#1B1B1B',

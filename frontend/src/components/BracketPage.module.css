@@ -1,20 +1,21 @@
+/* --- Основной контейнер на весь экран --- */
 .container {
-  min-height: 100vh;
+  height: 100dvh; /* Высота экрана с учетом адресной строки браузера */
+  width: 100%;
   background-color: #141414;
   display: flex;
   flex-direction: column;
-  position: relative;
-  /* Убираем padding-bottom здесь, так как кнопка будет fixed */
+  overflow: hidden; /* Блокируем скролл всей страницы */
 }
 
-/* --- Header --- */
+/* --- Шапка --- */
 .header {
+  flex-shrink: 0; /* Не сжиматься */
   display: flex;
   align-items: center;
-  padding: 20px 24px 10px; /* Чуть уменьшил отступ снизу */
+  padding: 20px 24px 10px;
   gap: 12px;
   background-color: #141414;
-  z-index: 20;
 }
 
 .backArrow {
@@ -31,28 +32,23 @@
   color: #FFFFFF;
   font-size: 16px;
   font-weight: 700;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   letter-spacing: 0.5px;
 }
 
-/* --- Round Navigation --- */
+/* --- Навигация по раундам --- */
 .roundsContainer {
+  flex-shrink: 0; /* Не сжиматься */
   display: flex;
-  gap: 8px; /* Чуть плотнее */
+  gap: 8px;
   padding: 0 24px 15px 24px;
   overflow-x: auto;
   scrollbar-width: none;
-  margin-bottom: 5px;
-  -webkit-overflow-scrolling: touch;
-  z-index: 20;
 }
 .roundsContainer::-webkit-scrollbar {
   display: none;
 }
 
-/* Активный раунд */
 .activeRound {
-  position: relative;
   padding: 8px 16px;
   border-radius: 20px;
   border: 1px solid #00B3FF;
@@ -61,12 +57,10 @@
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
-  cursor: default;
   box-shadow: 0 0 10px rgba(0, 179, 255, 0.2);
   transition: all 0.3s ease;
 }
 
-/* Неактивный раунд */
 .inactiveRound {
   padding: 8px 12px;
   background: transparent;
@@ -79,35 +73,34 @@
   transition: color 0.2s;
 }
 
-/* --- Bracket Window (Тот самый контейнер из макета) --- */
+/* --- КОНТЕЙНЕР СЕТКИ (Тот самый прямоугольник) --- */
 .bracketWindow {
-  flex: 1; /* Занимает все оставшееся место */
-  margin: 0 24px 100px 24px; /* Отступ снизу 100px под кнопку */
+  flex: 1; /* ЗАНИМАЕТ ВСЁ ДОСТУПНОЕ ПРОСТРАНСТВО */
+  min-height: 0; /* Важно для работы скролла внутри flex-элемента */
+  margin: 0 24px; /* Отступы слева и справа */
   background: #141414;
   border-radius: 29px;
   border: 0.5px solid #4C4C4C;
   position: relative;
-  overflow: hidden; /* Скрываем вылезающее содержимое */
+  overflow: hidden; /* Скрываем вылезающее за рамки */
 }
 
-/* Область скролла внутри окна */
+/* Область скролла ВНУТРИ окна */
 .scrollArea {
   height: 100%;
   overflow-y: auto;
-  padding: 24px 16px; /* Внутренние отступы для карточек */
-  
-  /* Скрываем скроллбар для красоты, но скролл работает */
-  scrollbar-width: none; 
+  padding: 24px 16px;
+  scrollbar-width: none;
 }
 .scrollArea::-webkit-scrollbar {
   display: none;
 }
 
-/* Список матчей */
 .matchList {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  padding-bottom: 20px; /* Отступ снизу внутри скролла */
 }
 
 .matchWrapper {
@@ -125,22 +118,22 @@
   z-index: 10;
 }
 
-/* --- Player Card --- */
+/* --- Карточка игрока --- */
 .playerCard {
-  height: 48px; /* Увеличил высоту как на скрине */
+  height: 48px;
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  border-radius: 12px; /* Чуть больше скругление */
-  border: 1px solid rgba(255, 255, 255, 0.08); /* Очень тонкая рамка */
-  background: #1B1B1B; /* Чуть светлее фона */
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #1B1B1B;
   color: #FFFFFF;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border 0.2s ease;
   position: relative;
 }
 
@@ -151,54 +144,20 @@
   overflow: hidden;
 }
 
-.seed {
-  color: #5F6067;
-  font-size: 12px;
-}
+.seed { color: #5F6067; font-size: 12px; }
+.selected { background: linear-gradient(90deg, rgba(0, 179, 255, 0.15) 0%, rgba(0, 119, 255, 0.15) 100%); border: 1px solid #00B3FF; box-shadow: 0 0 15px rgba(0, 178, 255, 0.1); }
+.correct { background: rgba(76, 175, 80, 0.15); border: 1px solid #4CAF50; color: #4CAF50; }
+.incorrect { background: rgba(244, 67, 54, 0.15); border: 1px solid #F44336; opacity: 0.7; }
+.strikethrough { text-decoration: line-through; color: #7E5B5B; }
+.correctAnswerHint { font-size: 11px; color: #5F6067; margin-left: auto; }
+.tbd { color: #444; font-style: italic; cursor: default; }
 
-/* Стили состояний */
-.selected {
-  background: linear-gradient(90deg, rgba(0, 179, 255, 0.15) 0%, rgba(0, 119, 255, 0.15) 100%);
-  border: 1px solid #00B3FF;
-  box-shadow: 0 0 15px rgba(0, 178, 255, 0.1);
-}
-
-.correct {
-  background: rgba(76, 175, 80, 0.15);
-  border: 1px solid #4CAF50;
-  color: #4CAF50;
-}
-
-.incorrect {
-  background: rgba(244, 67, 54, 0.15);
-  border: 1px solid #F44336;
-  opacity: 0.7;
-}
-
-.strikethrough {
-  text-decoration: line-through;
-  color: #7E5B5B;
-}
-
-.correctAnswerHint {
-  font-size: 11px;
-  color: #5F6067;
-  margin-left: auto;
-}
-
-.tbd {
-  color: #444;
-  font-style: italic;
-  cursor: default;
-}
-
-/* Скобка (Bracket line) */
 .bracketConnector {
   position: absolute;
-  right: -12px; /* Выносим за пределы карточки */
+  right: -12px;
   top: 50%;
   transform: translateY(-50%);
-  height: 54px; /* Высота скобки зависит от отступа между игроками */
+  height: 54px;
   width: 8px;
   border-right: 1px solid #4C4C4C;
   border-top: 1px solid #4C4C4C;
@@ -207,24 +166,21 @@
   border-bottom-right-radius: 4px;
 }
 
-/* --- Footer / Save Button --- */
+/* --- Footer (Место под кнопку) --- */
 .footer {
-  position: fixed;
-  bottom: 30px; /* Отступ от низа экрана */
-  left: 0;
-  right: 0;
+  flex-shrink: 0; /* Не сжиматься */
+  height: 90px; /* Фиксированная высота футера */
   display: flex;
+  align-items: center; /* Центрируем кнопку по вертикали */
   justify-content: center;
-  z-index: 100; /* Поверх всего */
-  pointer-events: none;
+  background: transparent;
 }
 
 .saveButton {
-  pointer-events: auto;
-  width: 180px; /* Фиксированная ширина */
+  width: 180px;
   height: 48px;
   background: #1B1B1B;
-  border-radius: 24px !important; /* Force radius */
+  border-radius: 24px !important;
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: #FFFFFF;
   font-size: 15px;
@@ -234,10 +190,8 @@
   justify-content: center;
   cursor: pointer;
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
-  /* Удаляем transition здесь, так как анимируем через motion */
 }
 
-/* Стиль кнопки при сохранении */
 .saveButtonSaving {
   background: #00B3FF;
   border-color: #00B3FF;
