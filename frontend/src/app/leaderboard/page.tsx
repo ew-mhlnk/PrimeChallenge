@@ -10,16 +10,24 @@ export default function Leaderboard() {
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
+        // Добавляем простую проверку на window, чтобы не падал SSR
+        if (typeof window === 'undefined') return;
+
         const initData = window.Telegram?.WebApp?.initData;
         if (!initData) {
-          throw new Error('Telegram initData not available');
+          // Если мы не в телеграме, можно просто выйти или кинуть ошибку,
+          // но лучше не ломать приложение ошибкой "initData not available" при обычной разработке
+          console.warn('Telegram initData not available');
+          return; 
         }
 
-        const response = await fetch('https://primechallenge.onrender.com/leaderboard/', {
+        // === ИЗМЕНЕНИЕ: Используем прокси /api/leaderboard/ ===
+        const response = await fetch('/api/leaderboard/', {
           headers: {
             Authorization: initData,
           },
         });
+        
         if (!response.ok) {
           throw new Error('Ошибка при загрузке лидерборда');
         }
@@ -52,7 +60,7 @@ export default function Leaderboard() {
           {leaderboard.map((entry) => (
             <div key={entry.user_id} className="bg-gray-800 p-4 rounded-lg shadow-md">
               <p>Место: {entry.rank}</p>
-              <p>Пользователь: {entry.username}</p>
+              <p>Пользователь: {entry.username || entry.user_id}</p>
               <p>Очки: {entry.score}</p>
               <p>Правильные пики: {entry.correct_picks}</p>
             </div>

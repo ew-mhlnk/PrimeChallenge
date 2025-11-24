@@ -10,7 +10,6 @@ interface TournamentContextType {
   refreshTournaments: () => Promise<void>;
 }
 
-// Описываем, как выглядят "сырые" данные с бэкенда, чтобы не использовать any
 interface ApiTournament {
   id: number;
   name: string;
@@ -29,15 +28,11 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Оборачиваем в useCallback, чтобы функция не пересоздавалась при каждом рендере
   const fetchTournaments = useCallback(async () => {
-    // Если данные уже загружены, не показываем лоадер (фоновое обновление)
-    // Используем функциональное обновление стейта, чтобы избежать лишних зависимостей
     setIsLoading((prev) => !isLoaded ? true : prev);
 
     try {
       let attempts = 0;
-      // Проверка на наличие window (SSR check) + ожидание Telegram
       if (typeof window !== 'undefined') {
          while (!window.Telegram?.WebApp?.initData && attempts < 10) {
              await new Promise(r => setTimeout(r, 100));
@@ -49,7 +44,8 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
       const headers: HeadersInit = {};
       if (initData) headers['Authorization'] = initData;
 
-      const response = await fetch('https://primechallenge.onrender.com/tournaments/', {
+      // === ИЗМЕНЕНИЕ ЗДЕСЬ: используем /api/ вместо полного адреса ===
+      const response = await fetch('/api/tournaments/', {
         headers
       });
       
@@ -59,7 +55,6 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
       
       const data = await response.json();
       
-      // Используем типизированный map вместо any
       const mappedData: Tournament[] = data.map((item: ApiTournament) => ({
         id: item.id,
         name: item.name,
@@ -82,16 +77,12 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [isLoaded]); // Зависимость isLoaded нужна для логики лоадера
+  }, [isLoaded]);
 
-  // Запускаем 1 раз при монтировании
   useEffect(() => {
     fetchTournaments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); 
-  // Мы намеренно оставляем массив пустым [], чтобы запрос ушел ТОЛЬКО 1 раз при входе.
-  // Добавление fetchTournaments в зависимости создаст бесконечный цикл, 
-  // поэтому мы используем eslint-disable-next-line
 
   return (
     <TournamentContext.Provider value={{ tournaments, isLoading, error, refreshTournaments: fetchTournaments }}>

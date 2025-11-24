@@ -42,7 +42,6 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       const roundName = roundList[i];
       if (!newBracket[roundName]) newBracket[roundName] = [];
 
-      // ИСПРАВЛЕНО: let -> const
       const expectedMatches = i === 0 
           ? newBracket[roundName].length 
           : Math.ceil(newBracket[roundList[i - 1]].length / 2);
@@ -53,11 +52,12 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
             if (!existingMatch) {
                 newBracket[roundName].push({
                     id: `${tourId}_${roundName}_${m}`,
-                    round: roundName,
                     match_number: m,
+                    round: roundName,
                     player1: { name: 'TBD' },
                     player2: { name: 'TBD' },
-                    predicted_winner: null
+                    predicted_winner: null,
+                    source_matches: [] 
                 });
             }
         }
@@ -133,12 +133,9 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       setIsLoading(true);
       try {
         const initData = await waitForTelegram();
-        if (!initData) {
-            // Не блокируем интерфейс, если initData нет, но предупреждаем
-            console.warn("Telegram initData not available");
-        }
-
-        const response = await fetch(`https://primechallenge.onrender.com/tournament/${id}`, {
+        
+        // === ИЗМЕНЕНИЕ: /api/tournament ===
+        const response = await fetch(`/api/tournament/${id}`, {
           headers: { Authorization: initData || '' },
         });
 
@@ -219,10 +216,9 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         });
     });
 
-    console.log(`Sending ${picks.length} picks to DB`);
-
     try {
-      const response = await fetch('https://primechallenge.onrender.com/picks/bulk', {
+      // === ИЗМЕНЕНИЕ: /api/picks/bulk ===
+      const response = await fetch('/api/picks/bulk', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

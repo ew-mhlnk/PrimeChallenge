@@ -47,19 +47,18 @@ export default function useAuth() {
           throw new Error('Telegram initData not available');
         }
 
-        // Используем initDataUnsafe для получения данных пользователя
         const telegramUser = telegram.initDataUnsafe.user;
         if (!telegramUser) {
           throw new Error('Telegram user data not available in initDataUnsafe');
         }
 
-        // Формируем объект пользователя
         setUser({
           id: telegramUser.id,
           firstName: telegramUser.first_name,
         });
 
-        const response = await fetch('https://primechallenge.onrender.com/auth/', {
+        // === ИЗМЕНЕНИЕ: Используем прокси /api/auth/ ===
+        const response = await fetch('/api/auth/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
