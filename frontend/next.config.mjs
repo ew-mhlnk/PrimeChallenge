@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // rewrites убираем, будем делать прокси вручную
+  // Пустой конфиг, всё делает наш route.ts
 };
 
 export default nextConfig;
