@@ -6,6 +6,7 @@ from database.db import init_db, engine
 from routers import auth, tournaments, picks
 from services.sync_service import sync_google_sheets_with_db
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from database.db import Base # <--- Добавьте этот импорт!
 
 logging.basicConfig(
     level=logging.INFO,
