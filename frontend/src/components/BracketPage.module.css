@@ -73,35 +73,24 @@
   transition: color 0.2s;
 }
 
-/* --- СТАНДАРТНЫЙ КОНТЕЙНЕР (На весь экран) --- */
+/* --- КОНТЕЙНЕР СЕТКИ --- */
+/* Используем один класс, но с min-height: 0, чтобы flex работал правильно */
 .bracketWindow {
-  flex: 1; /* Растягивается */
-  min-height: 0;
-  margin: 0 24px 20px 24px;
-  background: #141414;
+  flex: 1; /* Занимаем всё доступное место */
+  min-height: 0; /* Разрешаем сжатие */
+  margin: 0 24px 0px 24px; /* Отступы */
+  background: #141414; /* Фон совпадает с общим, но рамка выделяет */
   border-radius: 29px;
   border: 0.5px solid #4C4C4C;
   position: relative;
   overflow: hidden;
-  transition: all 0.3s ease; /* Плавное изменение размера */
+  display: flex;
+  flex-direction: column;
 }
 
-/* --- КОМПАКТНЫЙ КОНТЕЙНЕР (Для SF/F) --- */
-.bracketWindowCompact {
-  flex: 0; /* НЕ растягивается */
-  height: auto; /* Высота по содержимому */
-  min-height: 200px; /* Минимальная красота */
-  margin: 0 24px 20px 24px;
-  background: #141414;
-  border-radius: 29px;
-  border: 0.5px solid #4C4C4C;
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
+/* Внутренний скролл */
 .scrollArea {
-  height: 100%;
+  flex: 1;
   overflow-y: auto;
   padding: 24px 16px;
   scrollbar-width: none;
@@ -110,26 +99,158 @@
   display: none;
 }
 
+/* --- СПИСОК МАТЧЕЙ --- */
 .matchList {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  /* Убрали большой padding-bottom, так как контейнер сам ужмется */
+  gap: 24px; /* Отступ между матчами */
+  padding-bottom: 20px;
+  width: 100%;
 }
 
-/* ... (Остальные стили карточек без изменений) ... */
-.matchWrapper { position: relative; display: flex; align-items: center; }
-.matchContainer { display: flex; flex-direction: column; gap: 6px; width: 100%; position: relative; z-index: 10; }
-.playerCard { height: 48px; width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); background: #1B1B1B; color: #FFFFFF; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s ease, border 0.2s ease; position: relative; }
-.playerInfo { display: flex; align-items: center; gap: 8px; overflow: hidden; }
-.seed { color: #5F6067; font-size: 12px; }
-.selected { background: linear-gradient(90deg, rgba(0, 179, 255, 0.15) 0%, rgba(0, 119, 255, 0.15) 100%); border: 1px solid #00B3FF; box-shadow: 0 0 15px rgba(0, 178, 255, 0.1); }
-.correct { background: rgba(76, 175, 80, 0.15); border: 1px solid #4CAF50; color: #4CAF50; }
-.incorrect { background: rgba(244, 67, 54, 0.15); border: 1px solid #F44336; opacity: 0.7; }
-.strikethrough { text-decoration: line-through; color: #7E5B5B; }
-.correctAnswerHint { font-size: 11px; color: #5F6067; margin-left: auto; }
+/* --- BATTLE WRAPPER (Оболочка одного матча) --- */
+.battleWrapper {
+  display: flex;
+  position: relative;
+  width: 100%;
+  /* Добавляем отступ справа для скобки, если это не финал */
+  padding-right: 10px; 
+}
+
+/* Контейнер двух игроков (визуально объединенный блок) */
+.matchContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background: #1B1B1B;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden; /* Чтобы дети не вылезали за радиус */
+  position: relative;
+  z-index: 10;
+}
+
+/* --- Карточка игрока (Participant) --- */
+.playerRow {
+  height: 56px; /* Высота строки игрока как на референсе */
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05); /* Разделитель между игроками */
+}
+
+.playerRow:last-child {
+  border-bottom: none;
+}
+
+/* Инфо об игроке (Флаг/Имя) */
+.playerInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  flex: 1;
+}
+
+/* Имя игрока */
+.playerName {
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Seed (рейтинг) */
+.playerSeed {
+  color: #5F6067;
+  font-size: 12px;
+  font-weight: 400;
+  min-width: 20px;
+}
+
+/* --- Состояния выбора --- */
+
+/* Выбран пользователем */
+.selected {
+  background: linear-gradient(90deg, rgba(0, 119, 255, 0.15) 0%, rgba(0, 119, 255, 0.05) 100%);
+}
+/* Акцентная полоска слева для выбранного */
+.selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #00B3FF;
+}
+
+/* Правильный ответ */
+.correct {
+  background: rgba(76, 175, 80, 0.1);
+}
+.correct .playerName { color: #4CAF50; }
+
+/* Неправильный ответ */
+.incorrect {
+  background: rgba(244, 67, 54, 0.1);
+  opacity: 0.6;
+}
+.strikethrough { text-decoration: line-through; color: #888; }
+
+/* Подсказка (галочка) */
+.checkIcon {
+  color: #00B3FF;
+  margin-left: 8px;
+}
+
+/* TBD */
 .tbd { color: #444; font-style: italic; cursor: default; }
-.bracketConnector { position: absolute; right: -12px; top: 50%; transform: translateY(-50%); height: 54px; width: 8px; border-right: 1px solid #4C4C4C; border-top: 1px solid #4C4C4C; border-bottom: 1px solid #4C4C4C; border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+
+
+/* --- СКОБКА (CONNECTOR) --- */
+/* Это линия, которая соединяет двух игроков и ведет к следующему раунду */
+.bracketConnector {
+  position: absolute;
+  top: 50%; /* Центр матча */
+  right: -14px; /* Выносим за пределы matchContainer */
+  transform: translateY(-50%);
+  
+  /* Высота скобки = расстояние между центрами строк игроков.
+     Если высота строки 56px, то расстояние между центрами ~56px. 
+     Но лучше задать чуть меньше, чтобы хвостики были красивыми. */
+  height: 56px; 
+  width: 12px;
+  
+  /* Рисуем форму "]" */
+  border-top: 1px solid #4C4C4C;
+  border-bottom: 1px solid #4C4C4C;
+  border-right: 1px solid #4C4C4C;
+  
+  /* Скругление углов справа */
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+  
+  z-index: 0;
+}
+
+/* Хвостик, идущий к следующему матчу */
+.bracketConnector::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -10px; /* Длина хвостика */
+  width: 10px;
+  height: 1px;
+  background: #4C4C4C;
+}
 
 /* --- Footer --- */
 .footer {
@@ -140,11 +261,7 @@
   justify-content: center;
   background: transparent;
   z-index: 50;
-  /* Если контейнер компактный, кнопка подтянется вверх, но футер займет остаток места? 
-     Нет, во flex-col футер просто встанет следом. 
-     Если нужно прибить кнопку к низу экрана даже при маленьком контейнере, нужно добавить margin-top: auto к футеру.
-  */
-  margin-top: auto; /* ЭТО ВАЖНО: Прибивает футер к низу экрана, если контейнер маленький */
+  margin-top: 20px; /* Отступ от сетки */
 }
 
 .saveButton {
@@ -162,6 +279,7 @@
   cursor: pointer;
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
 }
+
 .saveButtonSaving {
   background: #00B3FF;
   border-color: #00B3FF;

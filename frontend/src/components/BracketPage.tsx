@@ -6,6 +6,7 @@ import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 import { useState } from 'react';
 
+// Иконки
 const BackIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M19 12H5" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -13,9 +14,15 @@ const BackIcon = () => (
   </svg>
 );
 
+const CheckIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M20 6L9 17L4 12" stroke="#00B3FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
 const slideVariants = {
   enter: (direction: number) => ({
-    x: direction > 0 ? 100 : -100,
+    x: direction > 0 ? 50 : -50, // Уменьшил амплитуду для большей плавности
     opacity: 0
   }),
   center: {
@@ -25,7 +32,7 @@ const slideVariants = {
   },
   exit: (direction: number) => ({
     zIndex: 0,
-    x: direction < 0 ? 100 : -100,
+    x: direction < 0 ? 50 : -50,
     opacity: 0
   })
 };
@@ -66,10 +73,6 @@ export default function BracketPage({ id }: { id: string }) {
     setTimeout(() => setIsSaving(false), 1000);
   };
 
-  // Определяем, нужно ли использовать компактный режим
-  // Обычно это SF (2 матча), F (1 матч), Champion (1 победитель)
-  const isCompactRound = ['SF', 'F', 'Champion'].includes(selectedRound);
-
   return (
     <div className={styles.container}>
       
@@ -83,7 +86,7 @@ export default function BracketPage({ id }: { id: string }) {
         </h2>
       </div>
 
-      {/* Баннер */}
+      {/* Banner */}
       <div className="w-full px-6 mb-4 shrink-0">
          <div className="w-full h-[100px] bg-[#D9D9D9] rounded-[20px]"></div>
       </div>
@@ -102,8 +105,7 @@ export default function BracketPage({ id }: { id: string }) {
       </div>
 
       {/* 3. Bracket Container */}
-      {/* Динамически меняем класс в зависимости от раунда */}
-      <div className={isCompactRound ? styles.bracketWindowCompact : styles.bracketWindow}>
+      <div className={styles.bracketWindow}>
         <div className={styles.scrollArea}>
           
           <AnimatePresence initial={false} custom={direction} mode="wait">
@@ -118,13 +120,13 @@ export default function BracketPage({ id }: { id: string }) {
                 x: { type: "spring", stiffness: 300, damping: 30 },
                 opacity: { duration: 0.2 }
               }}
+              layout // Магия: этот проп заставляет контейнер плавно менять высоту
               className={styles.matchList}
             >
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match) => {
                   const p1 = match.player1;
                   const p2 = match.player2;
-                  
                   const p1Name = p1?.name || 'TBD';
                   const p2Name = p2?.name || 'TBD';
                   
@@ -132,61 +134,55 @@ export default function BracketPage({ id }: { id: string }) {
                   const isP2Picked = match.predicted_winner === p2Name;
                   const realWinner = match.actual_winner;
                   
-                  let p1StyleClass = styles.playerCard;
-                  if (!isLiveOrClosed && isP1Picked) p1StyleClass += ` ${styles.selected}`;
-                  if (isLiveOrClosed) {
-                      if (isP1Picked && realWinner === p1Name) p1StyleClass += ` ${styles.correct}`;
-                      if (isP1Picked && realWinner && realWinner !== p1Name) p1StyleClass += ` ${styles.incorrect}`;
-                  }
-                  if (p1Name === 'TBD') p1StyleClass += ` ${styles.tbd}`;
-
-                  let p2StyleClass = styles.playerCard;
-                  if (!isLiveOrClosed && isP2Picked) p2StyleClass += ` ${styles.selected}`;
-                  if (isLiveOrClosed) {
-                      if (isP2Picked && realWinner === p2Name) p2StyleClass += ` ${styles.correct}`;
-                      if (isP2Picked && realWinner && realWinner !== p2Name) p2StyleClass += ` ${styles.incorrect}`;
-                  }
-                  if (p2Name === 'TBD') p2StyleClass += ` ${styles.tbd}`;
+                  // Функция для генерации классов
+                  const getPlayerClass = (name: string, isPicked: boolean) => {
+                      let cls = styles.playerRow;
+                      if (name === 'TBD') return `${cls} ${styles.tbd}`;
+                      if (!isLiveOrClosed && isPicked) cls += ` ${styles.selected}`;
+                      if (isLiveOrClosed) {
+                          if (isPicked && realWinner === name) cls += ` ${styles.correct}`;
+                          if (isPicked && realWinner && realWinner !== name) cls += ` ${styles.incorrect}`;
+                      }
+                      return cls;
+                  };
 
                   return (
-                    <div key={match.id} className={styles.matchWrapper}>
+                    <div key={match.id} className={styles.battleWrapper}>
                       <div className={styles.matchContainer}>
+                        
                         {/* Игрок 1 */}
-                        <motion.div 
-                          whileTap={{ scale: !isLiveOrClosed ? 0.98 : 1 }}
-                          className={p1StyleClass}
+                        <div 
+                          className={getPlayerClass(p1Name, isP1Picked)}
                           onClick={() => !isLiveOrClosed && p1Name !== 'TBD' && p1Name !== 'Bye' && handlePick(selectedRound!, match.id, p1Name)}
                         >
                           <div className={styles.playerInfo}>
-                              {p1.seed && <span className={styles.seed}>{p1.seed}</span>}
-                              <span className={isLiveOrClosed && isP1Picked && realWinner && realWinner !== p1Name ? styles.strikethrough : "truncate"}>
+                              {/* Здесь можно добавить флаг, если он появится в базе */}
+                              <span className={isLiveOrClosed && isP1Picked && realWinner && realWinner !== p1Name ? styles.strikethrough : styles.playerName}>
                                   {p1Name}
                               </span>
+                              {/* Показываем галочку выбора */}
+                              {!isLiveOrClosed && isP1Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
                           </div>
-                          {isLiveOrClosed && isP1Picked && realWinner && realWinner !== p1Name && (
-                              <span className={styles.correctAnswerHint}>Win: {realWinner}</span>
-                          )}
-                        </motion.div>
+                          <span className={styles.playerSeed}>{p1.seed ? p1.seed : ''}</span>
+                        </div>
 
                         {/* Игрок 2 */}
-                        <motion.div 
-                          whileTap={{ scale: !isLiveOrClosed ? 0.98 : 1 }}
-                          className={p2StyleClass}
+                        <div 
+                          className={getPlayerClass(p2Name, isP2Picked)}
                           onClick={() => !isLiveOrClosed && p2Name !== 'TBD' && p2Name !== 'Bye' && handlePick(selectedRound!, match.id, p2Name)}
                         >
                            <div className={styles.playerInfo}>
-                              {p2.seed && <span className={styles.seed}>{p2.seed}</span>}
-                              <span className={isLiveOrClosed && isP2Picked && realWinner && realWinner !== p2Name ? styles.strikethrough : "truncate"}>
+                              <span className={isLiveOrClosed && isP2Picked && realWinner && realWinner !== p2Name ? styles.strikethrough : styles.playerName}>
                                   {p2Name}
                               </span>
+                              {!isLiveOrClosed && isP2Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
                            </div>
-                           {isLiveOrClosed && isP2Picked && realWinner && realWinner !== p2Name && (
-                              <span className={styles.correctAnswerHint}>Win: {realWinner}</span>
-                          )}
-                        </motion.div>
+                           <span className={styles.playerSeed}>{p2.seed ? p2.seed : ''}</span>
+                        </div>
+
                       </div>
 
-                      {/* Скобка */}
+                      {/* Соединительная скобка */}
                       {selectedRound !== 'F' && selectedRound !== 'Champion' && (
                          <div className={styles.bracketConnector}></div>
                       )}
@@ -194,7 +190,7 @@ export default function BracketPage({ id }: { id: string }) {
                   );
                 })
               ) : (
-                  <div className="flex h-full items-center justify-center">
+                  <div className="flex h-full items-center justify-center py-10">
                     <p className="text-[#5F6067]">Нет матчей</p>
                   </div>
               )}
@@ -203,7 +199,7 @@ export default function BracketPage({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* 4. Footer. Проверка isLiveOrClosed возвращена! */}
+      {/* 4. Footer */}
       <div className={styles.footer}>
          {!isLiveOrClosed && (
             <motion.button
