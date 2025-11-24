@@ -6,7 +6,6 @@ import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 import { useState } from 'react';
 
-// Иконка стрелки
 const BackIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M19 12H5" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -17,7 +16,7 @@ const BackIcon = () => (
 // Варианты анимации слайда
 const slideVariants = {
   enter: (direction: number) => ({
-    x: direction > 0 ? 100 : -100, // Если вперед - выезжаем справа, если назад - слева
+    x: direction > 0 ? 100 : -100,
     opacity: 0
   }),
   center: {
@@ -27,7 +26,7 @@ const slideVariants = {
   },
   exit: (direction: number) => ({
     zIndex: 0,
-    x: direction < 0 ? 100 : -100, // Если вперед - уезжаем влево, если назад - уезжаем вправо
+    x: direction < 0 ? 100 : -100,
     opacity: 0
   })
 };
@@ -47,8 +46,6 @@ export default function BracketPage({ id }: { id: string }) {
   } = useTournamentLogic({ id });
   
   const [isSaving, setIsSaving] = useState(false);
-  
-  // Состояние для направления анимации: 1 (вправо/вперед) или -1 (влево/назад)
   const [direction, setDirection] = useState(0);
 
   if (isLoading) return <div className="flex justify-center pt-20 text-[#5F6067]">Загрузка...</div>;
@@ -57,12 +54,9 @@ export default function BracketPage({ id }: { id: string }) {
 
   const isLiveOrClosed = tournament.status !== 'ACTIVE';
 
-  // Функция переключения раунда с вычислением направления
   const changeRound = (newRound: string) => {
     const currentIndex = rounds.indexOf(selectedRound);
     const newIndex = rounds.indexOf(newRound);
-    
-    // Определяем направление: если индекс растет -> 1, иначе -> -1
     setDirection(newIndex > currentIndex ? 1 : -1);
     setSelectedRound(newRound);
   };
@@ -86,9 +80,9 @@ export default function BracketPage({ id }: { id: string }) {
         </h2>
       </div>
 
-      {/* Баннер (как на макете) */}
+      {/* Баннер (чуть уменьшил высоту до 100px, чтобы дать место сетке) */}
       <div className="w-full px-6 mb-4 shrink-0">
-         <div className="w-full h-[120px] bg-[#D9D9D9] rounded-[29px]"></div>
+         <div className="w-full h-[100px] bg-[#D9D9D9] rounded-[20px]"></div>
       </div>
 
       {/* 2. Rounds Navigation */}
@@ -104,7 +98,7 @@ export default function BracketPage({ id }: { id: string }) {
         ))}
       </div>
 
-      {/* 3. Bracket Container (Заполняет всё место) */}
+      {/* 3. Bracket Container (Заполняет всё свободное место) */}
       <div className={styles.bracketWindow}>
         <div className={styles.scrollArea}>
           
@@ -205,9 +199,10 @@ export default function BracketPage({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* 4. Footer с кнопкой */}
-      {!isLiveOrClosed && (
-        <div className={styles.footer}>
+      {/* 4. Footer с кнопкой. Убрал условие isLiveOrClosed для теста! */}
+      <div className={styles.footer}>
+        {/* Верни условие {!isLiveOrClosed && ...} когда убедишься, что кнопка видна */}
+         {!isLiveOrClosed && (
             <motion.button
                 onClick={onSaveClick}
                 whileTap={{ scale: 0.95 }}
@@ -219,8 +214,8 @@ export default function BracketPage({ id }: { id: string }) {
             >
                 {isSaving ? 'Сохранено!' : 'Сохранить'}
             </motion.button>
-        </div>
-      )}
+         )}
+      </div>
     </div>
   );
 }

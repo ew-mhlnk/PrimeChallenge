@@ -1,16 +1,16 @@
 /* --- Основной контейнер на весь экран --- */
 .container {
-  height: 100dvh; /* Высота экрана с учетом адресной строки браузера */
+  height: 100dvh; /* Строго высота экрана */
   width: 100%;
   background-color: #141414;
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Блокируем скролл всей страницы */
+  overflow: hidden; /* Запрещаем скролл всей страницы, скроллим только окно */
 }
 
 /* --- Шапка --- */
 .header {
-  flex-shrink: 0; /* Не сжиматься */
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   padding: 20px 24px 10px;
@@ -37,10 +37,10 @@
 
 /* --- Навигация по раундам --- */
 .roundsContainer {
-  flex-shrink: 0; /* Не сжиматься */
+  flex-shrink: 0;
   display: flex;
   gap: 8px;
-  padding: 0 24px 15px 24px;
+  padding: 0 24px 10px 24px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -75,14 +75,14 @@
 
 /* --- КОНТЕЙНЕР СЕТКИ (Тот самый прямоугольник) --- */
 .bracketWindow {
-  flex: 1; /* ЗАНИМАЕТ ВСЁ ДОСТУПНОЕ ПРОСТРАНСТВО */
-  min-height: 0; /* Важно для работы скролла внутри flex-элемента */
-  margin: 0 24px; /* Отступы слева и справа */
+  flex: 1; /* Занимает все свободное место, но... */
+  min-height: 0; /* ...позволяет содержимому сжиматься */
+  margin: 0 24px 20px 24px; /* Добавили 20px снизу, чтобы не прилипало к кнопке */
   background: #141414;
   border-radius: 29px;
   border: 0.5px solid #4C4C4C;
   position: relative;
-  overflow: hidden; /* Скрываем вылезающее за рамки */
+  overflow: hidden;
 }
 
 /* Область скролла ВНУТРИ окна */
@@ -100,7 +100,7 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding-bottom: 20px; /* Отступ снизу внутри скролла */
+  padding-bottom: 40px; /* Доп. место внутри скролла */
 }
 
 .matchWrapper {
@@ -168,12 +168,15 @@
 
 /* --- Footer (Место под кнопку) --- */
 .footer {
-  flex-shrink: 0; /* Не сжиматься */
-  height: 90px; /* Фиксированная высота футера */
+  flex-shrink: 0; /* Не сжиматься, всегда занимать свое место */
+  padding-bottom: max(20px, env(safe-area-inset-bottom)); /* Учитываем "челку" снизу на iPhone */
+  padding-top: 0px;
   display: flex;
-  align-items: center; /* Центрируем кнопку по вертикали */
+  align-items: flex-start; /* Прижимаем кнопку к верху футера */
   justify-content: center;
   background: transparent;
+  z-index: 50;
+  min-height: 80px; /* Резервируем место */
 }
 
 .saveButton {
