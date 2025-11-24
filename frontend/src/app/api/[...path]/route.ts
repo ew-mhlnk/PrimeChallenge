@@ -3,13 +3,18 @@ import { NextRequest, NextResponse } from 'next/server';
 // Адрес твоего бэкенда
 const BACKEND_URL = 'https://primechallenge.onrender.com';
 
-async function proxyHandler(req: NextRequest, { params }: { params: { path: string[] } }) {
-  // 1. Получаем путь из URL
-  const pathArray = params.path;
+// В Next.js 15 params — это Promise. Нужно обновить тип и добавить await.
+async function proxyHandler(
+  req: NextRequest, 
+  { params }: { params: Promise<{ path: string[] }> }
+) {
+  // 1. Ждем разрешения Promise и получаем путь
+  const resolvedParams = await params;
+  const pathArray = resolvedParams.path;
   let path = pathArray.join('/');
 
   // 2. ЛОГИКА СЛЕШЕЙ
-  // Добавляем слеш в конце только для определенных роутов, где FastAPI это требует
+  // Добавляем слеш в конце только для определенных роутов, где FastAPI этого требует
   if (path === 'tournaments' || path === 'auth') {
      path += '/';
   }
@@ -26,8 +31,7 @@ async function proxyHandler(req: NextRequest, { params }: { params: { path: stri
             const jsonBody = await req.json();
             body = JSON.stringify(jsonBody);
         } catch {
-            // ИСПРАВЛЕНО: убрали (e), чтобы линтер не ругался.
-            // Если тела нет или оно не JSON, просто игнорируем ошибку.
+            // Игнорируем ошибки парсинга JSON (если тело пустое)
         }
     }
 
@@ -48,18 +52,17 @@ async function proxyHandler(req: NextRequest, { params }: { params: { path: stri
     });
 
     // 5. Возврат ответа фронтенду
-    // Проверяем, есть ли контент в ответе, прежде чем парсить JSON
     const contentType = backendResponse.headers.get("content-type");
     let data;
     if (contentType && contentType.includes("application/json")) {
         data = await backendResponse.json();
     } else {
-        data = await backendResponse.text();
+        // Если вернулся не JSON (например, текст ошибки), читаем как текст
+        const textData = await backendResponse.text();
         try {
-             data = JSON.parse(data);
+             data = JSON.parse(textData);
         } catch {
-             // Если это не JSON, возвращаем как есть или пустой объект
-             // data остается текстом
+             data = textData; // Возвращаем просто текст, если это не JSON
         }
     }
 
