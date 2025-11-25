@@ -5,7 +5,7 @@ from database.db import get_db
 from database import models
 from database.models import User
 from utils.auth import get_current_user
-from utils.pick_handler import save_pick
+from utils.pick_handler import save_picks_bulk_transaction # <--- ИСПОЛЬЗУЕМ ЭТО
 from schemas import UserPick, UserPickCreate
 import logging
 
@@ -25,13 +25,17 @@ async def create_picks_bulk(
     user: dict = Depends(get_current_user)
 ):
     user_id = user["id"]
-    logger.info(f"Bulk save request for user {user_id}, picks: {len(picks)}")
+    logger.info(f"Bulk save request for user {user_id}, picks count: {len(picks)}")
     
+    if not picks:
+        return []
+
     # 1. Гарантируем, что пользователь существует
     try:
+        # Пытаемся найти или создать пользователя
         db_user = db.query(User).filter(User.user_id == user_id).first()
         if not db_user:
-            logger.info(f"User {user_id} missing. Creating...")
+            logger.info(f"User {user_id} missing in DB. Creating...")
             new_user = User(
                 user_id=user_id,
                 first_name=user.get("first_name", "Unknown"),
@@ -41,33 +45,15 @@ async def create_picks_bulk(
             db.add(new_user)
             db.commit()
             db.refresh(new_user)
-            logger.info(f"User {user_id} created successfully")
     except Exception as e:
         logger.error(f"Error creating user: {e}")
-        db.rollback() # Откатываем транзакцию, чтобы не блокировать БД
-        # Пробуем продолжить, возможно, юзер был создан в параллельном запросе
+        db.rollback()
+        # Если юзер уже есть (race condition), просто продолжаем
     
-    # 2. Сохраняем пики
-    saved_picks = []
-    for pick in picks:
-        if not pick.predicted_winner:
-            continue
-
-        pick_data = {
-            "tournament_id": pick.tournament_id,
-            "round": pick.round,
-            "match_number": pick.match_number,
-            "predicted_winner": pick.predicted_winner
-        }
-        
-        try:
-            # Используем save_pick (он делает commit внутри)
-            # Важно: save_pick удаляет старые пики будущих раундов
-            saved = save_pick(pick_data, db, user_id)
-            saved_picks.append(saved)
-        except Exception as e:
-            logger.error(f"Error saving pick {pick_data}: {e}")
-            db.rollback() # Откат конкретного пика, идем к следующему
-            continue
-            
-    return saved_picks
+    # 2. Сохраняем пики одной транзакцией
+    try:
+        saved_picks = save_picks_bulk_transaction(picks, db, user_id)
+        return saved_picks
+    except Exception as e:
+        logger.error(f"CRITICAL ERROR in bulk save: {e}")
+        raise HTTPException(status_code=500, detail=f"Save failed: {str(e)}")
