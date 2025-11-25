@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session
 from database import models
 
-# Очки за правильный прогноз в каждом раунде
+# СНЕЖНЫЙ КОМ (Веса раундов)
+# Чем сложнее раунд, тем больше очков.
 ROUND_WEIGHTS = {
     "R128": 1,
     "R64": 2,
@@ -10,7 +11,7 @@ ROUND_WEIGHTS = {
     "QF": 16,
     "SF": 32,
     "F": 64,
-    "Champion": 128 # Максимальные очки за победителя турнира
+    "Champion": 128
 }
 
 def compute_comparison_and_scores(tournament: models.Tournament, user_id: int, db: Session) -> dict:
@@ -26,18 +27,23 @@ def compute_comparison_and_scores(tournament: models.Tournament, user_id: int, d
     correct_count = 0
     
     for match in true_draws:
-        # Ищем прогноз пользователя на этот матч
+        # Ищем прогноз пользователя
         pick = next((p for p in user_picks if p.round == match.round and p.match_number == match.match_number), None)
         
         is_correct = False
-        # Проверяем совпадение (без учета регистра и пробелов)
+        
+        # Главная проверка:
+        # 1. У матча должен быть определен победитель (winner is not None)
+        # 2. У пользователя должен быть прогноз (pick is not None)
+        # 3. Имена должны совпадать (Sinner == Sinner). 
+        #    Если Sinner заменен на LL Khachanov, то (Sinner != LL Khachanov) -> False.
         if pick and match.winner and pick.predicted_winner:
+            # Сравниваем без учета регистра и лишних пробелов
             if pick.predicted_winner.strip().lower() == match.winner.strip().lower():
                 is_correct = True
 
         if is_correct:
             correct_count += 1
-            # Начисляем очки в зависимости от веса раунда
             total_score += ROUND_WEIGHTS.get(match.round, 0)
             
         comparison.append({
@@ -50,7 +56,7 @@ def compute_comparison_and_scores(tournament: models.Tournament, user_id: int, d
             "correct": is_correct
         })
     
-    # Обновляем таблицу очков
+    # Обновляем/Создаем запись в таблице очков
     user_score = db.query(models.UserScore).filter_by(user_id=user_id, tournament_id=tournament.id).first()
     if user_score:
         user_score.correct_picks = correct_count
@@ -65,4 +71,8 @@ def compute_comparison_and_scores(tournament: models.Tournament, user_id: int, d
     
     db.commit()
     
-    return {"comparison": comparison, "score": total_score, "correct_picks": correct_count}
+    return {
+        "comparison": comparison, 
+        "score": total_score, 
+        "correct_picks": correct_count
+    }

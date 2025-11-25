@@ -7,222 +7,166 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import pytz
 
-# Настройка логгера
 logger = logging.getLogger(__name__)
 
 def get_google_sheets_client():
-    """
-    Создаёт клиент для работы с Google Sheets API.
-    """
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     credentials_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
     if not credentials_json:
-        logger.error("GOOGLE_SHEETS_CREDENTIALS environment variable is not set")
-        raise ValueError("GOOGLE_SHEETS_CREDENTIALS environment variable is not set")
+        raise ValueError("GOOGLE_SHEETS_CREDENTIALS missing")
     
-    try:
-        credentials_dict = json.loads(credentials_json)
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON: {str(e)}")
-        raise ValueError(f"Invalid JSON: {str(e)}")
-    
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+    credentials = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(credentials_json), scope)
     return gspread.authorize(credentials)
 
 def parse_datetime(date_str: str) -> datetime:
-    """
-    Парсит дату. Поддерживает форматы с секундами и без.
-    """
-    if not date_str:
-        return None
+    if not date_str: return None
     try:
-        # Пробуем с секундами
         return datetime.strptime(date_str, "%d.%m.%Y %H:%M:%S").replace(tzinfo=pytz.UTC)
     except ValueError:
         try:
-            # Пробуем без секунд
             return datetime.strptime(date_str, "%d.%m.%Y %H:%M").replace(tzinfo=pytz.UTC)
         except ValueError:
-            logger.error(f"Date parse error: {date_str}")
+            logger.error(f"Date error: {date_str}")
             raise
 
 async def sync_google_sheets_with_db(engine: Engine) -> None:
-    logger.info("Starting sync with Google Sheets")
+    logger.info("Starting sync...")
     try:
         client = get_google_sheets_client()
-        google_sheet_id = os.getenv("GOOGLE_SHEET_ID")
-        sheet = client.open_by_key(google_sheet_id)
+        sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
     except Exception as e:
-        logger.error(f"Fatal error connecting to Google Sheets: {str(e)}")
+        logger.error(f"Sheet connect error: {e}")
         return
 
     with engine.connect() as conn:
-        # 1. СИНХРОНИЗАЦИЯ СПИСКА ТУРНИРОВ
+        # 1. ТУРНИРЫ
         try:
-            tournaments_worksheet = sheet.worksheet("tournaments")
-            tournament_data = tournaments_worksheet.get_all_values()
-        except Exception as e:
-            logger.error(f"Error reading 'tournaments' sheet: {e}")
-            return
-
-        if not tournament_data or len(tournament_data) < 2:
+            rows = sheet.worksheet("tournaments").get_all_values()
+        except:
             return
 
         tournaments_to_sync = []
-        current_time = datetime.now(pytz.UTC)
+        now = datetime.now(pytz.UTC)
 
-        # Пропускаем заголовок (row[0])
-        for row in tournament_data[1:]:
+        for row in rows[1:]: # Skip headers
             if len(row) < 10: continue
-
             with conn.begin_nested():
                 try:
-                    t_id = int(row[0])
-                    name = row[1]
-                    dates = row[2]
-                    status = row[3].upper().strip()
-                    sheet_name = row[4]
-                    starting_round = row[5]
-                    t_type = row[6]
-                    start_str = row[7]
-                    close_str = row[8]
-                    tag = row[9]
+                    tid, name, dates, status, sheet_name, s_round, t_type, start, close, tag = row[:10]
+                    tid = int(tid)
+                    status = status.upper().strip()
 
-                    # Проверка времени для авто-закрытия
-                    if start_str:
+                    # Авто-закрытие по времени
+                    if start:
                         try:
-                            start_dt = parse_datetime(start_str)
-                            if status == "ACTIVE" and current_time > start_dt:
+                            if status == "ACTIVE" and now > parse_datetime(start):
                                 status = "CLOSED"
-                                logger.info(f"Tournament {t_id} auto-closed by time")
-                        except Exception:
-                            pass # Если дата кривая, оставляем статус как есть
+                        except: pass
 
-                    conn.execute(
-                        text("""
-                            INSERT INTO tournaments (id, name, dates, status, sheet_name, starting_round, type, start, close, tag)
-                            VALUES (:id, :name, :dates, :status, :sheet_name, :starting_round, :type, :start, :close, :tag)
-                            ON CONFLICT (id) DO UPDATE
-                            SET name = EXCLUDED.name, dates = EXCLUDED.dates, status = EXCLUDED.status,
-                                sheet_name = EXCLUDED.sheet_name, starting_round = EXCLUDED.starting_round,
-                                type = EXCLUDED.type, start = EXCLUDED.start, close = EXCLUDED.close, tag = EXCLUDED.tag
-                        """),
-                        {
-                            "id": t_id, "name": name, "dates": dates, "status": status,
-                            "sheet_name": sheet_name, "starting_round": starting_round,
-                            "type": t_type, "start": start_str, "close": close_str, "tag": tag
-                        }
-                    )
+                    conn.execute(text("""
+                        INSERT INTO tournaments (id, name, dates, status, sheet_name, starting_round, type, start, close, tag)
+                        VALUES (:id, :name, :dates, :status, :sheet, :sr, :type, :start, :close, :tag)
+                        ON CONFLICT (id) DO UPDATE SET 
+                        name=EXCLUDED.name, dates=EXCLUDED.dates, status=EXCLUDED.status, 
+                        sheet_name=EXCLUDED.sheet_name, starting_round=EXCLUDED.starting_round,
+                        type=EXCLUDED.type, start=EXCLUDED.start, close=EXCLUDED.close, tag=EXCLUDED.tag
+                    """), {"id": tid, "name": name, "dates": dates, "status": status, "sheet": sheet_name, 
+                           "sr": s_round, "type": t_type, "start": start, "close": close, "tag": tag})
                     
-                    # Добавляем в очередь на синк матчей (ACTIVE, CLOSED и COMPLETED тоже, чтобы обновить чемпиона)
-                    tournaments_to_sync.append((t_id, sheet_name, starting_round))
-
+                    tournaments_to_sync.append((tid, sheet_name))
                 except Exception as e:
-                    logger.error(f"Error processing tournament row {row}: {e}")
-                    continue
-        
+                    logger.error(f"Row error: {e}")
+
         conn.commit()
 
-        # 2. СИНХРОНИЗАЦИЯ МАТЧЕЙ
-        for t_id, sheet_name, starting_round in tournaments_to_sync:
+        # 2. МАТЧИ И ЧЕМПИОНЫ
+        for tid, sheet_name in tournaments_to_sync:
             try:
                 with conn.begin_nested():
                     try:
-                        worksheet = sheet.worksheet(sheet_name)
-                        data = worksheet.get_all_values()
-                    except Exception:
-                        logger.warning(f"Sheet '{sheet_name}' not found for tournament {t_id}")
-                        continue
-
-                    if len(data) < 2: continue
-
-                    headers = data[0]
-                    # Карта колонок: 'R32': 5 (индекс колонки)
-                    round_cols = {i: h for i, h in enumerate(headers) if h in ["R128","R64","R32","R16","QF","SF","F"]}
+                        ws = sheet.worksheet(sheet_name)
+                        data = ws.get_all_values()
+                    except: continue
                     
-                    # === ПОИСК ЧЕМПИОНА ===
-                    champion_name = None
-                    # Обычно чемпион в колонке 42 ("Champion")
-                    if len(headers) >= 43 and headers[42] == "Champion" and len(data) > 1:
-                        val = data[1][42].strip()
-                        if val: champion_name = val
+                    if len(data) < 2: continue
+                    headers = data[0]
+                    
+                    # Индексы колонок
+                    cols = {h: i for i, h in enumerate(headers)}
+                    rounds = ["R128", "R64", "R32", "R16", "QF", "SF", "F"]
+                    
+                    # --- ЧЕМПИОН ---
+                    champion = None
+                    if "Champion" in cols and len(data) > 1:
+                        val = data[1][cols["Champion"]].strip()
+                        if val: champion = val
 
-                    # --- Парсинг матчей (старая логика) ---
+                    # --- МАТЧИ ---
                     row_idx = 1
                     while row_idx < len(data) - 1:
-                        p1_row = data[row_idx]
-                        p2_row = data[row_idx + 1]
+                        r1, r2 = data[row_idx], data[row_idx+1]
                         
-                        for col_idx, r_name in round_cols.items():
-                            # Читаем имена
-                            p1 = p1_row[col_idx].strip() if col_idx < len(p1_row) else ""
-                            p2 = p2_row[col_idx].strip() if col_idx < len(p2_row) else ""
+                        for round_name in rounds:
+                            if round_name not in cols: continue
+                            idx = cols[round_name]
+                            
+                            p1 = r1[idx].strip() if idx < len(r1) else ""
+                            p2 = r2[idx].strip() if idx < len(r2) else ""
                             
                             if not p1 or not p2: continue
 
-                            # Вычисляем номер матча
-                            # (Логика: считаем заполненные пары выше текущей строки в этой колонке)
-                            match_num = 1
-                            for r in range(1, row_idx, 2):
-                                if col_idx < len(data[r]) and data[r][col_idx].strip():
-                                    match_num += 1
+                            # Номер матча (считаем заполненные пары выше)
+                            m_num = 1
+                            for i in range(1, row_idx, 2):
+                                if idx < len(data[i]) and data[i][idx].strip(): m_num += 1
                             
-                            # Определяем победителя
+                            # Определение победителя
                             winner = None
-                            # Смотрим следующий раунд
-                            next_round_map = {"R128":"R64", "R64":"R32", "R32":"R16", "R16":"QF", "QF":"SF", "SF":"F"}
-                            if r_name in next_round_map:
-                                next_r = next_round_map[r_name]
-                                # Ищем колонку следующего раунда
-                                next_col = None
-                                for nc, nr in round_cols.items():
-                                    if nr == next_r: 
-                                        next_col = nc; break
-                                
-                                if next_col:
-                                    # В следующем раунде победитель будет в строке p1 или p2 (объединенная ячейка или одна из них)
-                                    # Упрощенно: проверяем, есть ли имя победителя в след. колонке в этих же строках
-                                    next_val1 = p1_row[next_col].strip() if next_col < len(p1_row) else ""
-                                    next_val2 = p2_row[next_col].strip() if next_col < len(p2_row) else ""
-                                    
-                                    if next_val1 in [p1, p2]: winner = next_val1
-                                    elif next_val2 in [p1, p2]: winner = next_val2
                             
-                            # Для Финала победитель - это Чемпион
-                            if r_name == "F" and champion_name and champion_name in [p1, p2]:
-                                winner = champion_name
+                            # 1. Логика BYE (Авто-победа)
+                            if p2.lower() == "bye": winner = p1
+                            elif p1.lower() == "bye": winner = p2
+                            
+                            # 2. Логика обычная (смотрим след. раунд)
+                            else:
+                                # Находим следующий раунд
+                                curr_r_idx = rounds.index(round_name)
+                                if curr_r_idx < len(rounds) - 1:
+                                    next_r = rounds[curr_r_idx + 1]
+                                    if next_r in cols:
+                                        n_idx = cols[next_r]
+                                        # Победитель должен появиться в следующей колонке в одной из этих двух строк
+                                        np1 = r1[n_idx].strip() if n_idx < len(r1) else ""
+                                        np2 = r2[n_idx].strip() if n_idx < len(r2) else ""
+                                        if np1 in [p1, p2]: winner = np1
+                                        elif np2 in [p1, p2]: winner = np2
+                                
+                                # Если это финал, проверяем чемпиона
+                                if round_name == "F" and champion and champion in [p1, p2]:
+                                    winner = champion
 
-                            # Сохраняем матч
-                            conn.execute(
-                                text("""
-                                    INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner)
-                                    VALUES (:tid, :rnd, :mn, :p1, :p2, :win)
-                                    ON CONFLICT (tournament_id, round, match_number) DO UPDATE
-                                    SET player1=EXCLUDED.player1, player2=EXCLUDED.player2, winner=EXCLUDED.winner
-                                """),
-                                {"tid": t_id, "rnd": r_name, "mn": match_num, "p1": p1, "p2": p2, "win": winner}
-                            )
+                            conn.execute(text("""
+                                INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner)
+                                VALUES (:tid, :rnd, :mn, :p1, :p2, :win)
+                                ON CONFLICT (tournament_id, round, match_number) DO UPDATE
+                                SET player1=EXCLUDED.player1, player2=EXCLUDED.player2, winner=EXCLUDED.winner
+                            """), {"tid": tid, "rnd": round_name, "mn": m_num, "p1": p1, "p2": p2, "win": winner})
 
                         row_idx += 2
 
-                    # === СОХРАНЕНИЕ РАУНДА CHAMPION ===
-                    if champion_name:
-                        conn.execute(
-                            text("""
-                                INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner)
-                                VALUES (:tid, 'Champion', 1, :name, NULL, :name)
-                                ON CONFLICT (tournament_id, round, match_number) DO UPDATE
-                                SET winner = EXCLUDED.winner, player1 = EXCLUDED.player1
-                            """),
-                            {"tid": t_id, "name": champion_name}
-                        )
-                        # Закрываем турнир, если есть чемпион
-                        conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": t_id})
-                        logger.info(f"Tournament {t_id}: Champion set to {champion_name}")
+                    # Сохраняем чемпиона как отдельный раунд
+                    if champion:
+                        conn.execute(text("""
+                            INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner)
+                            VALUES (:tid, 'Champion', 1, :name, NULL, :name)
+                            ON CONFLICT (tournament_id, round, match_number) DO UPDATE
+                            SET winner=EXCLUDED.winner, player1=EXCLUDED.player1
+                        """), {"tid": tid, "name": champion})
+                        
+                        # Ставим статус COMPLETED
+                        conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": tid})
 
             except Exception as e:
-                logger.error(f"Sync error for tournament {t_id}: {e}")
+                logger.error(f"Sync error T{tid}: {e}")
                 continue
-        
         conn.commit()
-        logger.info("Sync finished")
