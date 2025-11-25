@@ -20,9 +20,16 @@ const CheckIcon = () => (
   </svg>
 );
 
+const TrophyIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 15C15.866 15 19 11.866 19 8V3H5V8C5 11.866 8.13401 15 12 15Z" stroke="#FFD700" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M8.21 13.89L7 21H17L15.79 13.88" stroke="#FFD700" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
 const slideVariants = {
   enter: (direction: number) => ({
-    x: direction > 0 ? 50 : -50, // Уменьшил амплитуду для большей плавности
+    x: direction > 0 ? 50 : -50,
     opacity: 0
   }),
   center: {
@@ -73,6 +80,10 @@ export default function BracketPage({ id }: { id: string }) {
     setTimeout(() => setIsSaving(false), 1000);
   };
 
+  // Проверка на раунд чемпиона
+  const isChampionRound = selectedRound === 'Champion';
+  const isCompactRound = ['SF', 'F', 'Champion'].includes(selectedRound);
+
   return (
     <div className={styles.container}>
       
@@ -105,7 +116,7 @@ export default function BracketPage({ id }: { id: string }) {
       </div>
 
       {/* 3. Bracket Container */}
-      <div className={styles.bracketWindow}>
+      <div className={isCompactRound ? styles.bracketWindowCompact : styles.bracketWindow}>
         <div className={styles.scrollArea}>
           
           <AnimatePresence initial={false} custom={direction} mode="wait">
@@ -120,11 +131,32 @@ export default function BracketPage({ id }: { id: string }) {
                 x: { type: "spring", stiffness: 300, damping: 30 },
                 opacity: { duration: 0.2 }
               }}
-              layout // Магия: этот проп заставляет контейнер плавно менять высоту
+              layout
               className={styles.matchList}
             >
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match) => {
+                  
+                  // === ОТОБРАЖЕНИЕ ЧЕМПИОНА ===
+                  if (isChampionRound) {
+                     // Пытаемся найти имя: либо уже определен (actual), либо прогноз (predicted), либо протянут (player1)
+                     const championName = match.actual_winner || match.predicted_winner || match.player1?.name || 'TBD';
+                     
+                     return (
+                        <div key={match.id} className="w-full flex justify-center py-10">
+                            <div className={styles.championContainer}>
+                                <div className={styles.championRow}>
+                                    <div className={styles.trophyIcon}><TrophyIcon /></div>
+                                    <span className={championName === 'TBD' ? styles.championTBD : styles.championName}>
+                                        {championName}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                     );
+                  }
+
+                  // === ОБЫЧНЫЙ МАТЧ ===
                   const p1 = match.player1;
                   const p2 = match.player2;
                   const p1Name = p1?.name || 'TBD';
@@ -134,7 +166,6 @@ export default function BracketPage({ id }: { id: string }) {
                   const isP2Picked = match.predicted_winner === p2Name;
                   const realWinner = match.actual_winner;
                   
-                  // Функция для генерации классов
                   const getPlayerClass = (name: string, isPicked: boolean) => {
                       let cls = styles.playerRow;
                       if (name === 'TBD') return `${cls} ${styles.tbd}`;
@@ -156,11 +187,9 @@ export default function BracketPage({ id }: { id: string }) {
                           onClick={() => !isLiveOrClosed && p1Name !== 'TBD' && p1Name !== 'Bye' && handlePick(selectedRound!, match.id, p1Name)}
                         >
                           <div className={styles.playerInfo}>
-                              {/* Здесь можно добавить флаг, если он появится в базе */}
                               <span className={isLiveOrClosed && isP1Picked && realWinner && realWinner !== p1Name ? styles.strikethrough : styles.playerName}>
                                   {p1Name}
                               </span>
-                              {/* Показываем галочку выбора */}
                               {!isLiveOrClosed && isP1Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
                           </div>
                           <span className={styles.playerSeed}>{p1.seed ? p1.seed : ''}</span>
@@ -182,8 +211,8 @@ export default function BracketPage({ id }: { id: string }) {
 
                       </div>
 
-                      {/* Соединительная скобка */}
-                      {selectedRound !== 'F' && selectedRound !== 'Champion' && (
+                      {/* Скобка */}
+                      {selectedRound !== 'F' && (
                          <div className={styles.bracketConnector}></div>
                       )}
                     </div>

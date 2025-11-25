@@ -34,7 +34,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
   const [rounds, setRounds] = useState<string[]>([]);
 
-  // === 1. ГЕНЕРАЦИЯ СЕТКИ ===
+  // === 1. ГЕНЕРАЦИЯ СТРУКТУРЫ ===
   const ensureBracketStructure = useCallback((baseBracket: { [round: string]: BracketMatch[] }, roundList: string[], tourId: number) => {
     const newBracket = JSON.parse(JSON.stringify(baseBracket));
 
@@ -46,8 +46,11 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
           ? newBracket[roundName].length 
           : Math.ceil(newBracket[roundList[i - 1]].length / 2);
 
-      if (newBracket[roundName].length < expectedMatches) {
-        for (let m = 1; m <= expectedMatches; m++) {
+      // Для раунда Champion всегда 1 матч
+      const count = roundName === 'Champion' ? 1 : expectedMatches;
+
+      if (newBracket[roundName].length < count) {
+        for (let m = 1; m <= count; m++) {
             const existingMatch = newBracket[roundName].find((match: BracketMatch) => match.match_number === m);
             if (!existingMatch) {
                 newBracket[roundName].push({
@@ -79,9 +82,21 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     if (currentRoundIndex === -1 || currentRoundIndex === roundList.length - 1) return;
 
     const nextRound = roundList[currentRoundIndex + 1];
+    
+    // === СПЕЦИАЛЬНАЯ ЛОГИКА: F -> Champion ===
+    if (nextRound === 'Champion') {
+        const championMatch = bracketState['Champion']?.find(m => m.match_number === 1);
+        if (championMatch) {
+            // Устанавливаем победителя для визуализации и сохранения
+            championMatch.player1 = { name: winnerName || 'TBD' };
+            championMatch.predicted_winner = winnerName;
+        }
+        return;
+    }
+
+    // === ОБЫЧНАЯ ЛОГИКА ===
     const nextMatchNumber = Math.ceil(matchNumber / 2);
     const isPlayer1InNext = matchNumber % 2 !== 0; 
-
     const nextMatch = bracketState[nextRound]?.find((m) => m.match_number === nextMatchNumber);
 
     if (nextMatch) {
@@ -105,6 +120,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         if (!matches) continue;
 
         matches.forEach((match: BracketMatch) => {
+            // BYE
             if (i === 0) {
                 if (match.player1?.name === 'Bye' && match.player2?.name && match.player2.name !== 'TBD') {
                     match.predicted_winner = match.player2.name;
@@ -117,6 +133,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
                     return;
                 }
             }
+            // Picks
             if (match.predicted_winner) {
                 propagateWinner(initialBracket, roundList, roundName, match.match_number, match.predicted_winner);
             }
@@ -134,28 +151,21 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       try {
         const initData = await waitForTelegram();
         
-        console.log(`Загрузка турнира ${id}...`); // ЛОГ 1
+        console.log(`Loading tournament ${id}...`);
 
         const response = await fetch(`/api/tournament/${id}`, {
           headers: { Authorization: initData || '' },
-          cache: 'no-store', // Отключаем кэш браузера
-          next: { revalidate: 0 } // Отключаем кэш Next.js
+          cache: 'no-store',
+          next: { revalidate: 0 }
         });
 
-        if (!response.ok) throw new Error(`Ошибка сервера: ${response.status}`);
+        if (!response.ok) throw new Error(`Server error: ${response.status}`);
         const data = await response.json();
 
-        console.log('API RESPONSE:', data); // ЛОГ 2: Смотри сюда в консоли!
+        console.log('API RESPONSE:', data);
 
         if (isMounted) {
-            // === ЖЕСТКАЯ ОЧИСТКА СТАТУСА ===
-            if (data.status) {
-                // Удаляем пробелы и переводим в верхний регистр
-                data.status = data.status.toString().trim().toUpperCase();
-            }
-            
-            console.log('CLEAN STATUS:', data.status); // ЛОГ 3
-
+            if (data.status) data.status = data.status.toString().trim().toUpperCase();
             setTournament(data);
             setRounds(data.rounds || []);
             setSelectedRound((prev) => prev || data.starting_round || data.rounds?.[0] || null);
@@ -182,9 +192,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
 
   // === 5. КЛИК ===
   const handlePick = (round: string, matchId: string, player: string) => {
-    // Проверка статуса с логом
     if (tournament?.status !== 'ACTIVE') {
-        console.warn('Клик заблокирован. Статус:', tournament?.status);
         toast.error('Турнир не активен');
         return;
     }
@@ -212,7 +220,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     const initData = await waitForTelegram() || window.Telegram?.WebApp?.initData;
     
     if (!initData) {
-        toast.error('Ошибка: нет связи с Telegram');
+        toast.error('Нет связи с Telegram');
         return;
     }
 
@@ -247,7 +255,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       }
     } catch (error) {
       console.error(error);
-      toast.error('Ошибка сохранения. Попробуйте еще раз.');
+      toast.error('Ошибка сохранения');
     }
   };
 
