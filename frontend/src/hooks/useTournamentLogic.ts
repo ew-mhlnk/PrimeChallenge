@@ -15,6 +15,7 @@ type PickPayload = {
   predicted_winner: string;
 };
 
+// Хелпер для ожидания загрузки Telegram WebApp
 const waitForTelegram = async (retries = 20, delay = 100): Promise<string | null> => {
     for (let i = 0; i < retries; i++) {
         if (window.Telegram?.WebApp?.initData) {
@@ -34,7 +35,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
   const [rounds, setRounds] = useState<string[]>([]);
 
-  // === 1. ГЕНЕРАЦИЯ ПУСТОЙ СТРУКТУРЫ ===
+  // === 1. ГЕНЕРАЦИЯ ПУСТОЙ СТРУКТУРЫ СЕТКИ ===
   const ensureBracketStructure = useCallback((baseBracket: { [round: string]: BracketMatch[] }, roundList: string[], tourId: number) => {
     const newBracket = JSON.parse(JSON.stringify(baseBracket));
 
@@ -67,7 +68,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     return newBracket;
   }, []);
 
-  // === 2. ПРОНОС ПОБЕДИТЕЛЯ ===
+  // === 2. ПРОНОС ПОБЕДИТЕЛЯ (ВИЗУАЛЬНО) ===
   const propagateWinner = useCallback((
     bracketState: { [round: string]: BracketMatch[] },
     roundList: string[],
@@ -90,6 +91,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
 
       nextMatch[targetSlot] = { name: winnerName || 'TBD' };
 
+      // Если мы поменяли игрока, сбрасываем прогноз в следующем раунде, если он был на старого игрока
       if (nextMatch.predicted_winner && nextMatch.predicted_winner === oldPlayerName && oldPlayerName !== winnerName) {
           nextMatch.predicted_winner = null;
           propagateWinner(bracketState, roundList, nextRound, nextMatchNumber, null);
@@ -97,7 +99,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     }
   }, []);
 
-  // === 3. ОБРАБОТКА BYE И ПИКОВ ===
+  // === 3. ОБРАБОТКА УЖЕ СОХРАНЕННЫХ ПИКОВ И BYE ===
   const processSavedPicksAndByes = useCallback((initialBracket: { [round: string]: BracketMatch[] }, roundList: string[]) => {
     for (let i = 0; i < roundList.length; i++) {
         const roundName = roundList[i];
@@ -105,6 +107,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         if (!matches) continue;
 
         matches.forEach((match: BracketMatch) => {
+            // Авто-проход для BYE в первом раунде
             if (i === 0) {
                 if (match.player1?.name === 'Bye' && match.player2?.name && match.player2.name !== 'TBD') {
                     match.predicted_winner = match.player2.name;
@@ -117,6 +120,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
                     return;
                 }
             }
+            // Пронос сохраненных победителей
             if (match.predicted_winner) {
                 propagateWinner(initialBracket, roundList, roundName, match.match_number, match.predicted_winner);
             }
@@ -134,9 +138,12 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       try {
         const initData = await waitForTelegram();
         
-        // === ИЗМЕНЕНИЕ: /api/tournament ===
+        // Используем прокси /api/tournament/
+        // cache: 'no-store' ВАЖЕН, чтобы статус ACTIVE подтягивался сразу, без кэширования старого CLOSED
         const response = await fetch(`/api/tournament/${id}`, {
           headers: { Authorization: initData || '' },
+          cache: 'no-store',
+          next: { revalidate: 0 } // Для Next.js App Router
         });
 
         if (!response.ok) throw new Error(`Ошибка сервера: ${response.status}`);
@@ -146,7 +153,8 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
             if (data.status) data.status = data.status.trim().toUpperCase();
             setTournament(data);
             setRounds(data.rounds || []);
-            setSelectedRound(data.starting_round || data.rounds?.[0] || null);
+            // Если раунд еще не выбран, выбираем стартовый
+            setSelectedRound((prev) => prev || data.starting_round || data.rounds?.[0] || null);
 
             let fullBracket = ensureBracketStructure(data.bracket || {}, data.rounds || [], data.id);
             fullBracket = processSavedPicksAndByes(fullBracket, data.rounds || []);
@@ -168,7 +176,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     return () => { isMounted = false; };
   }, [id, ensureBracketStructure, processSavedPicksAndByes]);
 
-  // === 5. КЛИК ПОЛЬЗОВАТЕЛЯ ===
+  // === 5. КЛИК ПОЛЬЗОВАТЕЛЯ (ВЫБОР ПОБЕДИТЕЛЯ) ===
   const handlePick = (round: string, matchId: string, player: string) => {
     if (tournament?.status !== 'ACTIVE') {
         toast.error('Турнир не активен');
@@ -180,10 +188,12 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       const match = newBracket[round]?.find((m: BracketMatch) => m.id === matchId);
 
       if (match) {
+        // Если кликнули на того, кто уже выбран -> отменяем выбор
         if (match.predicted_winner === player) {
           match.predicted_winner = null;
           propagateWinner(newBracket, rounds, round, match.match_number, null);
         } else {
+          // Иначе ставим нового победителя
           match.predicted_winner = player;
           propagateWinner(newBracket, rounds, round, match.match_number, player);
         }
@@ -193,7 +203,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     setHasPicks(true);
   };
 
-  // === 6. СОХРАНЕНИЕ ===
+  // === 6. СОХРАНЕНИЕ ПРОГНОЗОВ ===
   const savePicks = async () => {
     const initData = await waitForTelegram() || window.Telegram?.WebApp?.initData;
     
@@ -202,6 +212,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         return;
     }
 
+    // Собираем только матчи с выбранными победителями
     const picks: PickPayload[] = [];
     Object.keys(bracket).forEach(r => {
         bracket[r].forEach(m => {
@@ -217,7 +228,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     });
 
     try {
-      // === ИЗМЕНЕНИЕ: /api/picks/bulk ===
+      // Используем прокси /api/picks/bulk
       const response = await fetch('/api/picks/bulk', {
         method: 'POST',
         headers: {
