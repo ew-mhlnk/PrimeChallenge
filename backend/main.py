@@ -5,6 +5,7 @@ from database.db import init_db, engine
 from routers import auth, tournaments, picks
 from services.sync_service import sync_google_sheets_with_db
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from routers import users # Импорт
 
 logging.basicConfig(
     level=logging.INFO,
@@ -69,3 +70,5 @@ async def manual_sync():
 @app.get("/ping")
 async def ping():
     return {"message": "pong", "cors": "fixed"}
+
+app.include_router(users.router, prefix="/users", tags=["users"]) # Подключение

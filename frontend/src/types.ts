@@ -107,3 +107,31 @@ export interface LeaderboardEntry {
   correct_picks: number;
 }
 
+export interface StatRow {
+  category: string;
+  rank: number;
+  total_participants: number;
+  points: number;
+  correct_picks: number;
+  incorrect_picks: number;
+  percent_correct: string;
+  total_brackets: number;
+}
+
+export interface TournamentHistoryRow {
+  tournament_id: number;
+  name: string;
+  rank: number;
+  total_participants: number;
+  points: number;
+  correct_picks: number;
+  incorrect_picks: number;
+  percent_correct: string;
+}
+
+export interface ProfileStats {
+  user_id: number;
+  name: string;
+  cumulative: StatRow[];
+  history: TournamentHistoryRow[];
+}
