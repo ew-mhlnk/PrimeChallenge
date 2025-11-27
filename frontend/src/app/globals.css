@@ -5,3 +5,22 @@
 body {
   @apply bg-gray-900 text-white font-sans;
 }
+
+/* Скрыть скроллбар, но оставить функционал */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Анимация блика для баннера */
+@keyframes shimmer {
+  0% { transform: translateX(-150%) skewX(-20deg); }
+  100% { transform: translateX(150%) skewX(-20deg); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+}

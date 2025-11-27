@@ -2,94 +2,207 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import useTournaments from '../hooks/useTournaments';
+import useAuth from '../hooks/useAuth';
 import { Tournament } from '@/types';
-import TagSelector from '../components/TagSelector';
+
+// --- КОМПОНЕНТЫ UI ---
+
+// 1. Аватарка с буквой
+const UserAvatar = ({ name }: { name: string }) => {
+  const letter = name ? name.charAt(0).toUpperCase() : 'U';
+  
+  return (
+    <div className="w-12 h-12 rounded-full bg-[#1B1E25] flex items-center justify-center border border-white/10 shadow-lg relative overflow-hidden group">
+      <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent opacity-0 group-active:opacity-100 transition-opacity" />
+      <span className="text-xl font-bold text-white font-sf">{letter}</span>
+    </div>
+  );
+};
+
+// 2. Теги (Фильтры) - ИСПРАВЛЕННЫЕ ТИПЫ
+interface FilterPillProps {
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+  colorClass: string;
+}
+
+const FilterPill = ({ label, isActive, onClick, colorClass }: FilterPillProps) => {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        relative px-6 py-3 rounded-full text-[13px] font-bold tracking-wide transition-all duration-300
+        ${isActive ? 'text-white shadow-[0_0_20px_rgba(0,0,0,0.3)] scale-105' : 'text-[#8E8E93] bg-[#1C1C1E] border border-white/5'}
+      `}
+    >
+      {isActive && (
+        <motion.div
+          layoutId="activeTagBg"
+          className={`absolute inset-0 rounded-full -z-10 ${colorClass}`}
+          initial={false}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        />
+      )}
+      <span className="relative z-10">{label}</span>
+    </button>
+  );
+};
+
+// 3. Карточка турнира
+const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
+  const isActive = tournament.status === 'ACTIVE';
+  
+  return (
+    <Link href={`/tournament/${tournament.id}`} className="block w-full">
+      <motion.div
+        whileTap={{ scale: 0.96 }}
+        className="w-full relative overflow-hidden bg-[#1C1C1E] rounded-[32px] border border-white/5 p-5 shadow-xl group"
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+        <div className="flex flex-col gap-1 relative z-10">
+          <div className="flex items-start justify-between">
+             <h3 className="text-[22px] font-bold text-white leading-tight pr-4">
+                {tournament.name}
+             </h3>
+             {tournament.tag && (
+               <span className={`
+                 text-[10px] font-black px-2 py-1 rounded-md border border-white/10 uppercase
+                 ${tournament.tag === 'ATP' ? 'bg-[#002BFF]/20 text-[#5E83FF]' : ''}
+                 ${tournament.tag === 'WTA' ? 'bg-[#7B00FF]/20 text-[#C685FF]' : ''}
+                 ${tournament.tag === 'ТБШ' ? 'bg-yellow-500/20 text-yellow-300' : ''}
+               `}>
+                 {tournament.tag}
+               </span>
+             )}
+          </div>
+
+          <p className="text-[13px] font-medium text-[#8E8E93] mt-1">
+            {tournament.dates || 'Даты уточняются'}
+          </p>
+
+          <div className="mt-6 flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-[#32D74B] animate-pulse' : 'bg-[#8E8E93]'}`} />
+            <span className={`text-[12px] font-medium ${isActive ? 'text-[#32D74B]' : 'text-[#8E8E93]'}`}>
+              {isActive ? 'Live • Идет сейчас' : 'Скоро начнется'}
+            </span>
+          </div>
+        </div>
+      </motion.div>
+    </Link>
+  );
+};
+
+// --- ОСНОВНАЯ СТРАНИЦА ---
 
 export default function Home() {
   const { tournaments, error } = useTournaments();
+  const { user } = useAuth();
   const [selectedTag, setSelectedTag] = useState<string>('ВСЕ');
 
-  if (error) return <p className="text-red-500 px-8 pt-8">Ошибка: {error}</p>;
-  if (!tournaments) return <p className="text-[#FFFFFF] px-8 pt-8">Загрузка турниров...</p>;
+  const filters = [
+    { label: 'ВСЕ', color: 'bg-[#007AFF]' },
+    { label: 'ATP', color: 'bg-[#002BFF]' },
+    { label: 'WTA', color: 'bg-[#7B00FF]' },
+    { label: 'ТБШ', color: 'bg-gradient-to-r from-[#FDF765] to-[#DAB07F]' },
+  ];
 
-  const activeTournaments = tournaments.filter((tournament: Tournament) => {
+  if (error) return <p className="text-red-500 px-8 pt-20">Ошибка: {error}</p>;
+
+  const activeTournaments = tournaments ? tournaments.filter((tournament: Tournament) => {
     if (!['ACTIVE', 'CLOSED'].includes(tournament.status)) return false;
     if (selectedTag === 'ВСЕ') return true;
     return tournament.tag === selectedTag;
-  });
+  }) : [];
+
+  const userName = user?.username || user?.firstName || 'Друг';
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white flex flex-col pb-24"> {/* Добавил pb-24 чтобы контент не перекрывался меню */}
+    <div className="min-h-screen bg-[#141414] text-white flex flex-col relative overflow-x-hidden pb-32">
       
-      {/* Header */}
-      <header className="flex justify-between items-start px-8 pt-8 mb-8"> {/* Добавил mb-8 вместо пустых дивов */}
-        <div>
-          <h1 className="text-[25px] font-bold text-[#00B2FF] text-left leading-none">
-            BRACKET CHALLENGE
-          </h1>
-          <p className="text-[12px] font-normal text-[#FFFFFF] text-left leading-none mt-0">
-            BY ПРАЙМСПОРТ
-          </p>
-        </div>
-        <Link href="/profile">
-          <div data-svg-wrapper data-layer="Rectangle 533" className="cursor-pointer">
-            <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="1" y="1" width="48" height="48" rx="24" fill="url(#paint0_linear_1613_3)" fillOpacity="0.26" stroke="#00B3FF" strokeWidth="2"/>
-              <defs>
-                <linearGradient id="paint0_linear_1613_3" x1="0.570776" y1="50" x2="48.4078" y2="48.7622" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#008CFF"/>
-                  <stop offset="1" stopColor="#0077FF"/>
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-        </Link>
-      </header>
+      {/* Фон */}
+      <div 
+        className="fixed top-[-100px] left-[-100px] w-[453px] h-[453px] rounded-full pointer-events-none"
+        style={{
+          background: '#0B80B3',
+          filter: 'blur(90px)',
+          opacity: 0.6,
+          transform: 'rotate(-60deg)',
+          zIndex: 0
+        }}
+      />
 
-      {/* УДАЛИЛ БАННЕР И ОТСТУПЫ */}
-
-      <main className="flex-1 px-8">
-        <div className="flex justify-between items-center mb-[15px]">
-          <h2 className="text-[20px] font-semibold text-[#FFFFFF] text-left">
-            ТУРНИРЫ ЭТОЙ НЕДЕЛИ
-          </h2>
-          <Link href="/archive">
-            <span className="text-[#00B2FF] text-[14px]">Архив</span>
+      <main className="relative z-10 px-6 pt-12 flex flex-col gap-8">
+        
+        {/* Header */}
+        <header className="flex items-center gap-4">
+          <Link href="/profile">
+            <UserAvatar name={userName} />
           </Link>
-        </div>
+          <div className="flex flex-col">
+            <span className="text-[15px] text-[#8E8E93] font-medium leading-none">Добро пожаловать,</span>
+            <h1 className="text-[28px] font-bold text-white leading-tight tracking-tight mt-1">
+              @{userName}
+            </h1>
+          </div>
+        </header>
 
-        <TagSelector selectedTag={selectedTag} setSelectedTag={setSelectedTag} />
+        {/* Banner */}
+        <motion.div 
+          whileTap={{ scale: 0.98 }}
+          className="w-full aspect-[2/1] bg-[#D9D9D9] rounded-[28px] relative overflow-hidden cursor-pointer"
+        >
+           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
+                style={{ transform: 'skewX(-20deg) translateX(-150%)' }} />
+           
+           <div className="absolute bottom-4 left-5">
+              <span className="text-black/50 text-xs font-bold uppercase tracking-widest bg-white/30 px-2 py-1 rounded-md backdrop-blur-md">
+                Promo
+              </span>
+           </div>
+        </motion.div>
 
-        <div className="space-y-[20px] flex flex-col items-center w-full"> {/* w-full важно для адаптива */}
-          {activeTournaments.length === 0 ? (
-            <p className="text-[#FFFFFF]">Нет активных турниров</p>
-          ) : (
-            activeTournaments.map((tournament: Tournament) => (
-              <Link href={`/tournament/${tournament.id}`} key={tournament.id} className="w-full max-w-[500px]"> {/* Ограничил ширину карточки, но разрешил растягиваться */}
-                <div
-                  className="w-full h-[93px] bg-gradient-to-r from-[#1B1A1F] to-[#161616] rounded-[10px] border border-[rgba(255,255,255,0.18)] relative transition-transform active:scale-95"
-                >
-                  <h3 className="absolute top-[10px] left-[10px] text-[20px] font-semibold text-[#FFFFFF]">
-                    {tournament.name}
-                  </h3>
-                  <p className="absolute top-[35px] left-[10px] text-[10px] font-normal text-[#5F6067]">
-                    {tournament.dates || 'Даты не указаны'}
-                  </p>
-                  {/* Теги... (код тегов тот же) */}
-                  <div className="absolute top-[10px] right-[10px] flex items-center justify-center">
-                    {/* ... вставьте код SVG тегов обратно, если нужно, он не менялся ... */}
-                    {tournament.tag && (
-                        <span className="text-xs font-bold text-white px-2 py-1 rounded border border-white/10">
-                            {tournament.tag}
-                        </span>
-                    )}
-                  </div>
+        {/* Filters & List */}
+        <section>
+          <div className="flex justify-between items-end mb-5">
+            <h2 className="text-[22px] font-bold text-white tracking-tight">
+              Турниры этой недели
+            </h2>
+          </div>
+
+          <div className="flex gap-3 overflow-x-auto pb-4 -mx-6 px-6 scrollbar-hide">
+            {filters.map((f) => (
+              <FilterPill 
+                key={f.label} 
+                label={f.label} 
+                isActive={selectedTag === f.label}
+                colorClass={f.color}
+                onClick={() => setSelectedTag(f.label)}
+              />
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-5 mt-2">
+            {!tournaments ? (
+               [1,2].map(i => (
+                 <div key={i} className="h-[140px] w-full bg-[#1C1C1E] rounded-[32px] animate-pulse border border-white/5" />
+               ))
+            ) : activeTournaments.length === 0 ? (
+                <div className="text-center py-10">
+                    <p className="text-[#8E8E93] text-lg">Нет активных турниров</p>
+                    <Link href="/archive" className="text-[#007AFF] text-sm mt-2 block">Посмотреть архив</Link>
                 </div>
-              </Link>
-            ))
-          )}
-        </div>
+            ) : (
+                activeTournaments.map((tournament: Tournament) => (
+                  <TournamentCard key={tournament.id} tournament={tournament} />
+                ))
+            )}
+          </div>
+        </section>
+
       </main>
     </div>
   );

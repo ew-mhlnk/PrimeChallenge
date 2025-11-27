@@ -135,3 +135,15 @@ export interface ProfileStats {
   cumulative: StatRow[];
   history: TournamentHistoryRow[];
 }
+
+export interface TournamentHistoryRow {
+  tournament_id: number;
+  name: string;
+  rank: number;
+  total_participants: number;
+  points: number;
+  correct_picks: number;
+  incorrect_picks: number;
+  percent_correct: string;
+  tag: string; // <--- НОВОЕ ПОЛЕ
+}
