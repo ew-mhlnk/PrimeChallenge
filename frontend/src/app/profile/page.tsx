@@ -1,209 +1,152 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import useTournaments from '../hooks/useTournaments';
-import useAuth from '../hooks/useAuth';
-import { Tournament } from '@/types';
+// ИСПРАВЛЕНО: Добавлено ../ (теперь ../../hooks/...)
+import useAuth from '../../hooks/useAuth'; 
+// ИСПРАВЛЕНО: Добавлено ../ (теперь ../../components/...)
+import TagSelector from '../../components/TagSelector'; 
+import { ProfileStats, TournamentHistoryRow } from '@/types';
 
-// --- КОМПОНЕНТЫ UI ---
+// Хелпер для ожидания Telegram InitData
+const waitForTelegram = async () => {
+    let attempts = 0;
+    while (!window.Telegram?.WebApp?.initData && attempts < 20) {
+        await new Promise(r => setTimeout(r, 100));
+        attempts++;
+    }
+    return window.Telegram?.WebApp?.initData;
+};
 
-// 1. Аватарка с буквой
-const UserAvatar = ({ name }: { name: string }) => {
-  const letter = name ? name.charAt(0).toUpperCase() : 'U';
+export default function Profile() {
+  const { isLoading: authLoading } = useAuth();
   
-  return (
-    <div className="w-12 h-12 rounded-full bg-[#1B1E25] flex items-center justify-center border border-white/10 shadow-lg relative overflow-hidden group">
-      <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent opacity-0 group-active:opacity-100 transition-opacity" />
-      <span className="text-xl font-bold text-white font-sf">{letter}</span>
-    </div>
-  );
-};
-
-// 2. Теги (Фильтры) - ИСПРАВЛЕННЫЕ ТИПЫ
-interface FilterPillProps {
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-  colorClass: string;
-}
-
-const FilterPill = ({ label, isActive, onClick, colorClass }: FilterPillProps) => {
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        relative px-6 py-3 rounded-full text-[13px] font-bold tracking-wide transition-all duration-300
-        ${isActive ? 'text-white shadow-[0_0_20px_rgba(0,0,0,0.3)] scale-105' : 'text-[#8E8E93] bg-[#1C1C1E] border border-white/5'}
-      `}
-    >
-      {isActive && (
-        <motion.div
-          layoutId="activeTagBg"
-          className={`absolute inset-0 rounded-full -z-10 ${colorClass}`}
-          initial={false}
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-        />
-      )}
-      <span className="relative z-10">{label}</span>
-    </button>
-  );
-};
-
-// 3. Карточка турнира
-const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
-  const isActive = tournament.status === 'ACTIVE';
+  const [stats, setStats] = useState<ProfileStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  return (
-    <Link href={`/tournament/${tournament.id}`} className="block w-full">
-      <motion.div
-        whileTap={{ scale: 0.96 }}
-        className="w-full relative overflow-hidden bg-[#1C1C1E] rounded-[32px] border border-white/5 p-5 shadow-xl group"
-      >
-        <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-
-        <div className="flex flex-col gap-1 relative z-10">
-          <div className="flex items-start justify-between">
-             <h3 className="text-[22px] font-bold text-white leading-tight pr-4">
-                {tournament.name}
-             </h3>
-             {tournament.tag && (
-               <span className={`
-                 text-[10px] font-black px-2 py-1 rounded-md border border-white/10 uppercase
-                 ${tournament.tag === 'ATP' ? 'bg-[#002BFF]/20 text-[#5E83FF]' : ''}
-                 ${tournament.tag === 'WTA' ? 'bg-[#7B00FF]/20 text-[#C685FF]' : ''}
-                 ${tournament.tag === 'ТБШ' ? 'bg-yellow-500/20 text-yellow-300' : ''}
-               `}>
-                 {tournament.tag}
-               </span>
-             )}
-          </div>
-
-          <p className="text-[13px] font-medium text-[#8E8E93] mt-1">
-            {tournament.dates || 'Даты уточняются'}
-          </p>
-
-          <div className="mt-6 flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-[#32D74B] animate-pulse' : 'bg-[#8E8E93]'}`} />
-            <span className={`text-[12px] font-medium ${isActive ? 'text-[#32D74B]' : 'text-[#8E8E93]'}`}>
-              {isActive ? 'Live • Идет сейчас' : 'Скоро начнется'}
-            </span>
-          </div>
-        </div>
-      </motion.div>
-    </Link>
-  );
-};
-
-// --- ОСНОВНАЯ СТРАНИЦА ---
-
-export default function Home() {
-  const { tournaments, error } = useTournaments();
-  const { user } = useAuth();
   const [selectedTag, setSelectedTag] = useState<string>('ВСЕ');
 
-  const filters = [
-    { label: 'ВСЕ', color: 'bg-[#007AFF]' },
-    { label: 'ATP', color: 'bg-[#002BFF]' },
-    { label: 'WTA', color: 'bg-[#7B00FF]' },
-    { label: 'ТБШ', color: 'bg-gradient-to-r from-[#FDF765] to-[#DAB07F]' },
-  ];
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const initData = await waitForTelegram();
+        if (!initData) return;
 
-  if (error) return <p className="text-red-500 px-8 pt-20">Ошибка: {error}</p>;
+        const response = await fetch('/api/users/profile/stats', {
+          headers: { Authorization: initData },
+          cache: 'no-store'
+        });
 
-  const activeTournaments = tournaments ? tournaments.filter((tournament: Tournament) => {
-    if (!['ACTIVE', 'CLOSED'].includes(tournament.status)) return false;
-    if (selectedTag === 'ВСЕ') return true;
-    return tournament.tag === selectedTag;
-  }) : [];
+        if (!response.ok) throw new Error('Не удалось загрузить статистику');
+        
+        const data = await response.json();
+        setStats(data);
+      } catch (err) {
+        setError('Ошибка загрузки профиля');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const userName = user?.username || user?.firstName || 'Друг';
+    fetchStats();
+  }, []);
+
+  const filteredHistory = stats?.history.filter((item: TournamentHistoryRow) => {
+      if (selectedTag === 'ВСЕ') return true;
+      return item.tag === selectedTag;
+  }) || [];
+
+  if (authLoading || loading) return <div className="p-8 text-[#5F6067]">Загрузка профиля...</div>;
+  if (error) return <div className="p-8 text-red-500">{error}</div>;
+  if (!stats) return null;
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white flex flex-col relative overflow-x-hidden pb-32">
-      
-      {/* Фон */}
-      <div 
-        className="fixed top-[-100px] left-[-100px] w-[453px] h-[453px] rounded-full pointer-events-none"
-        style={{
-          background: '#0B80B3',
-          filter: 'blur(90px)',
-          opacity: 0.6,
-          transform: 'rotate(-60deg)',
-          zIndex: 0
-        }}
-      />
+    <div className="min-h-screen bg-[#141414] text-white pb-24">
+      {/* Header */}
+      <div className="px-6 pt-8 mb-8">
+        <h1 className="text-2xl font-bold text-[#00B2FF] mb-1">Личный кабинет</h1>
+        <p className="text-xl text-white font-semibold">
+          Добро пожаловать, <span className="text-[#00B2FF]">{stats.name}</span>!
+        </p>
+      </div>
 
-      <main className="relative z-10 px-6 pt-12 flex flex-col gap-8">
+      {/* 1. Сводная таблица (Cumulative) */}
+      <section className="px-4 mb-10">
+        <h2 className="text-lg font-bold mb-4 px-2">Статистика 2025</h2>
+        <div className="overflow-x-auto rounded-xl border border-[#333] bg-[#1B1B1B]">
+          <table className="w-full text-sm text-left min-w-[600px]">
+            <thead className="text-xs text-[#8E8E93] uppercase bg-[#252525] border-b border-[#333]">
+              <tr>
+                <th className="px-4 py-3">Категория</th>
+                <th className="px-4 py-3">Ранг</th>
+                <th className="px-4 py-3">Очки</th>
+                <th className="px-4 py-3 text-center">Верно</th>
+                <th className="px-4 py-3 text-center">Неверно</th>
+                <th className="px-4 py-3">%</th>
+                <th className="px-4 py-3 text-center">Турниры</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.cumulative.map((row, idx) => (
+                <tr key={idx} className="border-b border-[#333] hover:bg-[#222] transition">
+                  <td className="px-4 py-3 font-medium text-white">{row.category}</td>
+                  <td className="px-4 py-3 text-[#00B2FF]">#{row.rank} <span className="text-[#5F6067]">/ {row.total_participants}</span></td>
+                  <td className="px-4 py-3 font-bold">{row.points}</td>
+                  <td className="px-4 py-3 text-center text-green-500">{row.correct_picks}</td>
+                  <td className="px-4 py-3 text-center text-red-500">{row.incorrect_picks}</td>
+                  <td className="px-4 py-3">{row.percent_correct}</td>
+                  <td className="px-4 py-3 text-center">{row.total_brackets}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* 2. История турниров */}
+      <section className="px-4">
+        <h2 className="text-lg font-bold mb-4 px-2">История турниров</h2>
         
-        {/* Header */}
-        <header className="flex items-center gap-4">
-          <Link href="/profile">
-            <UserAvatar name={userName} />
-          </Link>
-          <div className="flex flex-col">
-            <span className="text-[15px] text-[#8E8E93] font-medium leading-none">Добро пожаловать,</span>
-            <h1 className="text-[28px] font-bold text-white leading-tight tracking-tight mt-1">
-              @{userName}
-            </h1>
-          </div>
-        </header>
+        {/* Фильтры */}
+        <div className="px-2 mb-4">
+            <TagSelector selectedTag={selectedTag} setSelectedTag={setSelectedTag} />
+        </div>
 
-        {/* Banner */}
-        <motion.div 
-          whileTap={{ scale: 0.98 }}
-          className="w-full aspect-[2/1] bg-[#D9D9D9] rounded-[28px] relative overflow-hidden cursor-pointer"
-        >
-           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
-                style={{ transform: 'skewX(-20deg) translateX(-150%)' }} />
-           
-           <div className="absolute bottom-4 left-5">
-              <span className="text-black/50 text-xs font-bold uppercase tracking-widest bg-white/30 px-2 py-1 rounded-md backdrop-blur-md">
-                Promo
-              </span>
-           </div>
-        </motion.div>
-
-        {/* Filters & List */}
-        <section>
-          <div className="flex justify-between items-end mb-5">
-            <h2 className="text-[22px] font-bold text-white tracking-tight">
-              Турниры этой недели
-            </h2>
-          </div>
-
-          <div className="flex gap-3 overflow-x-auto pb-4 -mx-6 px-6 scrollbar-hide">
-            {filters.map((f) => (
-              <FilterPill 
-                key={f.label} 
-                label={f.label} 
-                isActive={selectedTag === f.label}
-                colorClass={f.color}
-                onClick={() => setSelectedTag(f.label)}
-              />
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-5 mt-2">
-            {!tournaments ? (
-               [1,2].map(i => (
-                 <div key={i} className="h-[140px] w-full bg-[#1C1C1E] rounded-[32px] animate-pulse border border-white/5" />
-               ))
-            ) : activeTournaments.length === 0 ? (
-                <div className="text-center py-10">
-                    <p className="text-[#8E8E93] text-lg">Нет активных турниров</p>
-                    <Link href="/archive" className="text-[#007AFF] text-sm mt-2 block">Посмотреть архив</Link>
-                </div>
-            ) : (
-                activeTournaments.map((tournament: Tournament) => (
-                  <TournamentCard key={tournament.id} tournament={tournament} />
-                ))
-            )}
-          </div>
-        </section>
-
-      </main>
+        {filteredHistory.length === 0 ? (
+            <p className="text-[#5F6067] px-2">Нет турниров в этой категории.</p>
+        ) : (
+            <div className="overflow-x-auto rounded-xl border border-[#333] bg-[#1B1B1B]">
+            <table className="w-full text-sm text-left min-w-[600px]">
+                <thead className="text-xs text-[#8E8E93] uppercase bg-[#252525] border-b border-[#333]">
+                <tr>
+                    <th className="px-4 py-3">Турнир</th>
+                    <th className="px-4 py-3">Ранг</th>
+                    <th className="px-4 py-3">Очки</th>
+                    <th className="px-4 py-3 text-center">Верно</th>
+                    <th className="px-4 py-3 text-center">Неверно</th>
+                    <th className="px-4 py-3">%</th>
+                </tr>
+                </thead>
+                <tbody>
+                {filteredHistory.map((row) => (
+                    <tr key={row.tournament_id} className="border-b border-[#333] hover:bg-[#222] transition">
+                    <td className="px-4 py-3 font-medium text-[#00B2FF]">
+                        <Link href={`/tournament/${row.tournament_id}`}>{row.name}</Link>
+                    </td>
+                    <td className="px-4 py-3">#{row.rank} <span className="text-[#5F6067]">/ {row.total_participants}</span></td>
+                    <td className="px-4 py-3 font-bold">{row.points}</td>
+                    <td className="px-4 py-3 text-center text-green-500">{row.correct_picks}</td>
+                    <td className="px-4 py-3 text-center text-red-500">{row.incorrect_picks}</td>
+                    <td className="px-4 py-3">{row.percent_correct}</td>
+                    </tr>
+                ))}
+                </tbody>
+            </table>
+            </div>
+        )}
+      </section>
     </div>
   );
 }
