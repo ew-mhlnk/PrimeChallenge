@@ -2,133 +2,111 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import useTournaments from '../../hooks/useTournaments';
 import { Tournament } from '@/types';
-import TagSelector from '../../components/TagSelector';
+
+// Карточка турнира
+const ArchiveCard = ({ tournament }: { tournament: Tournament }) => {
+  return (
+    <Link href={`/tournament/${tournament.id}`} className="block w-full">
+      <motion.div
+        whileTap={{ scale: 0.96 }}
+        className="w-full bg-[#1C1C1E] rounded-[28px] border border-white/5 p-5 shadow-lg group relative overflow-hidden"
+      >
+        <div className="flex items-start justify-between relative z-10">
+             <h3 className="text-[18px] font-bold text-white leading-tight pr-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                {tournament.name}
+             </h3>
+             {tournament.tag && (
+               <span className="text-[10px] font-bold px-2 py-1 rounded border border-white/10 text-[#8E8E93] uppercase">
+                 {tournament.tag}
+               </span>
+             )}
+        </div>
+        <p className="text-[12px] text-[#5F6067] mt-1 relative z-10">
+            {tournament.dates}
+        </p>
+        
+        {/* Индикатор завершенности */}
+        <div className="mt-4 flex items-center gap-2 relative z-10">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#5F6067]" />
+            <span className="text-[11px] font-medium text-[#5F6067]">Завершен</span>
+        </div>
+      </motion.div>
+    </Link>
+  );
+};
+
+// --- ИСПРАВЛЕНИЕ: Добавлен интерфейс для пропсов ---
+interface FilterButtonProps {
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+}
+
+const FilterButton = ({ label, isActive, onClick }: FilterButtonProps) => (
+    <button
+      onClick={onClick}
+      className={`
+        px-5 py-2.5 rounded-full text-[13px] font-bold transition-all
+        ${isActive ? 'bg-white text-black' : 'bg-[#1C1C1E] text-[#8E8E93] border border-white/5'}
+      `}
+    >
+      {label}
+    </button>
+);
 
 export default function Archive() {
   const { tournaments, error } = useTournaments();
   const [selectedTag, setSelectedTag] = useState<string>('ВСЕ');
 
-  if (error) {
-    return <p className="text-red-500 px-8">Ошибка: {error}</p>;
-  }
+  if (error) return <p className="text-red-500 px-8 pt-20">Ошибка: {error}</p>;
 
-  if (!tournaments) {
-    return <p className="text-[#FFFFFF] px-8">Загрузка турниров...</p>;
-  }
-
-  const completedTournaments = tournaments.filter((tournament: Tournament) => {
-    // Показываем только турниры со статусом COMPLETED
-    if (tournament.status !== 'COMPLETED') return false;
+  // Фильтрация: только COMPLETED
+  const completedTournaments = tournaments ? tournaments.filter((t: Tournament) => {
+    if (t.status !== 'COMPLETED') return false;
     if (selectedTag === 'ВСЕ') return true;
-    return tournament.tag === selectedTag;
-  });
+    return t.tag === selectedTag;
+  }) : [];
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white flex flex-col">
+    <div className="min-h-screen bg-[#141414] text-white flex flex-col pb-32">
+      
       {/* Header */}
-      <header className="flex justify-between items-start px-8 pt-8">
-        <div>
-          <h1 className="text-[25px] font-bold text-[#00B2FF] text-left leading-none">
-            BRACKET CHALLENGE
-          </h1>
-          <p className="text-[12px] font-normal text-[#FFFFFF] text-left leading-none mt-0">
-            BY ПРАЙМСПОРТ
-          </p>
+      <header className="px-6 pt-10 pb-6">
+        <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-white">Архив</h1>
+            <Link href="/">
+                <div className="w-10 h-10 rounded-full bg-[#1C1C1E] flex items-center justify-center border border-white/5">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2">
+                        <path d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </div>
+            </Link>
         </div>
-        <Link href="/profile">
-          <div data-svg-wrapper data-layer="Rectangle 533" className="Rectangle533">
-            <svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="1" y="1" width="48" height="48" rx="24" fill="url(#paint0_linear_1613_3)" fillOpacity="0.26" stroke="#00B3FF" strokeWidth="2"/>
-              <defs>
-                <linearGradient id="paint0_linear_1613_3" x1="0.570776" y1="50" x2="48.4078" y2="48.7622" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#008CFF"/>
-                  <stop offset="1" stopColor="#0077FF"/>
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-        </Link>
+
+        {/* Фильтры */}
+        <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 scrollbar-hide">
+            {['ВСЕ', 'ATP', 'WTA', 'ТБШ'].map(tag => (
+                <FilterButton key={tag} label={tag} isActive={selectedTag === tag} onClick={() => setSelectedTag(tag)} />
+            ))}
+        </div>
       </header>
 
-      <div className="h-[50px]"></div>
-
-      <div className="flex justify-center">
-        <div data-layer="Rectangle 541" className="Rectangle541 w-[330px] max-w-[90vw] h-[124px] bg-[#D9D9D9] rounded-[29px]"></div>
-      </div>
-
-      <div className="h-[75px]"></div>
-
-      <main className="flex-1 px-8">
-        <div className="flex justify-between items-center mb-[15px]">
-          <h2 className="text-[20px] font-semibold text-[#FFFFFF] text-left">
-            АРХИВ ТУРНИРОВ
-          </h2>
-          <Link href="/">
-            <span className="text-[#00B2FF] text-[14px]">На главную</span>
-          </Link>
-        </div>
-
-        {/* TagSelector */}
-        <TagSelector selectedTag={selectedTag} setSelectedTag={setSelectedTag} />
-
-        <div className="space-y-[20px] flex flex-col items-center">
-          {completedTournaments.length === 0 ? (
-            <p className="text-[#FFFFFF]">Нет завершённых турниров</p>
-          ) : (
-            completedTournaments.map((tournament: Tournament) => (
-              <Link href={`/tournament/${tournament.id}`} key={tournament.id}>
-                <div
-                  data-layer="Rectangle 549"
-                  className="Rectangle549 w-[330px] max-w-[90vw] h-[93px] bg-gradient-to-r from-[#1B1A1F] to-[#161616] rounded-[10px] border border-[rgba(255,255,255,0.18)] relative"
-                >
-                  <h3 className="absolute top-[10px] left-[10px] text-[20px] font-semibold text-[#FFFFFF]">
-                    {tournament.name}
-                  </h3>
-                  <p className="absolute top-[35px] left-[10px] text-[10px] font-normal text-[#5F6067]">
-                    {tournament.dates || 'Даты не указаны'}
-                  </p>
-                  <div className="absolute top-[10px] right-[10px] flex items-center justify-center">
-                    {tournament.tag === 'ATP' && (
-                      <div data-svg-wrapper data-layer="Rectangle 545" className="Rectangle545">
-                        <svg width="40" height="20" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <rect width="40" height="20" rx="3.58491" fill="#002BFF"/>
-                          <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fill="#FFFFFF" fontSize="10" className="font-black">ATP</text>
-                        </svg>
-                      </div>
-                    )}
-                    {tournament.tag === 'WTA' && (
-                      <div data-svg-wrapper data-layer="Rectangle 545" className="Rectangle545">
-                        <svg width="40" height="20" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <rect width="40" height="20" rx="3.58491" fill="#7B00FF"/>
-                          <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fill="#FFFFFF" fontSize="10" className="font-black">WTA</text>
-                        </svg>
-                      </div>
-                    )}
-                    {tournament.tag === 'ТБШ' && (
-                      <div data-svg-wrapper data-layer="Rectangle 545" className="Rectangle545">
-                        <svg width="40" height="20" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <rect width="40" height="20" rx="3.58491" fill="url(#paint0_linear_1872_30)"/>
-                          <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fill="#FFFFFF" fontSize="10" className="font-black">ТБШ</text>
-                          <defs>
-                            <linearGradient id="paint0_linear_1872_30" x1="20" y1="0" x2="20" y2="20" gradientUnits="userSpaceOnUse">
-                              <stop stopColor="#FDF765"/>
-                              <stop offset="1" stopColor="#DAB07F"/>
-                            </linearGradient>
-                          </defs>
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Link>
+      <main className="px-6 flex flex-col gap-4">
+        {!tournaments ? (
+            <p className="text-[#5F6067] text-center mt-10">Загрузка...</p>
+        ) : completedTournaments.length === 0 ? (
+            <div className="text-center py-20 opacity-50">
+                <p>Нет завершенных турниров</p>
+            </div>
+        ) : (
+            completedTournaments.map((t: Tournament) => (
+              <ArchiveCard key={t.id} tournament={t} />
             ))
-          )}
-        </div>
+        )}
       </main>
-
-      <div className="h-[19px]"></div>
     </div>
   );
 }
