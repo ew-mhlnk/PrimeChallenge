@@ -1,18 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import useAuth from '../../hooks/useAuth';
-import { ProfileStats, TournamentHistoryRow } from '@/types';
+import { TournamentHistoryRow } from '@/types';
+// ИМПОРТ КОНТЕКСТА ВМЕСТО ЛОКАЛЬНОГО FETCH
+import { useProfileContext } from '@/context/ProfileContext';
 
-// Кнопка Назад
+// ... (компоненты BackButton и FilterPill оставляем те же) ...
 const BackButton = () => {
   const router = useRouter();
   return (
-    <button 
-      onClick={() => router.back()} 
-      className="w-10 h-10 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/10 active:scale-90 transition-transform"
-    >
+    <button onClick={() => router.back()} className="w-10 h-10 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/10 active:scale-90 transition-transform">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M15 19L8 12L15 5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
@@ -20,100 +19,40 @@ const BackButton = () => {
   );
 };
 
-// --- ИСПРАВЛЕНИЕ: Добавлен интерфейс ---
-interface FilterPillProps {
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-}
-
-// Цветной тег
+interface FilterPillProps { label: string; isActive: boolean; onClick: () => void; }
 const FilterPill = ({ label, isActive, onClick }: FilterPillProps) => {
   let colorClass = 'bg-[#007AFF]'; 
   if (label === 'ATP') colorClass = 'bg-[#002BFF]';
   if (label === 'WTA') colorClass = 'bg-[#7B00FF]';
   if (label === 'ТБШ') colorClass = 'bg-gradient-to-r from-[#FDF765] to-[#DAB07F] text-black/80';
-
   return (
-    <button
-      onClick={onClick}
-      className={`
-        px-5 py-2 rounded-full text-[12px] font-bold tracking-wide transition-all duration-300
-        ${isActive ? `${colorClass} text-white shadow-lg scale-105` : 'bg-[#1C1C1E] text-[#8E8E93] border border-white/5'}
-      `}
-    >
+    <button onClick={onClick} className={`px-5 py-2 rounded-full text-[12px] font-bold tracking-wide transition-all duration-300 ${isActive ? `${colorClass} text-white shadow-lg scale-105` : 'bg-[#1C1C1E] text-[#8E8E93] border border-white/5'}`}>
       {label}
     </button>
   );
 };
 
-const waitForTelegram = async () => {
-    let attempts = 0;
-    while (!window.Telegram?.WebApp?.initData && attempts < 20) {
-        await new Promise(r => setTimeout(r, 100));
-        attempts++;
-    }
-    return window.Telegram?.WebApp?.initData;
-};
-
 export default function Profile() {
-  const { isLoading: authLoading } = useAuth();
-  const [stats, setStats] = useState<ProfileStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // БЕРЕМ ДАННЫЕ ИЗ КОНТЕКСТА
+  const { stats, isLoading, error } = useProfileContext();
   const [selectedTag, setSelectedTag] = useState<string>('ВСЕ');
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const initData = await waitForTelegram();
-        if (!initData) return;
-
-        const response = await fetch('/api/users/profile/stats', {
-          headers: { Authorization: initData },
-          cache: 'no-store'
-        });
-
-        if (!response.ok) throw new Error('Не удалось загрузить статистику');
-        const data = await response.json();
-        setStats(data);
-      } catch (err) {
-        console.error(err);
-        setError('Ошибка загрузки профиля');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStats();
-  }, []);
 
   const filteredHistory = stats?.history.filter((item: TournamentHistoryRow) => {
       if (selectedTag === 'ВСЕ') return true;
       return item.tag === selectedTag;
   }) || [];
 
-  if (authLoading || loading) return <div className="p-8 text-[#5F6067] flex justify-center mt-20">Загрузка...</div>;
+  if (isLoading) return <div className="p-8 text-[#5F6067] flex justify-center mt-20">Загрузка...</div>;
   if (error) return <div className="p-8 text-red-500 text-center mt-20">{error}</div>;
   if (!stats) return null;
 
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col relative overflow-x-hidden pb-32">
-      
       {/* Фон */}
-      <div 
-        className="fixed top-[-100px] left-[-100px] w-[453px] h-[453px] rounded-full pointer-events-none"
-        style={{
-          background: '#0B80B3',
-          filter: 'blur(90px)',
-          opacity: 0.5,
-          transform: 'rotate(-60deg)',
-          zIndex: 0
-        }}
-      />
+      <div className="fixed top-[-100px] left-[-100px] w-[453px] h-[453px] rounded-full pointer-events-none" style={{ background: '#0B80B3', filter: 'blur(90px)', opacity: 0.5, transform: 'rotate(-60deg)', zIndex: 0 }} />
 
       <main className="relative z-10 px-6 pt-8 flex flex-col gap-8">
-        
-        {/* Header с кнопкой назад */}
+        {/* Header */}
         <div className="flex flex-col gap-4">
           <BackButton />
           <div>
@@ -158,7 +97,6 @@ export default function Profile() {
           <div className="flex justify-between items-center mb-4">
              <h2 className="text-xl font-bold text-white">История</h2>
           </div>
-          
           <div className="flex gap-2 overflow-x-auto pb-4 -mx-6 px-6 scrollbar-hide mb-2">
             {['ВСЕ', 'ATP', 'WTA', 'ТБШ'].map(tag => (
                 <FilterPill key={tag} label={tag} isActive={selectedTag === tag} onClick={() => setSelectedTag(tag)} />
@@ -172,24 +110,25 @@ export default function Profile() {
           ) : (
               <div className="flex flex-col gap-3">
                 {filteredHistory.map((row) => (
-                    <div key={row.tournament_id} className="bg-[#1C1C1E] rounded-[20px] p-4 border border-white/5 flex justify-between items-center">
-                        <div>
-                            <h3 className="font-bold text-[15px] text-white mb-1">{row.name}</h3>
-                            <div className="flex gap-3 text-[12px] text-[#8E8E93]">
-                                <span>#{row.rank} место</span>
-                                <span className="text-[#00B2FF]">{row.points} pts</span>
+                    <Link href={`/tournament/${row.tournament_id}`} key={row.tournament_id}>
+                        <div className="bg-[#1C1C1E] rounded-[20px] p-4 border border-white/5 flex justify-between items-center active:scale-[0.98] transition-transform">
+                            <div>
+                                <h3 className="font-bold text-[15px] text-white mb-1">{row.name}</h3>
+                                <div className="flex gap-3 text-[12px] text-[#8E8E93]">
+                                    <span>#{row.rank} место</span>
+                                    <span className="text-[#00B2FF]">{row.points} pts</span>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <span className="block text-[14px] font-bold text-[#32D74B]">{row.percent_correct}</span>
+                                <span className="text-[10px] text-[#5F6067]">точность</span>
                             </div>
                         </div>
-                        <div className="text-right">
-                            <span className="block text-[14px] font-bold text-[#32D74B]">{row.percent_correct}</span>
-                            <span className="text-[10px] text-[#5F6067]">точность</span>
-                        </div>
-                    </div>
+                    </Link>
                 ))}
               </div>
           )}
         </section>
-
       </main>
     </div>
   );
