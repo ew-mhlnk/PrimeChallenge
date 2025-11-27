@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { LeaderboardEntry } from '@/types';
 
-// Хелпер
 const waitForTelegram = async () => {
     let attempts = 0;
     while (!window.Telegram?.WebApp?.initData && attempts < 20) {
@@ -14,6 +14,7 @@ const waitForTelegram = async () => {
 };
 
 export default function Leaderboard() {
+  const router = useRouter();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,23 +23,18 @@ export default function Leaderboard() {
     const fetchLeaderboard = async () => {
       try {
         const initData = await waitForTelegram();
-        // Если нет телеграма, можно показать заглушку или пустой список
-        if (!initData && typeof window !== 'undefined') {
-             // console.warn("No initData"); 
-        }
+        // Заглушка, если нет тг
+        if (!initData && typeof window !== 'undefined') {}
 
-        // --- ИСПРАВЛЕНИЕ: Типизация headers ---
         const headers: Record<string, string> = {};
         if (initData) headers['Authorization'] = initData;
 
-        // ВАЖНО: Используем прокси /api/leaderboard/
         const response = await fetch('/api/leaderboard/', { headers });
         
         if (!response.ok) throw new Error('Ошибка загрузки');
         const data = await response.json();
         setLeaderboard(data);
       } catch (err) {
-        // --- ИСПРАВЛЕНИЕ: Используем переменную err ---
         console.error(err);
         setError('Не удалось загрузить');
       } finally {
@@ -52,9 +48,21 @@ export default function Leaderboard() {
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col pb-32">
       
-      <header className="px-6 pt-10 pb-6">
-        <h1 className="text-3xl font-bold text-white">Лидерборд</h1>
-        <p className="text-[#8E8E93] text-sm mt-1">Топ игроков сезона 2025</p>
+      <header className="px-6 pt-8 pb-6 flex flex-col gap-4">
+        {/* Кнопка Назад */}
+        <button 
+          onClick={() => router.back()} 
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/10 active:scale-90 transition-transform"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 19L8 12L15 5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+
+        <div>
+            <h1 className="text-3xl font-bold text-white">Лидерборд</h1>
+            <p className="text-[#8E8E93] text-sm mt-1">Топ игроков сезона 2025</p>
+        </div>
       </header>
 
       <main className="px-4">
@@ -65,15 +73,14 @@ export default function Leaderboard() {
         ) : leaderboard.length === 0 ? (
             <p className="text-[#5F6067] text-center mt-10">Лидерборд пуст</p>
         ) : (
-            <div className="bg-[#1C1C1E] rounded-[24px] border border-white/5 overflow-hidden">
+            <div className="bg-[#1C1C1E] rounded-[24px] border border-white/5 overflow-hidden shadow-xl">
                 {leaderboard.map((entry, index) => {
-                    // Стили для Топ-3
                     let rankStyle = "text-[#8E8E93] font-medium";
                     let rowBg = "hover:bg-white/5";
                     
-                    if (index === 0) { rankStyle = "text-[#FFD700] font-bold text-lg"; rowBg = "bg-[#FFD700]/10"; } // Gold
-                    if (index === 1) { rankStyle = "text-[#C0C0C0] font-bold text-lg"; rowBg = "bg-[#C0C0C0]/10"; } // Silver
-                    if (index === 2) { rankStyle = "text-[#CD7F32] font-bold text-lg"; rowBg = "bg-[#CD7F32]/10"; } // Bronze
+                    if (index === 0) { rankStyle = "text-[#FFD700] font-bold text-lg"; rowBg = "bg-[#FFD700]/10"; } 
+                    if (index === 1) { rankStyle = "text-[#C0C0C0] font-bold text-lg"; rowBg = "bg-[#C0C0C0]/10"; } 
+                    if (index === 2) { rankStyle = "text-[#CD7F32] font-bold text-lg"; rowBg = "bg-[#CD7F32]/10"; } 
 
                     return (
                         <div 

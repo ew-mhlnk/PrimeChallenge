@@ -9,19 +9,19 @@ import { Tournament } from '@/types';
 
 // --- КОМПОНЕНТЫ UI ---
 
-// 1. Аватарка с буквой
+// 1. Аватарка (Увеличенная)
 const UserAvatar = ({ name }: { name: string }) => {
   const letter = name ? name.charAt(0).toUpperCase() : 'U';
   
   return (
-    <div className="w-12 h-12 rounded-full bg-[#1B1E25] flex items-center justify-center border border-white/10 shadow-lg relative overflow-hidden group">
+    <div className="w-16 h-16 rounded-full bg-[#1B1E25] flex items-center justify-center border border-white/10 shadow-2xl relative overflow-hidden group">
       <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent opacity-0 group-active:opacity-100 transition-opacity" />
-      <span className="text-xl font-bold text-white font-sf">{letter}</span>
+      <span className="text-3xl font-bold text-white font-sf">{letter}</span>
     </div>
   );
 };
 
-// 2. Теги (Фильтры) - ИСПРАВЛЕННЫЕ ТИПЫ
+// 2. Теги (Компактные и цветные)
 interface FilterPillProps {
   label: string;
   isActive: boolean;
@@ -34,8 +34,8 @@ const FilterPill = ({ label, isActive, onClick, colorClass }: FilterPillProps) =
     <button
       onClick={onClick}
       className={`
-        relative px-6 py-3 rounded-full text-[13px] font-bold tracking-wide transition-all duration-300
-        ${isActive ? 'text-white shadow-[0_0_20px_rgba(0,0,0,0.3)] scale-105' : 'text-[#8E8E93] bg-[#1C1C1E] border border-white/5'}
+        relative px-5 py-2 rounded-full text-[12px] font-bold tracking-wide transition-all duration-300
+        ${isActive ? 'text-white shadow-lg scale-105' : 'text-[#8E8E93] bg-[#1C1C1E] border border-white/5'}
       `}
     >
       {isActive && (
@@ -46,7 +46,10 @@ const FilterPill = ({ label, isActive, onClick, colorClass }: FilterPillProps) =
           transition={{ type: 'spring', stiffness: 500, damping: 30 }}
         />
       )}
-      <span className="relative z-10">{label}</span>
+      {/* Для ТБШ делаем текст темным, если он активен, иначе белым */}
+      <span className={`relative z-10 ${isActive && label === 'ТБШ' ? 'text-black/80' : ''}`}>
+        {label}
+      </span>
     </button>
   );
 };
@@ -59,18 +62,18 @@ const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
     <Link href={`/tournament/${tournament.id}`} className="block w-full">
       <motion.div
         whileTap={{ scale: 0.96 }}
-        className="w-full relative overflow-hidden bg-[#1C1C1E] rounded-[32px] border border-white/5 p-5 shadow-xl group"
+        className="w-full relative overflow-hidden bg-[#1C1C1E] rounded-[28px] border border-white/5 p-5 shadow-lg group"
       >
         <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
         <div className="flex flex-col gap-1 relative z-10">
           <div className="flex items-start justify-between">
-             <h3 className="text-[22px] font-bold text-white leading-tight pr-4">
+             <h3 className="text-[20px] font-bold text-white leading-tight pr-4">
                 {tournament.name}
              </h3>
              {tournament.tag && (
                <span className={`
-                 text-[10px] font-black px-2 py-1 rounded-md border border-white/10 uppercase
+                 text-[10px] font-black px-2 py-0.5 rounded-md border border-white/10 uppercase
                  ${tournament.tag === 'ATP' ? 'bg-[#002BFF]/20 text-[#5E83FF]' : ''}
                  ${tournament.tag === 'WTA' ? 'bg-[#7B00FF]/20 text-[#C685FF]' : ''}
                  ${tournament.tag === 'ТБШ' ? 'bg-yellow-500/20 text-yellow-300' : ''}
@@ -80,13 +83,13 @@ const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
              )}
           </div>
 
-          <p className="text-[13px] font-medium text-[#8E8E93] mt-1">
+          <p className="text-[12px] font-medium text-[#8E8E93] mt-1">
             {tournament.dates || 'Даты уточняются'}
           </p>
 
-          <div className="mt-6 flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-[#32D74B] animate-pulse' : 'bg-[#8E8E93]'}`} />
-            <span className={`text-[12px] font-medium ${isActive ? 'text-[#32D74B]' : 'text-[#8E8E93]'}`}>
+          <div className="mt-5 flex items-center gap-2">
+            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[#32D74B] animate-pulse' : 'bg-[#8E8E93]'}`} />
+            <span className={`text-[11px] font-medium ${isActive ? 'text-[#32D74B]' : 'text-[#8E8E93]'}`}>
               {isActive ? 'Live • Идет сейчас' : 'Скоро начнется'}
             </span>
           </div>
@@ -95,8 +98,6 @@ const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
     </Link>
   );
 };
-
-// --- ОСНОВНАЯ СТРАНИЦА ---
 
 export default function Home() {
   const { tournaments, error } = useTournaments();
@@ -137,29 +138,29 @@ export default function Home() {
 
       <main className="relative z-10 px-6 pt-12 flex flex-col gap-8">
         
-        {/* Header */}
-        <header className="flex items-center gap-4">
+        {/* Header: Увеличенный профиль */}
+        <header className="flex items-center gap-5">
           <Link href="/profile">
             <UserAvatar name={userName} />
           </Link>
-          <div className="flex flex-col">
-            <span className="text-[15px] text-[#8E8E93] font-medium leading-none">Добро пожаловать,</span>
-            <h1 className="text-[28px] font-bold text-white leading-tight tracking-tight mt-1">
+          <div className="flex flex-col justify-center">
+            <span className="text-[14px] text-[#8E8E93] font-medium leading-none mb-1">Добро пожаловать,</span>
+            <h1 className="text-[32px] font-bold text-white leading-none tracking-tight">
               @{userName}
             </h1>
           </div>
         </header>
 
-        {/* Banner */}
+        {/* Banner: Уменьшенная высота (h-[120px]) */}
         <motion.div 
           whileTap={{ scale: 0.98 }}
-          className="w-full aspect-[2/1] bg-[#D9D9D9] rounded-[28px] relative overflow-hidden cursor-pointer"
+          className="w-full h-[120px] bg-[#D9D9D9] rounded-[24px] relative overflow-hidden cursor-pointer shadow-lg"
         >
            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
                 style={{ transform: 'skewX(-20deg) translateX(-150%)' }} />
            
-           <div className="absolute bottom-4 left-5">
-              <span className="text-black/50 text-xs font-bold uppercase tracking-widest bg-white/30 px-2 py-1 rounded-md backdrop-blur-md">
+           <div className="absolute bottom-3 left-4">
+              <span className="text-black/60 text-[10px] font-bold uppercase tracking-widest bg-white/40 px-2 py-1 rounded backdrop-blur-md">
                 Promo
               </span>
            </div>
@@ -167,13 +168,13 @@ export default function Home() {
 
         {/* Filters & List */}
         <section>
-          <div className="flex justify-between items-end mb-5">
-            <h2 className="text-[22px] font-bold text-white tracking-tight">
+          <div className="flex justify-between items-end mb-4">
+            <h2 className="text-[20px] font-bold text-white tracking-tight">
               Турниры этой недели
             </h2>
           </div>
 
-          <div className="flex gap-3 overflow-x-auto pb-4 -mx-6 px-6 scrollbar-hide">
+          <div className="flex gap-2 overflow-x-auto pb-4 -mx-6 px-6 scrollbar-hide">
             {filters.map((f) => (
               <FilterPill 
                 key={f.label} 
@@ -185,14 +186,14 @@ export default function Home() {
             ))}
           </div>
 
-          <div className="flex flex-col gap-5 mt-2">
+          <div className="flex flex-col gap-4 mt-1">
             {!tournaments ? (
                [1,2].map(i => (
-                 <div key={i} className="h-[140px] w-full bg-[#1C1C1E] rounded-[32px] animate-pulse border border-white/5" />
+                 <div key={i} className="h-[120px] w-full bg-[#1C1C1E] rounded-[28px] animate-pulse border border-white/5" />
                ))
             ) : activeTournaments.length === 0 ? (
                 <div className="text-center py-10">
-                    <p className="text-[#8E8E93] text-lg">Нет активных турниров</p>
+                    <p className="text-[#8E8E93] text-sm">Нет активных турниров</p>
                     <Link href="/archive" className="text-[#007AFF] text-sm mt-2 block">Посмотреть архив</Link>
                 </div>
             ) : (

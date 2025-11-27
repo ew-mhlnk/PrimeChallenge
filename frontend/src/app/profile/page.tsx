@@ -1,9 +1,24 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import useAuth from '../../hooks/useAuth';
 import { ProfileStats, TournamentHistoryRow } from '@/types';
+
+// Кнопка Назад
+const BackButton = () => {
+  const router = useRouter();
+  return (
+    <button 
+      onClick={() => router.back()} 
+      className="w-10 h-10 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/10 active:scale-90 transition-transform"
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15 19L8 12L15 5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </button>
+  );
+};
 
 // --- ИСПРАВЛЕНИЕ: Добавлен интерфейс ---
 interface FilterPillProps {
@@ -12,18 +27,25 @@ interface FilterPillProps {
   onClick: () => void;
 }
 
-// Компонент тега (встроенный)
-const FilterPill = ({ label, isActive, onClick }: FilterPillProps) => (
-  <button
-    onClick={onClick}
-    className={`
-      px-5 py-2 rounded-full text-[13px] font-bold tracking-wide transition-all duration-300
-      ${isActive ? 'bg-[#00B2FF] text-white shadow-[0_0_15px_rgba(0,178,255,0.4)]' : 'bg-[#1C1C1E] text-[#8E8E93] border border-white/5'}
-    `}
-  >
-    {label}
-  </button>
-);
+// Цветной тег
+const FilterPill = ({ label, isActive, onClick }: FilterPillProps) => {
+  let colorClass = 'bg-[#007AFF]'; 
+  if (label === 'ATP') colorClass = 'bg-[#002BFF]';
+  if (label === 'WTA') colorClass = 'bg-[#7B00FF]';
+  if (label === 'ТБШ') colorClass = 'bg-gradient-to-r from-[#FDF765] to-[#DAB07F] text-black/80';
+
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        px-5 py-2 rounded-full text-[12px] font-bold tracking-wide transition-all duration-300
+        ${isActive ? `${colorClass} text-white shadow-lg scale-105` : 'bg-[#1C1C1E] text-[#8E8E93] border border-white/5'}
+      `}
+    >
+      {label}
+    </button>
+  );
+};
 
 const waitForTelegram = async () => {
     let attempts = 0;
@@ -56,7 +78,6 @@ export default function Profile() {
         const data = await response.json();
         setStats(data);
       } catch (err) {
-        // --- ИСПРАВЛЕНИЕ: Используем переменную err ---
         console.error(err);
         setError('Ошибка загрузки профиля');
       } finally {
@@ -78,7 +99,7 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col relative overflow-x-hidden pb-32">
       
-      {/* --- BACKGROUND BLUR --- */}
+      {/* Фон */}
       <div 
         className="fixed top-[-100px] left-[-100px] w-[453px] h-[453px] rounded-full pointer-events-none"
         style={{
@@ -90,17 +111,20 @@ export default function Profile() {
         }}
       />
 
-      <main className="relative z-10 px-6 pt-10 flex flex-col gap-8">
+      <main className="relative z-10 px-6 pt-8 flex flex-col gap-8">
         
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-white leading-tight">Профиль</h1>
-          <p className="text-[15px] text-[#8E8E93] mt-1 font-medium">
-            Статистика <span className="text-[#00B2FF]">@{stats.name}</span>
-          </p>
+        {/* Header с кнопкой назад */}
+        <div className="flex flex-col gap-4">
+          <BackButton />
+          <div>
+            <h1 className="text-3xl font-bold text-white leading-tight">Профиль</h1>
+            <p className="text-[15px] text-[#8E8E93] mt-1 font-medium">
+                Статистика <span className="text-[#00B2FF]">@{stats.name}</span>
+            </p>
+          </div>
         </div>
 
-        {/* 1. Сводная таблица (Стекло) */}
+        {/* 1. Сводная таблица */}
         <section>
           <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[#1C1C1E]/80 backdrop-blur-xl shadow-2xl">
             <table className="w-full text-sm text-left">
@@ -135,7 +159,6 @@ export default function Profile() {
              <h2 className="text-xl font-bold text-white">История</h2>
           </div>
           
-          {/* Фильтры */}
           <div className="flex gap-2 overflow-x-auto pb-4 -mx-6 px-6 scrollbar-hide mb-2">
             {['ВСЕ', 'ATP', 'WTA', 'ТБШ'].map(tag => (
                 <FilterPill key={tag} label={tag} isActive={selectedTag === tag} onClick={() => setSelectedTag(tag)} />
@@ -149,21 +172,19 @@ export default function Profile() {
           ) : (
               <div className="flex flex-col gap-3">
                 {filteredHistory.map((row) => (
-                    <Link href={`/tournament/${row.tournament_id}`} key={row.tournament_id}>
-                        <div className="bg-[#1C1C1E] rounded-[20px] p-4 border border-white/5 flex justify-between items-center active:scale-[0.98] transition-transform">
-                            <div>
-                                <h3 className="font-bold text-[15px] text-white mb-1">{row.name}</h3>
-                                <div className="flex gap-3 text-[12px] text-[#8E8E93]">
-                                    <span>#{row.rank} место</span>
-                                    <span className="text-[#00B2FF]">{row.points} pts</span>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <span className="block text-[14px] font-bold text-[#32D74B]">{row.percent_correct}</span>
-                                <span className="text-[10px] text-[#5F6067]">точность</span>
+                    <div key={row.tournament_id} className="bg-[#1C1C1E] rounded-[20px] p-4 border border-white/5 flex justify-between items-center">
+                        <div>
+                            <h3 className="font-bold text-[15px] text-white mb-1">{row.name}</h3>
+                            <div className="flex gap-3 text-[12px] text-[#8E8E93]">
+                                <span>#{row.rank} место</span>
+                                <span className="text-[#00B2FF]">{row.points} pts</span>
                             </div>
                         </div>
-                    </Link>
+                        <div className="text-right">
+                            <span className="block text-[14px] font-bold text-[#32D74B]">{row.percent_correct}</span>
+                            <span className="text-[10px] text-[#5F6067]">точность</span>
+                        </div>
+                    </div>
                 ))}
               </div>
           )}
