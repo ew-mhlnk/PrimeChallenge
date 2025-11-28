@@ -1,14 +1,13 @@
-/* --- Глобальный контейнер --- */
 .container {
-  height: 100dvh;
+  min-height: 100vh; /* Используем min-height, чтобы страница могла расти */
   width: 100%;
   background-color: #141414;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden; /* Скрываем горизонтальный скролл страницы */
 }
 
-/* --- Header --- */
+/* Header & Nav */
 .header {
   flex-shrink: 0;
   display: flex;
@@ -36,7 +35,6 @@
   letter-spacing: 0.5px;
 }
 
-/* --- Навигация (Кнопки раундов) --- */
 .roundsContainer {
   flex-shrink: 0;
   display: flex;
@@ -68,74 +66,60 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
-/* --- ГЛАВНОЕ ОКНО СЕТКИ (Тот самый контейнер) --- */
+/* --- КОНТЕЙНЕР СЕТКИ (Адаптивная высота) --- */
 .bracketWindow {
-  flex: 1; /* Растягиваем на доступное место */
-  width: calc(100% - 32px); /* Отступы по бокам */
-  margin: 0 auto; /* Центрируем */
-  
-  /* Визуальный стиль "Коробки" */
-  background: #111111;
-  border: 1px solid #333;
-  border-radius: 20px;
-  
+  width: calc(100% - 32px);
+  margin: 0 auto;
+  /* Фон и рамка теперь на самом анимируемом блоке */
   position: relative;
-  overflow: hidden; /* Скрываем выезжающие матчи */
-  display: flex;
-  flex-direction: column;
+  /* Убрали overflow:hidden, чтобы видеть линии */
 }
 
-/* Область скролла */
-.scrollArea {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 20px; /* Внутренние отступы, чтобы контент не лип к краям */
-  
-  /* Для слайдера: позиционирование */
-  display: flex;
-  flex-direction: column;
-  position: relative;
-}
-.scrollArea::-webkit-scrollbar { display: none; }
-
-
-/* --- АНИМАЦИОННЫЙ СЛОЙ --- */
+/* --- СЛАЙДЕР (ANIMATED WRAPPER) --- */
+/* Это тот самый блок, который будет менять высоту */
 .sliderWrapper {
   display: flex;
   flex-direction: column;
-  gap: 20px; /* Расстояние между матчами */
+  gap: 16px; /* Расстояние между матчами как на референсе (компактнее) */
   width: 100%;
-  min-height: 100%; /* Чтобы не схлопывался */
+  
+  /* Стили контейнера */
+  background: #111111;
+  border: 1px solid #333;
+  border-radius: 20px;
+  padding: 20px 16px; /* Внутренние отступы */
+  
+  /* Для свайпа */
+  touch-action: pan-y; 
+  cursor: grab;
 }
 
-/* --- ОБОЛОЧКА МАТЧА + КОННЕКТОР --- */
+.sliderWrapper:active {
+  cursor: grabbing;
+}
+
+/* --- МАТЧ --- */
 .matchWrapper {
   position: relative;
   width: 100%;
   display: flex;
   align-items: center;
-  /* Добавляем отступ справа, чтобы нарисовать линию */
-  padding-right: 20px; 
-  box-sizing: border-box;
 }
 
-/* --- САМ МАТЧ (Карточка) --- */
 .matchContainer {
   display: flex;
   flex-direction: column;
   width: 100%;
   background: #1E1E1E;
   border: 1px solid #333;
-  border-radius: 8px; /* Более квадратные углы как в теннисе */
-  overflow: hidden;
+  border-radius: 8px;
   position: relative;
-  z-index: 2; /* Поверх линии */
+  z-index: 2;
 }
 
-/* Строка игрока */
+/* Игрок */
 .playerRow {
-  height: 44px; /* Компактная высота */
+  height: 44px; /* Высота как в референсе */
   width: 100%;
   display: flex;
   align-items: center;
@@ -146,14 +130,8 @@
   background: #1E1E1E;
   transition: background 0.1s;
 }
-.playerRow:active { background: #252525; }
+.playerRow:first-child { border-bottom: 1px solid #2A2A2A; }
 
-/* Разделитель между игроками */
-.playerRow:first-child {
-  border-bottom: 1px solid #2A2A2A;
-}
-
-/* Типографика */
 .playerName {
   color: #DDD;
   font-size: 13px;
@@ -161,55 +139,43 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px;
 }
 .playerSeed {
   color: #666;
   font-size: 11px;
-  min-width: 20px;
+  min-width: 15px;
   text-align: right;
 }
 
 /* Состояния */
-.selected {
-  background: #172a3a; /* Темно-синий фон */
-}
+.selected { background: #172a3a; }
 .selected .playerName { color: #00B2FF; font-weight: 600; }
-
 .correct { background: rgba(46, 125, 50, 0.15); }
 .correct .playerName { color: #4CAF50; }
-
 .incorrect { background: rgba(198, 40, 40, 0.15); }
 .incorrect .playerName { color: #EF5350; text-decoration: line-through; }
+.checkIcon { color: #00B2FF; margin-left: 6px; }
 
-/* --- КОННЕКТОРЫ (ЛИНИИ) --- */
-/* Рисуем линию справа от матча, имитирующую уход в след. раунд */
+/* --- ЛИНИИ (CONNECTORS) --- */
+/* Линия теперь выходит справа за пределы padding родителя */
 .connectorLine {
   position: absolute;
-  right: 0; /* Прижимаем к правому краю wrapper */
+  right: -17px; /* Выходит в padding sliderWrapper (16px) + 1px border */
   top: 50%;
-  transform: translateY(-50%);
-  width: 20px; /* Длина хвостика */
+  width: 17px;
   height: 1px;
-  background: #444;
+  background: #555;
   z-index: 1;
 }
 
-/* Вертикальная палочка (часть вилки) */
-/* Она нужна, чтобы показать объединение. Рисуем её через border */
+/* Вертикальная часть вилки (опционально, для красоты как на сайте) */
 .connectorFork {
   position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 10px;
-  height: 100%; /* Высота зависит от отступов */
-  
-  /* В данном дизайне на мобилке мы просто показываем "хвостик" вправо,
-     потому что следующий раунд на другом экране. 
-     Сложные вилки рисуются только если видно 2 колонки сразу.
-     Оставим просто линию вправо (connectorLine) — это стандарт для мобильных сеток.
-  */
+  right: -17px;
+  top: 50%; /* Центр текущего матча */
+  width: 1px;
+  background: #555;
+  /* Высота рассчитывается динамически или фиксированно, но для мобилок достаточно линии */
   display: none; 
 }
 
@@ -229,20 +195,22 @@
 .championLabel { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
 .championName { font-size: 16px; font-weight: 700; color: #FFD700; }
 
-/* --- Footer --- */
+/* Footer */
 .footer {
   flex-shrink: 0;
-  padding-bottom: max(20px, env(safe-area-inset-bottom));
+  padding: 20px 24px calc(20px + env(safe-area-inset-bottom));
   display: flex;
-  align-items: flex-start;
   justify-content: center;
-  background: transparent;
+  background: #141414; /* Фон подвала, чтобы перекрывал контент */
   z-index: 50;
-  margin-top: 10px;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.5); /* Тень вверх */
 }
-
 .saveButton {
-  width: calc(100% - 48px);
+  width: 100%;
   height: 48px;
   background: #007AFF;
   border-radius: 14px;
