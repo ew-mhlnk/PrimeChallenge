@@ -1,13 +1,13 @@
 .container {
-  min-height: 100vh; /* Используем min-height, чтобы страница могла расти */
+  height: 100dvh;
   width: 100%;
   background-color: #141414;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden; /* Скрываем горизонтальный скролл страницы */
+  overflow: hidden;
 }
 
-/* Header & Nav */
+/* --- Header --- */
 .header {
   flex-shrink: 0;
   display: flex;
@@ -15,7 +15,7 @@
   padding: 20px 24px 10px;
   gap: 12px;
   background-color: #141414;
-  z-index: 20;
+  z-index: 30; /* Поднимаем выше всего */
 }
 
 .backArrow {
@@ -35,6 +35,15 @@
   letter-spacing: 0.5px;
 }
 
+/* --- Banner (Исправление наложения) --- */
+/* Добавляем обертку, чтобы контролировать отступы */
+.bannerWrapper {
+  flex-shrink: 0;
+  padding: 0 24px 20px 24px;
+  z-index: 20;
+}
+
+/* --- Rounds Navigation --- */
 .roundsContainer {
   flex-shrink: 0;
   display: flex;
@@ -43,67 +52,81 @@
   padding: 0 24px 15px 24px;
   overflow-x: auto;
   scrollbar-width: none;
-  height: 50px;
+  height: 60px; /* Чуть больше места */
+  z-index: 20;
 }
 .roundsContainer::-webkit-scrollbar { display: none; }
 
+/* КНОПКИ РАУНДОВ (Стиль из Figma) */
 .roundButton {
-  padding: 8px 16px;
-  border-radius: 10px;
+  position: relative;
+  padding: 8px 20px;
+  border-radius: 999px; /* Капсула */
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
+  transition: all 0.3s ease;
+  
+  /* Дефолтное состояние (неактивное) */
   background: transparent;
   color: #5F6067;
-  border: 1px solid transparent;
-  transition: all 0.2s;
+  border: 1px solid transparent; /* Чтобы размер не прыгал */
 }
 
+/* Активное состояние (Градиент + Строук) */
 .activeRound {
-  background: #2C2C2E;
   color: #FFFFFF;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  /* Имитация stroke="#00B3FF" stroke-width="2" */
+  border: 1px solid #00B3FF; 
+  /* Тень для свечения */
+  box-shadow: 0 0 15px rgba(0, 179, 255, 0.2);
+  overflow: hidden;
+  background: rgba(0, 140, 255, 0.1); /* Легкая подложка */
 }
 
-/* --- КОНТЕЙНЕР СЕТКИ (Адаптивная высота) --- */
+/* Градиентный фон внутри активной кнопки (как в SVG fill url(...)) */
+.activeRound::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(0, 140, 255, 0.26) 0%, rgba(0, 119, 255, 0.26) 100%);
+  z-index: -1;
+}
+
+/* --- BRACKET WINDOW --- */
 .bracketWindow {
-  width: calc(100% - 32px);
-  margin: 0 auto;
-  /* Фон и рамка теперь на самом анимируемом блоке */
+  flex: 1;
+  width: 100%;
   position: relative;
-  /* Убрали overflow:hidden, чтобы видеть линии */
+  /* Убираем margin, чтобы свайп был от края до края, но добавим padding внутри */
 }
 
-/* --- СЛАЙДЕР (ANIMATED WRAPPER) --- */
-/* Это тот самый блок, который будет менять высоту */
+.scrollArea {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 100px; /* Место под кнопку */
+}
+.scrollArea::-webkit-scrollbar { display: none; }
+
+/* --- SLIDER --- */
 .sliderWrapper {
   display: flex;
   flex-direction: column;
-  gap: 16px; /* Расстояние между матчами как на референсе (компактнее) */
+  gap: 24px; /* Расстояние между матчами */
   width: 100%;
-  
-  /* Стили контейнера */
-  background: #111111;
-  border: 1px solid #333;
-  border-radius: 20px;
-  padding: 20px 16px; /* Внутренние отступы */
-  
-  /* Для свайпа */
+  padding: 0 24px; /* Отступы по бокам */
+  box-sizing: border-box;
   touch-action: pan-y; 
-  cursor: grab;
+  min-height: 100%;
 }
 
-.sliderWrapper:active {
-  cursor: grabbing;
-}
-
-/* --- МАТЧ --- */
+/* --- MATCH --- */
 .matchWrapper {
   position: relative;
   width: 100%;
-  display: flex;
-  align-items: center;
 }
 
 .matchContainer {
@@ -112,71 +135,70 @@
   width: 100%;
   background: #1E1E1E;
   border: 1px solid #333;
-  border-radius: 8px;
+  border-radius: 12px;
   position: relative;
   z-index: 2;
 }
 
-/* Игрок */
 .playerRow {
-  height: 44px; /* Высота как в референсе */
+  height: 44px; /* Компактно */
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
+  padding: 0 16px;
   cursor: pointer;
   position: relative;
   background: #1E1E1E;
   transition: background 0.1s;
 }
 .playerRow:first-child { border-bottom: 1px solid #2A2A2A; }
+.playerRow:first-child:hover, .playerRow:last-child:hover { background: #252525; }
+
+.playerInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  flex: 1;
+}
 
 .playerName {
   color: #DDD;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.playerSeed {
-  color: #666;
-  font-size: 11px;
-  min-width: 15px;
-  text-align: right;
-}
+.playerSeed { color: #666; font-size: 11px; min-width: 15px; text-align: right; }
 
-/* Состояния */
-.selected { background: #172a3a; }
+/* States */
+.selected { background: #12202d !important; } /* Чуть синеватый */
 .selected .playerName { color: #00B2FF; font-weight: 600; }
-.correct { background: rgba(46, 125, 50, 0.15); }
+.correct { background: rgba(46, 125, 50, 0.15) !important; }
 .correct .playerName { color: #4CAF50; }
-.incorrect { background: rgba(198, 40, 40, 0.15); }
+.incorrect { background: rgba(198, 40, 40, 0.15) !important; }
 .incorrect .playerName { color: #EF5350; text-decoration: line-through; }
-.checkIcon { color: #00B2FF; margin-left: 6px; }
+.checkIcon { color: #00B2FF; margin-left: auto; display: flex; align-items: center; }
 
-/* --- ЛИНИИ (CONNECTORS) --- */
-/* Линия теперь выходит справа за пределы padding родителя */
-.connectorLine {
+/* --- CONNECTORS (Линии) --- */
+/* Рисуем линию ::after у matchContainer, чтобы она выходила справа */
+.matchContainer::after {
+  content: '';
   position: absolute;
-  right: -17px; /* Выходит в padding sliderWrapper (16px) + 1px border */
+  right: -24px; /* Выходим в padding sliderWrapper (24px) */
   top: 50%;
-  width: 17px;
+  width: 24px; /* Длина линии до края экрана */
   height: 1px;
-  background: #555;
+  background: #444;
   z-index: 1;
+  display: none; /* По умолчанию скрыта */
 }
 
-/* Вертикальная часть вилки (опционально, для красоты как на сайте) */
-.connectorFork {
-  position: absolute;
-  right: -17px;
-  top: 50%; /* Центр текущего матча */
-  width: 1px;
-  background: #555;
-  /* Высота рассчитывается динамически или фиксированно, но для мобилок достаточно линии */
-  display: none; 
+/* Показываем линию, если это не финал */
+.hasConnector::after {
+  display: block;
 }
 
 /* --- CHAMPION --- */
@@ -184,40 +206,33 @@
   width: 100%;
   background: linear-gradient(135deg, #1E1E1E 0%, #252525 100%);
   border: 1px solid #FFD700;
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.1);
+  gap: 10px;
+  box-shadow: 0 4px 30px rgba(255, 215, 0, 0.15);
 }
-.championLabel { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-.championName { font-size: 16px; font-weight: 700; color: #FFD700; }
+.championLabel { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 2px; }
+.championName { font-size: 18px; font-weight: 700; color: #FFD700; }
 
-/* Footer */
+/* --- FOOTER (SAVE BUTTON CONTAINER) --- */
 .footer {
-  flex-shrink: 0;
-  padding: 20px 24px calc(20px + env(safe-area-inset-bottom));
-  display: flex;
-  justify-content: center;
-  background: #141414; /* Фон подвала, чтобы перекрывал контент */
-  z-index: 50;
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  box-shadow: 0 -10px 40px rgba(0,0,0,0.5); /* Тень вверх */
-}
-.saveButton {
-  width: 100%;
-  height: 48px;
-  background: #007AFF;
-  border-radius: 14px;
-  color: white;
-  font-weight: 600;
+  padding: 20px 24px calc(20px + env(safe-area-inset-bottom));
+  /* Градиент от черного к прозрачному вверх, чтобы кнопка "висела" красиво */
+  background: linear-gradient(to top, #141414 80%, transparent 100%);
+  z-index: 50;
   display: flex;
-  align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  pointer-events: none; /* Чтобы клики проходили сквозь градиент */
+}
+
+.footerContent {
+  width: 100%;
+  pointer-events: auto; /* Сама кнопка кликабельна */
 }
