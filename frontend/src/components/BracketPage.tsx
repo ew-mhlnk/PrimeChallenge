@@ -6,7 +6,6 @@ import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 import { useState } from 'react';
 
-// Иконки
 const BackIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M19 12H5" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -16,7 +15,7 @@ const BackIcon = () => (
 
 const CheckIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
@@ -27,29 +26,24 @@ const TrophyIcon = () => (
   </svg>
 );
 
-// АНИМАЦИЯ: Spring Physics (Пружина вместо Линейности)
+// АНИМАЦИЯ: СЛАЙДЕР (без исчезновения)
 const slideVariants = {
   enter: (direction: number) => ({
-    x: direction > 0 ? 50 : -50,
-    opacity: 0,
-    scale: 0.98 // Чуть уменьшаем, чтобы оно "выезжало"
+    x: direction > 0 ? '100%' : '-100%', // Выезжаем из-за экрана полностью
+    opacity: 1, // Сразу непрозрачный
   }),
   center: {
-    zIndex: 1,
     x: 0,
     opacity: 1,
-    scale: 1
   },
   exit: (direction: number) => ({
-    zIndex: 0,
-    x: direction < 0 ? 50 : -50,
-    opacity: 0,
-    scale: 0.98
+    x: direction < 0 ? '100%' : '-100%', // Уезжаем за экран
+    opacity: 1, // Не исчезаем прозрачностью, а именно уезжаем
   })
 };
 
 const transitionSettings = {
-  x: { type: "spring", stiffness: 300, damping: 30 }, // Упругость
+  x: { type: "spring", stiffness: 300, damping: 30 },
   opacity: { duration: 0.2 }
 };
 
@@ -90,12 +84,11 @@ export default function BracketPage({ id }: { id: string }) {
   };
 
   const isChampionRound = selectedRound === 'Champion';
-  const isCompactRound = ['SF', 'F', 'Champion'].includes(selectedRound);
 
   return (
     <div className={styles.container}>
       
-      {/* 1. Header */}
+      {/* Header */}
       <div className={styles.header}>
         <button onClick={() => router.back()} className={styles.backArrow}>
           <BackIcon />
@@ -107,16 +100,15 @@ export default function BracketPage({ id }: { id: string }) {
 
       {/* Banner */}
       <div className="w-full px-6 mb-4 shrink-0">
-         <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[20px] opacity-80"></div>
+         <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[16px] opacity-90"></div>
       </div>
 
-      {/* 2. Rounds Navigation */}
+      {/* Rounds */}
       <div className={styles.roundsContainer}>
         {rounds.map((round) => (
           <button
             key={round}
             onClick={() => changeRound(round)}
-            // Используем общий класс roundButton + модификатор
             className={`${styles.roundButton} ${selectedRound === round ? styles.activeRound : styles.inactiveRound}`}
           >
             {round}
@@ -124,11 +116,12 @@ export default function BracketPage({ id }: { id: string }) {
         ))}
       </div>
 
-      {/* 3. Bracket Container */}
-      <div className={isCompactRound ? styles.bracketWindowCompact : styles.bracketWindow}>
+      {/* Bracket Area */}
+      <div className={styles.bracketWindow}>
         <div className={styles.scrollArea}>
           
-          <AnimatePresence initial={false} custom={direction} mode="wait">
+          {/* mode="popLayout" - КЛЮЧЕВОЙ МОМЕНТ ДЛЯ СЛАЙДЕРА */}
+          <AnimatePresence initial={false} custom={direction} mode="popLayout">
             <motion.div
               key={selectedRound}
               custom={direction}
@@ -137,31 +130,28 @@ export default function BracketPage({ id }: { id: string }) {
               animate="center"
               exit="exit"
               transition={transitionSettings}
-              layout // Магия: плавная подстройка высоты контейнера
               className={styles.matchList}
             >
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match) => {
                   
-                  // CHAMPION CARD
+                  // CHAMPION
                   if (isChampionRound) {
                      const championName = match.actual_winner || match.predicted_winner || match.player1?.name || 'TBD';
                      
                      return (
                         <div key={match.id} className="w-full flex justify-center py-6">
                             <div className={styles.championContainer}>
-                                <div className={styles.championRow}>
-                                    <div className="mr-3 text-[#FFD700]"><TrophyIcon /></div>
-                                    <span className={championName === 'TBD' ? 'text-[#5F6067] italic' : styles.championName}>
-                                        {championName}
-                                    </span>
-                                </div>
+                                <div className="mr-3 text-[#FFD700]"><TrophyIcon /></div>
+                                <span className={championName === 'TBD' ? 'text-[#5F6067] italic' : styles.championName}>
+                                    {championName}
+                                </span>
                             </div>
                         </div>
                      );
                   }
 
-                  // MATCH CARD
+                  // MATCH
                   const p1 = match.player1;
                   const p2 = match.player2;
                   const p1Name = p1?.name || 'TBD';
@@ -186,7 +176,6 @@ export default function BracketPage({ id }: { id: string }) {
                     <div key={match.id} className={styles.battleWrapper}>
                       <div className={styles.matchContainer}>
                         
-                        {/* Игрок 1 */}
                         <div 
                           className={getPlayerClass(p1Name, isP1Picked)}
                           onClick={() => !isLiveOrClosed && p1Name !== 'TBD' && p1Name !== 'Bye' && handlePick(selectedRound!, match.id, p1Name)}
@@ -200,7 +189,6 @@ export default function BracketPage({ id }: { id: string }) {
                           <span className={styles.playerSeed}>{p1.seed ? p1.seed : ''}</span>
                         </div>
 
-                        {/* Игрок 2 */}
                         <div 
                           className={getPlayerClass(p2Name, isP2Picked)}
                           onClick={() => !isLiveOrClosed && p2Name !== 'TBD' && p2Name !== 'Bye' && handlePick(selectedRound!, match.id, p2Name)}
@@ -216,7 +204,7 @@ export default function BracketPage({ id }: { id: string }) {
 
                       </div>
 
-                      {/* Скобка */}
+                      {/* Connectors (Линии) */}
                       {selectedRound !== 'F' && (
                          <div className={styles.bracketConnector}></div>
                       )}
@@ -233,17 +221,13 @@ export default function BracketPage({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* 4. Footer */}
+      {/* Footer */}
       <div className={styles.footer}>
          {!isLiveOrClosed && (
             <motion.button
                 onClick={onSaveClick}
                 whileTap={{ scale: 0.95 }}
                 className={`${styles.saveButton} ${isSaving ? styles.saveButtonSaving : ''}`}
-                animate={{
-                   backgroundColor: isSaving ? '#00B2FF' : '#1B1B1B',
-                   borderColor: isSaving ? '#00B2FF' : 'rgba(255, 255, 255, 0.18)'
-                }}
             >
                 {isSaving ? 'Сохранено!' : 'Сохранить'}
             </motion.button>
