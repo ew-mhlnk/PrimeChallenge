@@ -1,3 +1,4 @@
+/* --- Глобальный контейнер --- */
 .container {
   height: 100dvh;
   width: 100%;
@@ -35,7 +36,7 @@
   letter-spacing: 0.5px;
 }
 
-/* --- Навигация по раундам --- */
+/* --- Навигация (Кнопки раундов) --- */
 .roundsContainer {
   flex-shrink: 0;
   display: flex;
@@ -46,199 +47,187 @@
   scrollbar-width: none;
   height: 50px;
 }
-.roundsContainer::-webkit-scrollbar {
-  display: none;
-}
+.roundsContainer::-webkit-scrollbar { display: none; }
 
-/* Кнопки раундов: простая форма, меняется только цвет */
 .roundButton {
   padding: 8px 16px;
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: all 0.2s ease;
   background: transparent;
   color: #5F6067;
   border: 1px solid transparent;
+  transition: all 0.2s;
 }
 
-/* Активный раунд: просто белый текст и легкий фон, без изменения размера */
 .activeRound {
   background: #2C2C2E;
   color: #FFFFFF;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
-/* --- КОНТЕЙНЕР СЕТКИ --- */
+/* --- ГЛАВНОЕ ОКНО СЕТКИ (Тот самый контейнер) --- */
 .bracketWindow {
-  flex: 1;
-  min-height: 0;
-  margin: 0 24px 0px 24px;
-  /* Убрали фон и рамку у самого окна, чтобы контент "дышал" */
-  background: transparent; 
+  flex: 1; /* Растягиваем на доступное место */
+  width: calc(100% - 32px); /* Отступы по бокам */
+  margin: 0 auto; /* Центрируем */
+  
+  /* Визуальный стиль "Коробки" */
+  background: #111111;
+  border: 1px solid #333;
+  border-radius: 20px;
+  
   position: relative;
-  overflow: hidden; /* Важно для слайдера */
+  overflow: hidden; /* Скрываем выезжающие матчи */
   display: flex;
   flex-direction: column;
 }
 
+/* Область скролла */
 .scrollArea {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden; /* Запрещаем горизонтальный скролл внутри, только слайд */
-  padding: 10px 0 20px 0; /* Убрали боковые отступы внутри скролла */
-  scrollbar-width: none;
-}
-.scrollArea::-webkit-scrollbar {
-  display: none;
-}
-
-/* --- СПИСОК МАТЧЕЙ --- */
-.matchList {
+  overflow-x: hidden;
+  padding: 20px; /* Внутренние отступы, чтобы контент не лип к краям */
+  
+  /* Для слайдера: позиционирование */
   display: flex;
   flex-direction: column;
-  gap: 24px; /* Отступ между матчами */
+  position: relative;
+}
+.scrollArea::-webkit-scrollbar { display: none; }
+
+
+/* --- АНИМАЦИОННЫЙ СЛОЙ --- */
+.sliderWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* Расстояние между матчами */
   width: 100%;
+  min-height: 100%; /* Чтобы не схлопывался */
 }
 
-/* Оболочка одного матча */
-.battleWrapper {
-  display: flex;
+/* --- ОБОЛОЧКА МАТЧА + КОННЕКТОР --- */
+.matchWrapper {
   position: relative;
   width: 100%;
-  /* padding-right нужен, чтобы скобка не обрезалась краем экрана */
-  padding-right: 16px; 
+  display: flex;
+  align-items: center;
+  /* Добавляем отступ справа, чтобы нарисовать линию */
+  padding-right: 20px; 
+  box-sizing: border-box;
 }
 
-/* Контейнер двух игроков */
+/* --- САМ МАТЧ (Карточка) --- */
 .matchContainer {
   display: flex;
   flex-direction: column;
   width: 100%;
-  background: #1B1B1B;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #1E1E1E;
+  border: 1px solid #333;
+  border-radius: 8px; /* Более квадратные углы как в теннисе */
+  overflow: hidden;
   position: relative;
-  z-index: 10; /* Поверх скобки */
+  z-index: 2; /* Поверх линии */
 }
 
-/* Карточка игрока */
+/* Строка игрока */
 .playerRow {
-  height: 40px; /* Фиксированная высота */
+  height: 44px; /* Компактная высота */
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
   cursor: pointer;
-  transition: background 0.2s ease;
   position: relative;
-  /* Линия между игроками внутри матча */
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: #1E1E1E;
+  transition: background 0.1s;
+}
+.playerRow:active { background: #252525; }
+
+/* Разделитель между игроками */
+.playerRow:first-child {
+  border-bottom: 1px solid #2A2A2A;
 }
 
-.playerRow:last-child {
-  border-bottom: none;
-}
-
-.playerInfo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-  flex: 1;
-}
-
+/* Типографика */
 .playerName {
-  color: #FFFFFF;
+  color: #DDD;
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 180px;
 }
-
 .playerSeed {
-  color: #5F6067;
+  color: #666;
   font-size: 11px;
-  font-weight: 400;
+  min-width: 20px;
   text-align: right;
-  min-width: 15px;
 }
 
 /* Состояния */
-.selected { background: linear-gradient(90deg, rgba(0, 178, 255, 0.15) 0%, rgba(0, 178, 255, 0.02) 100%); }
-.selected::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #00B2FF; }
-.correct { background: rgba(76, 175, 80, 0.1); }
+.selected {
+  background: #172a3a; /* Темно-синий фон */
+}
+.selected .playerName { color: #00B2FF; font-weight: 600; }
+
+.correct { background: rgba(46, 125, 50, 0.15); }
 .correct .playerName { color: #4CAF50; }
-.incorrect { background: rgba(244, 67, 54, 0.1); opacity: 0.6; }
-.strikethrough { text-decoration: line-through; color: #888; font-size: 13px; }
-.checkIcon { color: #00B2FF; margin-left: 6px; }
-.tbd { color: #444; font-style: italic; cursor: default; }
 
-/* --- ИДЕАЛЬНАЯ СКОБКА (ATP Style) --- */
-.bracketConnector {
-  position: absolute;
-  /* Прижимаем к правому краю matchContainer, но выносим наружу */
-  right: 0; 
-  top: 0;
-  
-  /* Ширина "вилки" */
-  width: 16px; 
-  
-  /* Высота вилки = высота матча (80px) минус половина высоты одной ячейки сверху и снизу.
-     Центр первой ячейки: 20px от верха.
-     Центр второй ячейки: 60px от верха.
-     Разница между центрами = 40px.
-  */
-  height: 40px; 
-  
-  /* Сдвигаем вниз, чтобы начало линии совпало с центром первой ячейки (20px) */
-  margin-top: 20px; 
-  
-  /* Сдвигаем вправо на 100%, чтобы она торчала из матча */
-  transform: translateX(100%);
-  
-  /* Рисуем линии */
-  border-right: 1px solid #4C4C4C; /* Вертикальная линия */
-  border-top: 1px solid #4C4C4C;   /* Горизонтальная от 1 игрока */
-  border-bottom: 1px solid #4C4C4C;/* Горизонтальная от 2 игрока */
-  
-  /* Скругления справа */
-  border-top-right-radius: 6px;
-  border-bottom-right-radius: 6px;
-  
-  pointer-events: none;
-  z-index: 0;
-}
+.incorrect { background: rgba(198, 40, 40, 0.15); }
+.incorrect .playerName { color: #EF5350; text-decoration: line-through; }
 
-/* Хвостик вправо к следующему раунду */
-.bracketConnector::after {
-  content: '';
+/* --- КОННЕКТОРЫ (ЛИНИИ) --- */
+/* Рисуем линию справа от матча, имитирующую уход в след. раунд */
+.connectorLine {
   position: absolute;
+  right: 0; /* Прижимаем к правому краю wrapper */
   top: 50%;
-  right: -8px; /* Длина хвостика */
-  width: 8px;
-  height: 1px;
-  background: #4C4C4C;
   transform: translateY(-50%);
+  width: 20px; /* Длина хвостика */
+  height: 1px;
+  background: #444;
+  z-index: 1;
 }
 
-/* --- Champion --- */
+/* Вертикальная палочка (часть вилки) */
+/* Она нужна, чтобы показать объединение. Рисуем её через border */
+.connectorFork {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 100%; /* Высота зависит от отступов */
+  
+  /* В данном дизайне на мобилке мы просто показываем "хвостик" вправо,
+     потому что следующий раунд на другом экране. 
+     Сложные вилки рисуются только если видно 2 колонки сразу.
+     Оставим просто линию вправо (connectorLine) — это стандарт для мобильных сеток.
+  */
+  display: none; 
+}
+
+/* --- CHAMPION --- */
 .championContainer {
   width: 100%;
-  background: #1B1B1B;
+  background: linear-gradient(135deg, #1E1E1E 0%, #252525 100%);
+  border: 1px solid #FFD700;
   border-radius: 12px;
-  border: 1px solid rgba(255, 215, 0, 0.4);
-  box-shadow: 0 0 25px rgba(255, 215, 0, 0.1);
+  padding: 16px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  padding: 12px;
+  gap: 8px;
+  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.1);
 }
-.championName { color: #FFD700; font-size: 15px; font-weight: 700; }
+.championLabel { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.championName { font-size: 16px; font-weight: 700; color: #FFD700; }
 
 /* --- Footer --- */
 .footer {
@@ -253,20 +242,14 @@
 }
 
 .saveButton {
-  width: 100%;
-  max-width: 200px;
+  width: calc(100% - 48px);
   height: 48px;
   background: #007AFF;
-  border-radius: 14px !important;
-  color: #FFFFFF;
-  font-size: 15px;
+  border-radius: 14px;
+  color: white;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
-}
-.saveButtonSaving {
-  background: #32D74B;
-  box-shadow: 0 4px 15px rgba(50, 215, 75, 0.3);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
