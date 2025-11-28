@@ -6,7 +6,7 @@ import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 import { useState } from 'react';
 
-// --- ICONS ---
+// ... (Иконки оставляем те же: BackIcon, CheckIcon, TrophyIcon) ...
 const BackIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M15 18l-6-6 6-6"/>
@@ -20,7 +20,7 @@ const CheckIcon = () => (
 );
 
 const TrophyIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2">
+  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="1.5">
     <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
     <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
     <path d="M4 22h16" />
@@ -30,14 +30,16 @@ const TrophyIcon = () => (
   </svg>
 );
 
-// --- SAVE BUTTON (GLASS) ---
+// ... (SaveButton оставляем тот же) ...
 const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' | 'loading' | 'success' }) => {
   const isSuccess = status === 'success';
   return (
     <motion.button
+      layout
       onClick={onClick}
       disabled={status !== 'idle'}
       className={`${styles.saveButton} ${isSuccess ? styles.saveButtonSuccess : ''}`}
+      whileTap={status === 'idle' ? { scale: 0.97 } : {}}
     >
       <AnimatePresence mode="wait" initial={false}>
         {status === 'idle' && (
@@ -78,26 +80,24 @@ const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' |
   );
 };
 
-// --- PREMIUM ANIMATION (Smooth & Flowing) ---
+// АНИМАЦИЯ
 const variants: Variants = {
   enter: (direction: number) => ({
-    x: direction > 0 ? 60 : -60, // Мягкий вход
+    x: direction > 0 ? '100%' : '-100%',
     opacity: 0,
-    scale: 0.98,
+    scale: 0.95,
   }),
   center: {
-    zIndex: 1,
     x: 0,
     opacity: 1,
     scale: 1,
     position: 'relative',
   },
   exit: (direction: number) => ({
-    zIndex: 0,
-    x: direction < 0 ? 60 : -60,
+    x: direction < 0 ? '100%' : '-100%',
     opacity: 0,
-    scale: 0.98,
-    position: 'absolute', // Убираем из потока
+    scale: 0.95,
+    position: 'absolute',
     top: 0,
     left: 0,
     width: '100%',
@@ -105,9 +105,10 @@ const variants: Variants = {
 };
 
 const transitionSettings = {
-  x: { type: "spring", stiffness: 250, damping: 25 },
-  opacity: { duration: 0.3 },
-  scale: { duration: 0.3 }
+  type: "spring",
+  stiffness: 300,
+  damping: 30,
+  mass: 1
 };
 
 export default function BracketPage({ id }: { id: string }) {
@@ -151,6 +152,9 @@ export default function BracketPage({ id }: { id: string }) {
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const currentIndex = rounds.indexOf(selectedRound);
     const threshold = 50;
+    // Блокируем смену раунда, если свайп был вертикальным (скролл)
+    if (Math.abs(info.offset.y) > Math.abs(info.offset.x)) return;
+
     if (info.offset.x < -threshold && currentIndex < rounds.length - 1) {
       changeRound(rounds[currentIndex + 1]);
     } else if (info.offset.x > threshold && currentIndex > 0) {
@@ -176,7 +180,7 @@ export default function BracketPage({ id }: { id: string }) {
          <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[16px] opacity-90"></div>
       </div>
 
-      {/* Rounds (Clean Pills) */}
+      {/* Rounds */}
       <div className={styles.roundsContainer}>
         {rounds.map((round) => (
           <button
@@ -189,10 +193,9 @@ export default function BracketPage({ id }: { id: string }) {
         ))}
       </div>
 
-      {/* Bracket Window */}
+      {/* Bracket Window: ФИКСИРОВАННАЯ ВЫСОТА, ВНУТРИ СКРОЛЛ */}
       <div className={styles.bracketWindow}>
         <div className={styles.scrollArea}>
-          
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
             <motion.div
               key={selectedRound}
@@ -202,17 +205,22 @@ export default function BracketPage({ id }: { id: string }) {
               animate="center"
               exit="exit"
               transition={transitionSettings}
+              
               layout 
+              
+              // Настройка свайпа
               drag="x"
               dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.1}
+              dragElastic={0.2}
+              // ВАЖНО: Это позволяет скроллить вертикально, не блокируя свайп
+              dragDirectionLock={true} 
               onDragEnd={handleDragEnd}
+              
               className={styles.sliderWrapper}
             >
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match) => {
                   
-                  // --- CHAMPION (Особый стиль) ---
                   if (isChampionRound) {
                      const championName = match.actual_winner || match.predicted_winner || match.player1?.name || 'TBD';
                      return (
@@ -227,7 +235,6 @@ export default function BracketPage({ id }: { id: string }) {
                      );
                   }
 
-                  // --- REGULAR MATCH ---
                   const p1 = match.player1;
                   const p2 = match.player2;
                   const p1Name = p1?.name || 'TBD';
@@ -249,36 +256,29 @@ export default function BracketPage({ id }: { id: string }) {
 
                   return (
                     <div key={match.id} className={styles.matchWrapper}>
-                      <div className={styles.matchContainer}>
-                        
-                        {/* Player 1 */}
+                      <div className={`${styles.matchContainer} ${selectedRound !== 'F' ? styles.hasConnector : ''}`}>
                         <div 
                           className={getPlayerClass(p1Name, isP1Picked)}
                           onClick={() => !isLiveOrClosed && p1Name !== 'TBD' && p1Name !== 'Bye' && handlePick(selectedRound!, match.id, p1Name)}
                         >
                           <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p1Name}</span>
-                              {!isLiveOrClosed && isP1Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
                           </div>
+                          {!isLiveOrClosed && isP1Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
                           <span className={styles.playerSeed}>{p1.seed || ''}</span>
                         </div>
 
-                        {/* Player 2 */}
                         <div 
                           className={getPlayerClass(p2Name, isP2Picked)}
                           onClick={() => !isLiveOrClosed && p2Name !== 'TBD' && p2Name !== 'Bye' && handlePick(selectedRound!, match.id, p2Name)}
                         >
                            <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p2Name}</span>
-                              {!isLiveOrClosed && isP2Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
                            </div>
+                           {!isLiveOrClosed && isP2Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
                            <span className={styles.playerSeed}>{p2.seed || ''}</span>
                         </div>
-
                       </div>
-
-                      {/* Connector Line (справа от матча) */}
-                      {selectedRound !== 'F' && <div className={styles.connectorLine} />}
                     </div>
                   );
                 })
@@ -295,7 +295,9 @@ export default function BracketPage({ id }: { id: string }) {
       {/* Footer */}
       {!isLiveOrClosed && (
         <div className={styles.footer}>
+          <div className={styles.footerContent}>
              <SaveButton onClick={handleSave} status={saveStatus} />
+          </div>
         </div>
       )}
     </div>

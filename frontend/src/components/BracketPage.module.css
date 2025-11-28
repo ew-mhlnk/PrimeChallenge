@@ -1,16 +1,16 @@
-/* Глобальные настройки */
+/* --- ГЛОБАЛЬНЫЙ КОНТЕЙНЕР --- */
 .container {
-  height: 100dvh;
+  height: 100dvh; /* Строго высота экрана */
   width: 100%;
-  background-color: #000000; /* Абсолютно черный фон для контраста */
+  background-color: #000000;
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  flex-direction: column; /* Вертикальный стек */
+  overflow: hidden; /* Запрещаем скролл самой страницы */
 }
 
-/* --- Header --- */
+/* --- HEADER --- */
 .header {
-  flex-shrink: 0;
+  flex-shrink: 0; /* Не сжиматься */
   display: flex;
   align-items: center;
   padding: 20px 24px 10px;
@@ -36,16 +36,16 @@
   letter-spacing: -0.5px;
 }
 
-/* --- Banner --- */
+/* --- BANNER --- */
 .bannerWrapper {
-  flex-shrink: 0;
+  flex-shrink: 0; /* Не сжиматься */
   padding: 0 24px 20px 24px;
   z-index: 20;
 }
 
-/* --- Rounds Navigation (Исправленные кнопки) --- */
+/* --- ROUNDS NAV --- */
 .roundsContainer {
-  flex-shrink: 0;
+  flex-shrink: 0; /* Не сжиматься */
   display: flex;
   align-items: center;
   gap: 8px;
@@ -59,92 +59,104 @@
 
 .roundButton {
   position: relative;
-  padding: 6px 16px; /* Аккуратные отступы */
+  padding: 6px 16px;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
-  background: #1C1C1E; /* Темно-серый фон неактивных */
+  background: #1C1C1E;
   color: #8E8E93;
   border: 1px solid transparent;
 }
 
 .activeRound {
-  background: #007AFF; /* Apple Blue */
+  background: #007AFF;
   color: #FFFFFF;
   box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
   transform: scale(1.02);
 }
 
-/* --- BRACKET WINDOW (КОНТЕЙНЕР) --- */
+.activeRound::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(0, 140, 255, 0.26) 0%, rgba(0, 119, 255, 0.26) 100%);
+  z-index: -1;
+}
+
+/* --- ОКНО СЕТКИ (ФИКСИРОВАННОЕ МЕСТО) --- */
 .bracketWindow {
-  flex: 1;
-  width: calc(100% - 32px); /* Отступы по 16px */
-  margin: 0 auto;
+  /* Занимает всё оставшееся пространство между меню и низом */
+  flex: 1; 
+  /* ВАЖНО: позволяет контейнеру сжиматься, если контента много, активируя скролл внутри */
+  min-height: 0; 
   
-  /* СТИЛЬ КОНТЕЙНЕРА */
+  width: calc(100% - 32px);
+  margin: 0 auto 20px auto; /* Отступ снизу, чтобы не прилипало к футеру */
+  
   background: #121212;
   border: 1px solid #333;
   border-radius: 24px;
   box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
   
   position: relative;
-  /* Важно: убираем overflow hidden, чтобы видеть свечение, 
-     но для слайдера внутри используем маску */
+  overflow: hidden; /* Обрезаем всё, что вылезает за рамки */
   display: flex;
   flex-direction: column;
 }
 
+/* ОБЛАСТЬ СКРОЛЛА ВНУТРИ ОКНА */
 .scrollArea {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  /* Отступ снизу для кнопки */
-  padding-bottom: 120px; 
+  flex: 1; /* Занимает всю высоту окна */
+  height: 100%;
+  overflow-y: auto; /* ВЕРТИКАЛЬНЫЙ СКРОЛЛ ВКЛЮЧЕН ЗДЕСЬ */
+  overflow-x: hidden; /* Горизонтальный запрещен (только свайп) */
   
-  /* Маска для скругления скролла внутри контейнера */
-  border-radius: 23px; 
+  /* Внутренние отступы */
+  padding: 20px 0;
+  
+  /* Отступ снизу, чтобы контент не прятался под кнопкой, если она поверх */
+  padding-bottom: 80px; 
 }
 .scrollArea::-webkit-scrollbar { display: none; }
 
-/* --- SLIDER --- */
+/* --- SLIDER (Содержимое) --- */
 .sliderWrapper {
   display: flex;
   flex-direction: column;
   gap: 24px; 
   width: 100%;
-  padding: 24px 0; /* Вертикальные отступы внутри */
+  padding: 0 20px;
   box-sizing: border-box;
-  min-height: 100%;
+  /* ВАЖНО: Разрешаем вертикальный жест браузера (скролл), но ловим горизонтальный */
   touch-action: pan-y; 
 }
 
-/* --- MATCH --- */
+/* --- MATCH STYLES --- */
 .matchWrapper {
   position: relative;
   width: 100%;
   display: flex;
-  justify-content: flex-start; /* Прижимаем влево */
-  padding-left: 20px; /* Отступ слева */
+  justify-content: flex-start;
+  padding-left: 10px;
 }
 
 .matchContainer {
   display: flex;
   flex-direction: column;
-  /* УМЕНЬШЕННАЯ ШИРИНА, чтобы видеть коннектор */
   width: 85%; 
   background: #1E1E1E;
   border: 1px solid #38383A;
   border-radius: 14px;
   position: relative;
   z-index: 2;
-  transition: border-color 0.2s;
 }
 
 .playerRow {
-  height: 46px; /* Оптимальная высота для пальца */
+  height: 46px;
   width: 100%;
   display: flex;
   align-items: center;
@@ -155,7 +167,6 @@
   background: #1E1E1E;
   transition: background 0.2s;
 }
-/* Скругления для первого и последнего элемента внутри контейнера */
 .playerRow:first-child { 
   border-bottom: 1px solid #2C2C2E; 
   border-top-left-radius: 13px;
@@ -187,8 +198,8 @@
 .playerSeed { color: #636366; font-size: 12px; font-weight: 500; }
 
 /* States */
-.selected { background: #1C2C3E !important; }
-.selected .playerName { color: #0A84FF; font-weight: 600; }
+.selected { background: #12202d !important; }
+.selected .playerName { color: #00B2FF; font-weight: 600; }
 
 .correct { background: rgba(48, 209, 88, 0.15) !important; border-color: rgba(48, 209, 88, 0.3); }
 .correct .playerName { color: #30D158; }
@@ -196,52 +207,39 @@
 .incorrect { background: rgba(255, 69, 58, 0.15) !important; }
 .incorrect .playerName { color: #FF453A; text-decoration: line-through; opacity: 0.7; }
 
-.checkIcon { color: #0A84FF; margin-left: auto; display: flex; }
+.checkIcon { color: #00B2FF; margin-left: auto; display: flex; align-items: center; }
 
-/* --- CONNECTORS (ЛИНИИ) --- */
-.connectorLine {
-  position: absolute;
-  /* Линия начинается от правого края контейнера */
-  left: 85%; 
-  /* И идет на 25px вправо */
-  width: 25px;
-  top: 50%;
-  height: 2px;
-  background: #38383A;
-  z-index: 1;
-}
-/* Точка на конце линии (опционально, для красоты) */
-.connectorLine::after {
+/* --- CONNECTORS --- */
+.matchContainer::after {
   content: '';
   position: absolute;
-  right: 0;
-  top: -2px;
-  width: 6px;
-  height: 6px;
-  background: #38383A;
-  border-radius: 50%;
+  right: -24px;
+  top: 50%;
+  width: 24px;
+  height: 1px;
+  background: #444;
+  z-index: 1;
+  display: none;
 }
+.hasConnector::after { display: block; }
 
-/* --- CHAMPION CARD (Как обычная ячейка, но одна) --- */
+/* --- CHAMPION --- */
 .championWrapper {
   width: 100%;
   display: flex;
   justify-content: center;
   padding: 20px 0;
 }
-
-/* Стили для победителя (золотая обводка) */
 .championContainer {
-  width: 90%; /* Чуть шире обычного матча */
+  width: 90%;
   background: linear-gradient(135deg, #1E1E1E 0%, #2C2C2E 100%);
-  border: 1px solid #FFD700; /* Золото */
+  border: 1px solid #FFD700;
   border-radius: 14px;
-  padding: 0; /* Padding 0, так как внутри playerRow */
+  padding: 0;
   box-shadow: 0 0 30px rgba(255, 215, 0, 0.15);
 }
-
 .championRow {
-  height: 60px; /* Повыше */
+  height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -254,48 +252,44 @@
   margin-left: 10px;
 }
 
-/* --- FOOTER GLASSMORPHISM --- */
+/* --- FOOTER --- */
+/* Теперь футер не перекрывает скролл, он просто висит внизу */
 .footer {
   position: fixed;
-  bottom: 30px;
+  bottom: 0;
   left: 0;
   right: 0;
+  padding: 20px 24px calc(20px + env(safe-area-inset-bottom));
+  /* Плавный градиент, чтобы текст под кнопкой уходил в затемнение */
+  background: linear-gradient(to top, #000000 70%, rgba(0,0,0,0) 100%);
+  z-index: 50;
   display: flex;
   justify-content: center;
-  z-index: 50;
-  pointer-events: none;
+  pointer-events: none; /* Чтобы можно было скроллить "сквозь" прозрачную часть */
+}
+
+.footerContent {
+  width: 100%;
+  pointer-events: auto;
 }
 
 .saveButton {
-  pointer-events: auto;
-  width: 200px;
+  width: 100%;
   height: 50px;
   border-radius: 25px;
-  
-  /* IOS GLASS EFFECT */
-  background: rgba(0, 122, 255, 0.65); /* Полупрозрачный синий */
+  background: rgba(0, 122, 255, 0.8);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  
   color: white;
   font-size: 16px;
   font-weight: 600;
-  letter-spacing: 0.5px;
-  
   display: flex;
   align-items: center;
   justify-content: center;
-  
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  transition: transform 0.2s;
 }
-
-.saveButton:active {
-  transform: scale(0.96);
-}
-
 .saveButtonSuccess {
-  background: rgba(50, 215, 75, 0.65); /* Green Glass */
+  background: rgba(50, 215, 75, 0.8);
   border-color: rgba(50, 215, 75, 0.3);
 }
