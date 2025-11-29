@@ -1,4 +1,4 @@
-/* --- Глобальная структура --- */
+/* --- GLOBAL --- */
 .container {
   height: 100dvh;
   width: 100%;
@@ -8,7 +8,6 @@
   overflow: hidden;
 }
 
-/* --- Header --- */
 .header {
   flex-shrink: 0;
   display: flex;
@@ -36,14 +35,13 @@
   letter-spacing: -0.5px;
 }
 
-/* --- Banner --- */
 .bannerWrapper {
   flex-shrink: 0;
   padding: 0 24px 15px 24px;
   z-index: 20;
 }
 
-/* --- Navigation --- */
+/* --- NAVIGATION --- */
 .roundsContainer {
   flex-shrink: 0;
   display: flex;
@@ -54,7 +52,7 @@
   scrollbar-width: none;
   height: 50px;
   z-index: 20;
-  margin-bottom: 10px; /* Небольшой отступ до сетки */
+  margin-bottom: 10px;
 }
 .roundsContainer::-webkit-scrollbar { display: none; }
 
@@ -80,7 +78,7 @@
   box-shadow: 0 0 15px rgba(0, 140, 255, 0.4);
 }
 
-/* --- BRACKET WINDOW (ОБЩИЕ СТИЛИ) --- */
+/* --- BRACKET WINDOW (КОНТЕЙНЕР) --- */
 .bracketWindow {
   width: calc(100% - 32px);
   margin: 0 auto;
@@ -94,47 +92,52 @@
   flex-direction: column;
   overflow: hidden;
   
-  /* ВАЖНО: Отступ снизу до кнопки */
-  /* 50px (кнопка) + 30px (отступ футера) + 35px (твой зазор) = 115px */
+  /* Гарантируем, что контейнер никогда не схлопнется в 0 */
+  min-height: 200px;
+  
+  /* Отступ до футера */
   margin-bottom: 115px;
   
-  transition: all 0.3s ease; /* Плавное изменение размера контейнера */
+  transition: all 0.4s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* ВАРИАНТ 1: Длинный список (R32, R16...) */
+/* 1. ПОЛНЫЙ РЕЖИМ (R32...QF) - Растягиваемся */
 .bracketWindowFull {
-  flex: 1; /* Растягивается на всё доступное место */
-  min-height: 0; /* Включает скролл внутри, если не влезает */
+  flex: 1; 
 }
 
-/* ВАРИАНТ 2: Короткий список (SF, F, Champion) */
+/* 2. КОМПАКТНЫЙ РЕЖИМ (SF...Champion) - По высоте контента */
 .bracketWindowCompact {
-  flex: 0; /* Не растягивается */
-  height: auto; /* Высота ровно по контенту */
-  /* На случай, если телефон очень маленький, чтобы не вылезло */
-  max-height: 100%; 
+  flex-grow: 0; /* Не занимать лишнее место */
+  height: auto; /* Высота зависит от детей */
 }
 
+/* --- SCROLL AREA --- */
 .scrollArea {
-  flex: 1;
+  /* ВАЖНО: Убрали height: 100%, поставили flex: 1 */
+  /* Это позволяет работать и в Full (растягивается), и в Compact (облегает) */
+  flex: 1; 
+  
   overflow-y: auto;
   overflow-x: hidden;
-  /* Внутренние отступы контейнера */
   padding: 20px 0;
 }
 .scrollArea::-webkit-scrollbar { display: none; }
 
-/* --- Slider --- */
+/* --- SLIDER WRAPPER --- */
 .sliderWrapper {
   display: flex;
   flex-direction: column;
   gap: 24px;
   width: 100%;
-  padding: 0 20px; /* Отступы по бокам внутри */
+  padding: 0 20px;
   box-sizing: border-box;
+  
+  /* ВАЖНО: auto вместо 100%, чтобы Compact режим мог сжать контейнер */
+  min-height: auto; 
 }
 
-/* --- Match --- */
+/* --- MATCH --- */
 .matchWrapper {
   position: relative;
   width: 100%;
@@ -172,7 +175,6 @@
   border-bottom-left-radius: 11px;
   border-bottom-right-radius: 11px;
 }
-
 .playerRow:active { background: #2C2C2E; }
 
 .playerInfo {
@@ -193,6 +195,7 @@
 }
 .playerSeed { color: #666; font-size: 11px; margin-left: 8px; }
 
+/* --- Check Icon --- */
 .checkIcon {
   color: #00B3FF;
   margin-left: auto;
@@ -214,20 +217,15 @@
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 20px; /* Ширина скобы */
-  
-  /* Высота скобы = высота матча (88px) / 2 = 44px */
-  height: 45px; 
-  
+  width: 20px;
+  height: 45px;
   border-right: 1px solid #555;
   border-top: 1px solid #555;
   border-bottom: 1px solid #555;
-  
   border-top-right-radius: 6px;
   border-bottom-right-radius: 6px;
   z-index: 1;
 }
-
 .bracketConnector::after {
   content: '';
   position: absolute;
@@ -238,28 +236,34 @@
   background: #555;
 }
 
-/* --- Champion --- */
+/* --- CHAMPION --- */
 .championWrapper {
   width: 100%;
-  /* Центрируем чемпиона по вертикали внутри компактного окна */
   display: flex;
   justify-content: center;
+  padding: 0; /* Убрали лишние отступы */
 }
-
 .championContainer {
-  width: 100%;
-  background: linear-gradient(135deg, #1E1E1E 0%, #252525 100%);
+  width: 100%; /* На всю ширину, как обычный матч */
+  background: linear-gradient(135deg, #1E1E1E 0%, #2C2C2E 100%);
   border: 1px solid #FFD700;
   border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.1);
+  padding: 0;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.1);
 }
-.championLabel { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-.championName { font-size: 16px; font-weight: 700; color: #FFD700; }
+.championRow {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.championText {
+  font-size: 16px;
+  font-weight: 700;
+  color: #FFD700;
+  margin-left: 10px;
+}
 
 /* --- Footer --- */
 .footer {
@@ -278,16 +282,13 @@
   background-color: rgba(255, 255, 255, 0.15); 
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  
   color: #FFFFFF;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 12px 24px;
   border-radius: 999px;
-  
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
@@ -295,7 +296,6 @@
   transition: all 0.3s;
 }
 .saveButton:active { transform: scale(0.96); }
-
 .saveButtonSuccess {
   background-color: #FFFFFF;
   color: #000000;
