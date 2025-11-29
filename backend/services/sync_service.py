@@ -29,36 +29,30 @@ def parse_datetime(date_str: str) -> datetime:
         except ValueError:
             return None
 
-# === УЛУЧШЕННАЯ ОЧИСТКА ИМЕНИ ===
+# === НОРМАЛИЗАЦИЯ ИМЕНИ ===
 def normalize_name(name: str) -> str:
+    """Очищает имя: '🇪🇸 A. Zverev (1)' -> 'zverev'"""
     if not name: return ""
-    # 1. Убираем содержимое скобок в конце: "A. Zverev (1)" -> "A. Zverev "
+    # Убираем содержимое скобок в конце
     name = re.sub(r'\s*\(.*?\)$', '', name)
-    # 2. Убираем флаги (любые символы, не являющиеся буквами, цифрами, точкой, пробелом или дефисом)
-    # Внимание: это удалит эмодзи.
-    # Если имена на латинице:
-    name_clean = re.sub(r'[^\w\s\.\-]', '', name)
-    return name_clean.strip().lower()
+    # Убираем всё, кроме букв и пробелов (удаляем флаги)
+    # Используем \w, но учтем, что имена могут быть сложными.
+    # Проще всего: перевести в нижний регистр и взять фамилию.
+    clean = name.strip().lower()
+    parts = clean.split()
+    # Возвращаем последнее слово (Фамилия), очищенное от спецсимволов
+    if not parts: return ""
+    return re.sub(r'[^\w]', '', parts[-1])
 
 def is_same_player(p1_raw, p2_raw):
+    """Сравнивает два "грязных" имени из таблицы"""
     n1 = normalize_name(p1_raw)
     n2 = normalize_name(p2_raw)
     if not n1 or not n2: return False
-    
-    # Прямое совпадение
-    if n1 == n2: return True
-    
-    # Проверка по фамилии (последнее слово)
-    # n1="a. zverev", n2="zverev" -> match
-    parts1 = n1.split()
-    parts2 = n2.split()
-    if parts1 and parts2 and parts1[-1] == parts2[-1]:
-        return True
-        
-    return False
+    return n1 == n2 or n1 in n2 or n2 in n1
 
 async def sync_google_sheets_with_db(engine: Engine) -> None:
-    print("--- STARTING SYNC ---")
+    print("--- STARTING DEEP SEARCH SYNC ---")
     try:
         client = get_google_sheets_client()
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
@@ -67,7 +61,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         return
 
     with engine.connect() as conn:
-        # 1. TOURNAMENTS
+        # 1. SYNC TOURNAMENTS
         try:
             rows = sheet.worksheet("tournaments").get_all_values()
         except: return
@@ -103,7 +97,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     logger.error(f"Row error: {e}")
         conn.commit()
 
-        # 2. MATCHES
+        # 2. SYNC MATCHES
         for tid, sheet_name in tournaments_to_sync:
             print(f"Syncing T{tid}...")
             try:
@@ -142,30 +136,49 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             
                             winner = None
                             
-                            # 1. BYE LOGIC
+                            # 1. BYE Logic
                             if p2.lower() == "bye": winner = p1
                             elif p1.lower() == "bye": winner = p2
                             
-                            # 2. REGULAR LOGIC
+                            # 2. REGULAR MATCH (Deep Search in Next Column)
                             elif round_name != "F":
                                 curr_r_idx = rounds.index(round_name)
                                 if curr_r_idx < len(rounds) - 1:
                                     next_r = rounds[curr_r_idx + 1]
                                     if next_r in cols:
                                         n_idx = cols[next_r]
-                                        np1 = r1[n_idx].strip() if n_idx < len(r1) else ""
-                                        np2 = r2[n_idx].strip() if n_idx < len(r2) else ""
                                         
-                                        if is_same_player(p1, np1) or is_same_player(p1, np2):
-                                            winner = p1
-                                        elif is_same_player(p2, np1) or is_same_player(p2, np2):
-                                            winner = p2
+                                        # === ГЛУБОКИЙ ПОИСК ===
+                                        # Ищем в следующей колонке, но в большом диапазоне строк.
+                                        # Мы игнорируем пустые ячейки.
+                                        candidates = []
                                         
-                                        # LOGGING FOR DEBUG
+                                        # Диапазон поиска: от -5 строк вверх до +40 строк вниз
+                                        # Это покрывает большие визуальные пробелы в финальных стадиях
+                                        search_start = max(0, row_idx - 5)
+                                        search_end = min(len(data), row_idx + 40) 
+                                        
+                                        for s_row in range(search_start, search_end):
+                                            if n_idx < len(data[s_row]):
+                                                val = data[s_row][n_idx].strip()
+                                                if val: # Если ячейка не пустая
+                                                    candidates.append(val)
+                                        
+                                        # Проверяем, есть ли среди кандидатов P1 или P2
+                                        for cand in candidates:
+                                            if is_same_player(p1, cand):
+                                                winner = p1
+                                                break
+                                            elif is_same_player(p2, cand):
+                                                winner = p2
+                                                break
+                                        
+                                        # Лог если не нашли (для отладки)
                                         if not winner:
-                                            print(f"⚠️ No winner found for {round_name} #{m_num}: '{p1}' vs '{p2}'. Next round has: '{np1}' / '{np2}'")
+                                            pass
+                                            # print(f"⚠️ No winner T{tid} {round_name} #{m_num}: '{p1}' vs '{p2}'. Candidates: {candidates}")
 
-                            # 3. FINAL
+                            # 3. FINAL Logic
                             if round_name == "F" and champion:
                                 if is_same_player(p1, champion): winner = p1
                                 elif is_same_player(p2, champion): winner = p2
@@ -205,7 +218,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             ON CONFLICT (tournament_id, round, match_number) DO UPDATE
                             SET winner=EXCLUDED.winner, player1=EXCLUDED.player1
                         """), {"tid": tid, "name": champion})
-                        
                         conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": tid})
 
             except Exception as e:
