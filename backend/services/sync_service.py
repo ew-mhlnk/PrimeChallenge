@@ -6,6 +6,7 @@ from sqlalchemy import Engine, text
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import pytz
+import re # Импорт регулярных выражений
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,8 +29,22 @@ def parse_datetime(date_str: str) -> datetime:
         except ValueError:
             return None
 
+# === НОВАЯ ФУНКЦИЯ ДЛЯ СРАВНЕНИЯ ИМЕН ===
+def clean_name_for_compare(name: str) -> str:
+    if not name: return ""
+    # 1. Убираем все, что в скобках в конце (1), (WC), (Q)
+    name = re.sub(r'\s*\(.*?\)$', '', name)
+    # 2. Убираем эмодзи (флаги) - оставляем только буквы, точки, дефисы и пробелы
+    # Этот regex оставляет латиницу, кириллицу, пробелы, точки и дефисы
+    # name = re.sub(r'[^\w\s\.\-]', '', name) - слишком агрессивно
+    
+    # Простой вариант: если есть флаг в начале, он обычно отделен пробелом
+    # "🇪🇸 Name" -> "Name"
+    # Но надежнее просто привести к нижнему регистру и стрипнуть
+    return name.strip().lower()
+
 async def sync_google_sheets_with_db(engine: Engine) -> None:
-    print("--- STARTING SYNC ---")
+    print("--- STARTING SMART SYNC ---")
     try:
         client = get_google_sheets_client()
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
@@ -76,7 +91,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
 
         # 2. SYNC MATCHES
         for tid, sheet_name in tournaments_to_sync:
-            print(f"Syncing Matches for Tournament {tid}...")
+            print(f"Syncing T{tid} ({sheet_name})...")
             try:
                 with conn.begin_nested():
                     try:
@@ -113,49 +128,58 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             
                             winner = None
                             
-                            # === ЛОГИКА ПОБЕДИТЕЛЯ ===
-                            
-                            # 1. Если соперник BYE -> Автопобеда
+                            # 1. BYE Check
                             if p2.lower() == "bye": winner = p1
                             elif p1.lower() == "bye": winner = p2
                             
-                            # 2. Обычная логика (ищем имя в следующем раунде)
+                            # 2. Next Round Check (FUZZY MATCH)
                             elif round_name != "F":
                                 curr_r_idx = rounds.index(round_name)
                                 if curr_r_idx < len(rounds) - 1:
                                     next_r = rounds[curr_r_idx + 1]
                                     if next_r in cols:
                                         n_idx = cols[next_r]
+                                        
                                         np1 = r1[n_idx].strip() if n_idx < len(r1) else ""
                                         np2 = r2[n_idx].strip() if n_idx < len(r2) else ""
-                                        if np1 in [p1, p2]: winner = np1
-                                        elif np2 in [p1, p2]: winner = np2
-                            
-                            # 3. Финал
-                            if round_name == "F" and champion and champion in [p1, p2]:
-                                winner = champion
+                                        
+                                        # Сравниваем очищенные имена
+                                        cp1 = clean_name_for_compare(p1)
+                                        cp2 = clean_name_for_compare(p2)
+                                        cnp1 = clean_name_for_compare(np1)
+                                        cnp2 = clean_name_for_compare(np2)
 
-                            # === ЧТЕНИЕ СЧЕТА (5 колонок справа) ===
+                                        # Логика: если имя из след. раунда совпадает с P1 или P2
+                                        if cnp1 and (cnp1 == cp1 or cnp1 in cp1 or cp1 in cnp1): 
+                                            winner = p1
+                                        elif cnp1 and (cnp1 == cp2 or cnp1 in cp2 or cp2 in cnp1): 
+                                            winner = p2
+                                        elif cnp2 and (cnp2 == cp1 or cnp2 in cp1 or cp1 in cnp2):
+                                            winner = p1
+                                        elif cnp2 and (cnp2 == cp2 or cnp2 in cp2 or cp2 in cnp2):
+                                            winner = p2
+
+                            # 3. Final
+                            if round_name == "F" and champion:
+                                c_clean = clean_name_for_compare(champion)
+                                if c_clean == clean_name_for_compare(p1): winner = p1
+                                elif c_clean == clean_name_for_compare(p2): winner = p2
+
+                            # Scores
                             scores = []
                             for s_off in range(1, 6):
                                 sc_idx = idx + s_off
                                 if sc_idx >= len(r1): 
-                                    scores.append(None)
-                                    continue
-                                
+                                    scores.append(None); continue
                                 s1_val = r1[sc_idx].strip()
                                 s2_val = r2[sc_idx].strip()
-                                
-                                # Простая проверка: если это не название следующего раунда, то это счет
                                 if s1_val and s2_val and s1_val not in rounds:
                                      scores.append(f"{s1_val}-{s2_val}")
                                 else:
                                      scores.append(None)
                             
-                            # Выравниваем массив до 5 элементов
                             s1, s2, s3, s4, s5 = (scores + [None]*5)[:5]
 
-                            # Записываем в БД
                             conn.execute(text("""
                                 INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner, set1, set2, set3, set4, set5)
                                 VALUES (:tid, :rnd, :mn, :p1, :p2, :win, :s1, :s2, :s3, :s4, :s5)
@@ -169,7 +193,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
 
                         row_idx += 2
 
-                    # Champion Round
                     if champion:
                         conn.execute(text("""
                             INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner)
@@ -177,7 +200,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             ON CONFLICT (tournament_id, round, match_number) DO UPDATE
                             SET winner=EXCLUDED.winner, player1=EXCLUDED.player1
                         """), {"tid": tid, "name": champion})
-                        
                         conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": tid})
 
             except Exception as e:

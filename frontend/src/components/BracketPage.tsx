@@ -20,7 +20,7 @@ const CheckIcon = () => (
 );
 
 // --- SAVE BUTTON ---
-const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' | 'loading' | 'success' }) => {
+const SaveButton = ({ onClick, status }: { onClick: () => void; status: 'idle' | 'loading' | 'success' }) => {
   return (
     <motion.button
       layout
@@ -31,17 +31,12 @@ const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' |
       animate={{
         width: status === 'loading' ? 50 : 200,
         backgroundColor: status === 'success' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.15)',
-        color: status === 'success' ? '#000000' : '#FFFFFF'
+        color: status === 'success' ? '#000000' : '#FFFFFF',
       }}
     >
       <AnimatePresence mode="wait" initial={false}>
         {status === 'idle' && (
-          <motion.span
-            key="idle"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
+          <motion.span key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             Сохранить
           </motion.span>
         )}
@@ -98,7 +93,13 @@ const variants: Variants = {
 
 const transitionSettings = {
   duration: 0.5,
-  ease: [0.32, 0.72, 0, 1]
+  ease: [0.32, 0.72, 0, 1],
+};
+
+// Функция очистки имени — перед компонентом
+const cleanName = (name: string | undefined | null) => {
+  if (!name) return '';
+  return name.replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
 };
 
 export default function BracketPage({ id }: { id: string }) {
@@ -114,7 +115,7 @@ export default function BracketPage({ id }: { id: string }) {
     handlePick,
     savePicks,
   } = useTournamentLogic({ id });
-  
+
   const [saveStatus, setSaveStatus] = useState<'idle' | 'loading' | 'success'>('idle');
   const [direction, setDirection] = useState(0);
 
@@ -154,17 +155,15 @@ export default function BracketPage({ id }: { id: string }) {
   const isChampionRound = selectedRound === 'Champion';
   const isCompactRound = ['SF', 'F', 'Champion'].includes(selectedRound);
 
-  // Хелпер для парсинга счета "6-4"
   const getSetScore = (scoreStr: string | undefined, playerIdx: 0 | 1) => {
-      if (!scoreStr) return null;
-      const parts = scoreStr.split('-');
-      if (parts.length < 2) return null;
-      return parts[playerIdx];
+    if (!scoreStr) return null;
+    const parts = scoreStr.split('-');
+    if (parts.length < 2) return null;
+    return parts[playerIdx];
   };
 
   return (
     <div className={styles.container}>
-      
       <div className={styles.header}>
         <button onClick={() => router.back()} className={styles.backArrow}>
           <BackIcon />
@@ -173,7 +172,7 @@ export default function BracketPage({ id }: { id: string }) {
       </div>
 
       <div className={styles.bannerWrapper}>
-         <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[16px] opacity-90"></div>
+        <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[16px] opacity-90"></div>
       </div>
 
       <div className={styles.roundsContainer}>
@@ -190,7 +189,6 @@ export default function BracketPage({ id }: { id: string }) {
 
       <div className={`${styles.bracketWindow} ${isCompactRound ? styles.bracketWindowCompact : styles.bracketWindowFull}`}>
         <div className={styles.scrollArea}>
-          
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
             <motion.div
               key={selectedRound}
@@ -200,7 +198,7 @@ export default function BracketPage({ id }: { id: string }) {
               animate="center"
               exit="exit"
               transition={transitionSettings}
-              layout 
+              layout
               drag="x"
               dragConstraints={{ left: 0, right: 0 }}
               dragElastic={0.2}
@@ -210,24 +208,22 @@ export default function BracketPage({ id }: { id: string }) {
             >
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match) => {
-                  
-                  // --- CHAMPION (Обычная синяя ячейка) ---
                   if (isChampionRound) {
-                     const championName = match.actual_winner || match.predicted_winner || match.player1?.name || 'TBD';
-                     return (
-                        <div key={match.id} className={styles.championWrapper}>
-                            <div className={`${styles.matchContainer} ${styles.selected}`} style={{ border: 'none' }}>
-                                <div className={styles.playerRow} style={{ height: '60px', cursor: 'default' }}>
-                                    <div className={styles.playerInfo}>
-                                        <span className={styles.playerName} style={{ fontSize: '16px' }}>
-                                            {championName}
-                                        </span>
-                                    </div>
-                                    <div className={styles.checkIcon}><CheckIcon /></div>
-                                </div>
+                    const championName = match.actual_winner || match.predicted_winner || match.player1?.name || 'TBD';
+                    return (
+                      <div key={match.id} className={styles.championWrapper}>
+                        <div className={`${styles.matchContainer} ${styles.selected}`} style={{ border: 'none' }}>
+                          <div className={styles.playerRow} style={{ height: '60px', cursor: 'default' }}>
+                            <div className={styles.playerInfo}>
+                              <span className={styles.playerName} style={{ fontSize: '16px' }}>
+                                {championName}
+                              </span>
                             </div>
+                            <div className={styles.checkIcon}><CheckIcon /></div>
+                          </div>
                         </div>
-                     );
+                      </div>
+                    );
                   }
 
                   const p1 = match.player1;
@@ -236,88 +232,95 @@ export default function BracketPage({ id }: { id: string }) {
                   const p2Name = p2?.name || 'TBD';
                   const isP1Picked = match.predicted_winner === p1Name;
                   const isP2Picked = match.predicted_winner === p2Name;
+
                   const realWinner = match.actual_winner;
-                  const scores = match.scores || []; 
+                  const isMatchFinished = !!realWinner;
+                  const scores = match.scores || [];
 
                   const getPlayerClass = (name: string, isPicked: boolean) => {
-                      let cls = styles.playerRow;
-                      if (name === 'TBD') return `${cls} ${styles.tbd}`;
-                      if (!isLiveOrClosed && isPicked) cls += ` ${styles.selected}`;
-                      if (isLiveOrClosed) {
-                          if (isPicked && realWinner === name) cls += ` ${styles.correct}`;
-                          if (isPicked && realWinner && realWinner !== name) cls += ` ${styles.incorrect}`;
+                    const cls = styles.playerRow; // <-- теперь const, как хочет ESLint
+                    if (name === 'TBD') return `${cls} ${styles.tbd}`;
+
+                    if (!isLiveOrClosed && isPicked) {
+                      return `${cls} ${styles.selected}`;
+                    }
+
+                    if (isLiveOrClosed && isPicked) {
+                      if (!isMatchFinished) {
+                        return `${cls} ${styles.selected}`;
                       }
-                      return cls;
+
+                      if (cleanName(name) === cleanName(realWinner)) {
+                        return `${cls} ${styles.correct}`;
+                      } else {
+                        return `${cls} ${styles.incorrect}`;
+                      }
+                    }
+
+                    return cls;
                   };
 
                   return (
                     <div key={match.id} className={styles.matchWrapper}>
                       <div className={styles.matchContainer}>
-                        
-                        {/* Player 1 */}
-                        <div 
+                        <div
                           className={getPlayerClass(p1Name, isP1Picked)}
                           onClick={() => !isLiveOrClosed && p1Name !== 'TBD' && p1Name !== 'Bye' && handlePick(selectedRound!, match.id, p1Name)}
                         >
                           <div className={styles.playerInfo}>
-                              <span className={styles.playerName}>{p1Name}</span>
-                          </div>
-                          
-                          {/* SCORE P1 */}
-                          <div className="flex gap-2 mr-2">
-                             {scores.map((s, i) => {
-                                 const val = getSetScore(s, 0);
-                                 if (!val) return null;
-                                 return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>
-                             })}
+                            <span className={styles.playerName}>{p1Name}</span>
                           </div>
 
-                          {!isLiveOrClosed && isP1Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
-                          <span className={styles.playerSeed}>{p1.seed || ''}</span>
+                          <div className="flex gap-2 mr-2">
+                            {scores.map((s, i) => {
+                              const val = getSetScore(s, 0);
+                              if (!val) return null;
+                              return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>;
+                            })}
+                          </div>
+
+                          {!isLiveOrClosed && isP1Picked && <div className={styles.checkIcon}><CheckIcon /></div>}
+                          <span className={styles.playerSeed}>{p1?.seed || ''}</span>
                         </div>
 
-                        {/* Player 2 */}
-                        <div 
+                        <div
                           className={getPlayerClass(p2Name, isP2Picked)}
                           onClick={() => !isLiveOrClosed && p2Name !== 'TBD' && p2Name !== 'Bye' && handlePick(selectedRound!, match.id, p2Name)}
                         >
-                           <div className={styles.playerInfo}>
-                              <span className={styles.playerName}>{p2Name}</span>
-                           </div>
+                          <div className={styles.playerInfo}>
+                            <span className={styles.playerName}>{p2Name}</span>
+                          </div>
 
-                           {/* SCORE P2 */}
-                           <div className="flex gap-2 mr-2">
-                             {scores.map((s, i) => {
-                                 const val = getSetScore(s, 1);
-                                 if (!val) return null;
-                                 return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>
-                             })}
-                           </div>
+                          <div className="flex gap-2 mr-2">
+                            {scores.map((s, i) => {
+                              const val = getSetScore(s, 1);
+                              if (!val) return null;
+                              return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>;
+                            })}
+                          </div>
 
-                           {!isLiveOrClosed && isP2Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
-                           <span className={styles.playerSeed}>{p2.seed || ''}</span>
+                          {!isLiveOrClosed && isP2Picked && <div className={styles.checkIcon}><CheckIcon /></div>}
+                          <span className={styles.playerSeed}>{p2?.seed || ''}</span>
                         </div>
                       </div>
 
-                      {/* Connector */}
                       {selectedRound !== 'F' && <div className={styles.bracketConnector} />}
                     </div>
                   );
                 })
               ) : (
-                  <div className="flex h-full items-center justify-center py-20">
-                    <p className="text-[#5F6067] text-sm">Нет матчей</p>
-                  </div>
+                <div className="flex h-full items-center justify-center py-20">
+                  <p className="text-[#5F6067] text-sm">Нет матчей</p>
+                </div>
               )}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
 
-      {/* Footer */}
       {!isLiveOrClosed && (
         <div className={styles.footer}>
-             <SaveButton onClick={handleSave} status={saveStatus} />
+          <SaveButton onClick={handleSave} status={saveStatus} />
         </div>
       )}
     </div>
