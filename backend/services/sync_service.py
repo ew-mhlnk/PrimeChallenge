@@ -7,6 +7,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import pytz
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def get_google_sheets_client():
@@ -28,7 +29,7 @@ def parse_datetime(date_str: str) -> datetime:
             return None
 
 async def sync_google_sheets_with_db(engine: Engine) -> None:
-    logger.info("Starting sync...")
+    print("--- STARTING SYNC ---")
     try:
         client = get_google_sheets_client()
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
@@ -37,7 +38,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         return
 
     with engine.connect() as conn:
-        # 1. ТУРНИРЫ
+        # 1. SYNC TOURNAMENTS
         try:
             rows = sheet.worksheet("tournaments").get_all_values()
         except: return
@@ -53,7 +54,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     tid = int(tid)
                     status = status.upper().strip()
 
-                    # Auto-close logic
                     if start:
                         start_dt = parse_datetime(start)
                         if start_dt and status == "ACTIVE" and now > start_dt:
@@ -72,11 +72,11 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     tournaments_to_sync.append((tid, sheet_name))
                 except Exception as e:
                     logger.error(f"Row error: {e}")
-
         conn.commit()
 
-        # 2. МАТЧИ
+        # 2. SYNC MATCHES
         for tid, sheet_name in tournaments_to_sync:
+            print(f"Syncing Matches for Tournament {tid}...")
             try:
                 with conn.begin_nested():
                     try:
@@ -86,13 +86,9 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     
                     if len(data) < 2: continue
                     headers = data[0]
-                    
-                    # Карта колонок раундов
-                    # R128 - col A (0), R64 - col G (6), R32 - col M (12) ... (шаг 6)
                     cols = {h: i for i, h in enumerate(headers)}
                     rounds = ["R128", "R64", "R32", "R16", "QF", "SF", "F"]
                     
-                    # Чемпион
                     champion = None
                     if "Champion" in cols and len(data) > 1:
                         val = data[1][cols["Champion"]].strip()
@@ -117,47 +113,49 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             
                             winner = None
                             
-                            # 1. BYE Logic (Automatic win)
+                            # === ЛОГИКА ПОБЕДИТЕЛЯ ===
+                            
+                            # 1. Если соперник BYE -> Автопобеда
                             if p2.lower() == "bye": winner = p1
                             elif p1.lower() == "bye": winner = p2
                             
-                            # 2. Regular Match Logic
+                            # 2. Обычная логика (ищем имя в следующем раунде)
                             elif round_name != "F":
                                 curr_r_idx = rounds.index(round_name)
                                 if curr_r_idx < len(rounds) - 1:
                                     next_r = rounds[curr_r_idx + 1]
                                     if next_r in cols:
                                         n_idx = cols[next_r]
-                                        # Проверяем следующую колонку
                                         np1 = r1[n_idx].strip() if n_idx < len(r1) else ""
                                         np2 = r2[n_idx].strip() if n_idx < len(r2) else ""
                                         if np1 in [p1, p2]: winner = np1
                                         elif np2 in [p1, p2]: winner = np2
                             
-                            # 3. Final Logic
+                            # 3. Финал
                             if round_name == "F" and champion and champion in [p1, p2]:
                                 winner = champion
 
-                            # === СЧЕТ (SCORES) ===
-                            # Структура: Имя | S1 | S2 | S3 | S4 | S5 | СледующийРаунд
-                            # Индексы:   idx | +1 | +2 | +3 | +4 | +5
+                            # === ЧТЕНИЕ СЧЕТА (5 колонок справа) ===
                             scores = []
                             for s_off in range(1, 6):
                                 sc_idx = idx + s_off
-                                if sc_idx >= len(r1): break
+                                if sc_idx >= len(r1): 
+                                    scores.append(None)
+                                    continue
                                 
                                 s1_val = r1[sc_idx].strip()
                                 s2_val = r2[sc_idx].strip()
                                 
-                                if s1_val and s2_val:
-                                    scores.append(f"{s1_val}-{s2_val}")
+                                # Простая проверка: если это не название следующего раунда, то это счет
+                                if s1_val and s2_val and s1_val not in rounds:
+                                     scores.append(f"{s1_val}-{s2_val}")
                                 else:
-                                    scores.append(None)
+                                     scores.append(None)
                             
-                            # Дополняем до 5
-                            while len(scores) < 5: scores.append(None)
-                            s1, s2, s3, s4, s5 = scores
+                            # Выравниваем массив до 5 элементов
+                            s1, s2, s3, s4, s5 = (scores + [None]*5)[:5]
 
+                            # Записываем в БД
                             conn.execute(text("""
                                 INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner, set1, set2, set3, set4, set5)
                                 VALUES (:tid, :rnd, :mn, :p1, :p2, :win, :s1, :s2, :s3, :s4, :s5)
@@ -171,7 +169,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
 
                         row_idx += 2
 
-                    # Чемпион
+                    # Champion Round
                     if champion:
                         conn.execute(text("""
                             INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner)
@@ -180,10 +178,10 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             SET winner=EXCLUDED.winner, player1=EXCLUDED.player1
                         """), {"tid": tid, "name": champion})
                         
-                        # Ставим COMPLETED
                         conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": tid})
 
             except Exception as e:
                 logger.error(f"Sync error T{tid}: {e}")
                 continue
         conn.commit()
+        print("--- SYNC FINISHED ---")

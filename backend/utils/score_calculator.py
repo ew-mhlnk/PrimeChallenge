@@ -21,24 +21,17 @@ def compute_comparison_and_scores(tournament: models.Tournament, user_id: int, d
         pick = next((p for p in user_picks if p.round == match.round and p.match_number == match.match_number), None)
         
         is_correct = False
-        is_bye = (match.player2 and match.player2.lower() == "bye") or (match.player1 and match.player1.lower() == "bye")
-
-        # Логика победы
-        if is_bye and pick:
-            # Если соперник BYE, проверяем, что выбрали НЕ-Bye игрока
-            real_player = match.player1 if match.player2.lower() == "bye" else match.player2
-            if pick.predicted_winner == real_player:
-                is_correct = True
-        elif pick and match.winner and pick.predicted_winner:
-            # Обычное сравнение
+        
+        # Главная проверка: совпадает ли прогноз с победителем в базе?
+        if pick and match.winner and pick.predicted_winner:
             if pick.predicted_winner.strip().lower() == match.winner.strip().lower():
                 is_correct = True
 
         if is_correct:
             correct_count += 1
             total_score += ROUND_WEIGHTS.get(match.round, 0)
-        
-        # Собираем счета (не пустые)
+            
+        # Собираем счета
         sets = [s for s in [match.set1, match.set2, match.set3, match.set4, match.set5] if s]
 
         comparison.append({
@@ -48,10 +41,11 @@ def compute_comparison_and_scores(tournament: models.Tournament, user_id: int, d
             "player2": match.player2 or "TBD",
             "predicted_winner": pick.predicted_winner if pick else "-",
             "actual_winner": match.winner or "-",
-            "scores": sets,
-            "correct": is_correct
+            "scores": sets, # <--- Передаем счета
+            "correct": is_correct # <--- Передаем флаг (Зеленый/Красный)
         })
     
+    # Обновляем счет юзера
     user_score = db.query(models.UserScore).filter_by(user_id=user_id, tournament_id=tournament.id).first()
     if user_score:
         user_score.correct_picks = correct_count
