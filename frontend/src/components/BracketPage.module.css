@@ -1,21 +1,21 @@
-/* --- ГЛОБАЛЬНЫЙ КОНТЕЙНЕР --- */
+/* --- Глобальная структура --- */
 .container {
-  height: 100dvh; /* Строго высота экрана */
+  height: 100dvh;
   width: 100%;
-  background-color: #000000;
+  background-color: #141414;
   display: flex;
-  flex-direction: column; /* Вертикальный стек */
-  overflow: hidden; /* Запрещаем скролл самой страницы */
+  flex-direction: column;
+  overflow: hidden;
 }
 
-/* --- HEADER --- */
+/* --- Header --- */
 .header {
-  flex-shrink: 0; /* Не сжиматься */
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   padding: 20px 24px 10px;
   gap: 12px;
-  background-color: #000000;
+  background-color: #141414;
   z-index: 30;
 }
 
@@ -31,197 +31,199 @@
 
 .tournamentTitle {
   color: #FFFFFF;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: -0.5px;
+  letter-spacing: 0.5px;
 }
 
-/* --- BANNER --- */
+/* --- Banner --- */
 .bannerWrapper {
-  flex-shrink: 0; /* Не сжиматься */
-  padding: 0 24px 20px 24px;
+  flex-shrink: 0;
+  padding: 0 24px 15px 24px;
   z-index: 20;
 }
 
-/* --- ROUNDS NAV --- */
+/* --- НАВИГАЦИЯ РАУНДОВ (CSS STYLES) --- */
 .roundsContainer {
-  flex-shrink: 0; /* Не сжиматься */
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 24px 15px 24px;
+  gap: 12px; /* Отступ между кнопками */
+  padding: 0 24px 10px 24px;
   overflow-x: auto;
   scrollbar-width: none;
-  height: 50px;
+  height: 60px;
   z-index: 20;
 }
 .roundsContainer::-webkit-scrollbar { display: none; }
 
 .roundButton {
   position: relative;
-  padding: 6px 16px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
+  /* Размеры как в макете */
+  min-width: 53px;
+  height: 36px;
+  padding: 0 12px;
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  border-radius: 18px; /* Половина высоты для капсулы */
+  font-size: 14px;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
-  background: #1C1C1E;
-  color: #8E8E93;
+  transition: all 0.2s ease;
+  
+  /* Default state (Inactive) */
+  background: transparent;
+  color: #5F6067;
   border: 1px solid transparent;
 }
 
+/* Active State (Стиль из Figma) */
 .activeRound {
-  background: #007AFF;
-  color: #FFFFFF;
-  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
-  transform: scale(1.02);
-}
-
-.activeRound::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
+  color: #CBCBCB;
+  /* Градиентный фон */
   background: linear-gradient(180deg, rgba(0, 140, 255, 0.26) 0%, rgba(0, 119, 255, 0.26) 100%);
-  z-index: -1;
+  /* Обводка */
+  border: 2px solid #00B3FF;
+  /* Легкое свечение */
+  box-shadow: 0 0 10px rgba(0, 179, 255, 0.2);
 }
 
-/* --- ОКНО СЕТКИ (ФИКСИРОВАННОЕ МЕСТО) --- */
+/* --- КОНТЕЙНЕР СЕТКИ --- */
 .bracketWindow {
-  /* Занимает всё оставшееся пространство между меню и низом */
-  flex: 1; 
-  /* ВАЖНО: позволяет контейнеру сжиматься, если контента много, активируя скролл внутри */
+  /* Занимает все оставшееся место */
+  flex: 1;
+  /* Критично для скролла внутри флекса */
   min-height: 0; 
   
-  width: calc(100% - 32px);
-  margin: 0 auto 20px auto; /* Отступ снизу, чтобы не прилипало к футеру */
-  
-  background: #121212;
-  border: 1px solid #333;
-  border-radius: 24px;
-  box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
   
   position: relative;
-  overflow: hidden; /* Обрезаем всё, что вылезает за рамки */
-  display: flex;
-  flex-direction: column;
+  /* Скрываем вылетающие элементы анимации */
+  overflow: hidden; 
 }
 
-/* ОБЛАСТЬ СКРОЛЛА ВНУТРИ ОКНА */
 .scrollArea {
-  flex: 1; /* Занимает всю высоту окна */
   height: 100%;
-  overflow-y: auto; /* ВЕРТИКАЛЬНЫЙ СКРОЛЛ ВКЛЮЧЕН ЗДЕСЬ */
-  overflow-x: hidden; /* Горизонтальный запрещен (только свайп) */
-  
-  /* Внутренние отступы */
-  padding: 20px 0;
-  
-  /* Отступ снизу, чтобы контент не прятался под кнопкой, если она поверх */
-  padding-bottom: 80px; 
+  overflow-y: auto; /* Вертикальный скролл здесь */
+  overflow-x: hidden;
+  padding: 10px 24px 100px 24px; /* Отступ снизу под кнопку */
 }
 .scrollArea::-webkit-scrollbar { display: none; }
 
-/* --- SLIDER (Содержимое) --- */
+/* --- SLIDER --- */
 .sliderWrapper {
   display: flex;
   flex-direction: column;
   gap: 24px; 
   width: 100%;
-  padding: 0 20px;
-  box-sizing: border-box;
-  /* ВАЖНО: Разрешаем вертикальный жест браузера (скролл), но ловим горизонтальный */
-  touch-action: pan-y; 
+  min-height: 100%;
 }
 
-/* --- MATCH STYLES --- */
+/* --- MATCH --- */
 .matchWrapper {
   position: relative;
   width: 100%;
   display: flex;
-  justify-content: flex-start;
-  padding-left: 10px;
+  /* Оставляем место справа под скобу */
+  padding-right: 16px; 
 }
 
 .matchContainer {
   display: flex;
   flex-direction: column;
-  width: 85%; 
-  background: #1E1E1E;
-  border: 1px solid #38383A;
-  border-radius: 14px;
+  width: 100%;
+  background: #141414;
+  border: 1px solid #333;
+  border-radius: 12px;
   position: relative;
   z-index: 2;
 }
 
 .playerRow {
-  height: 46px;
+  height: 42px; /* Компактнее */
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 12px;
   cursor: pointer;
   position: relative;
-  background: #1E1E1E;
   transition: background 0.2s;
 }
-.playerRow:first-child { 
-  border-bottom: 1px solid #2C2C2E; 
-  border-top-left-radius: 13px;
-  border-top-right-radius: 13px;
+
+.playerRow:first-child {
+  border-bottom: 1px solid #2A2A2A;
+  border-top-left-radius: 11px;
+  border-top-right-radius: 11px;
 }
 .playerRow:last-child {
-  border-bottom-left-radius: 13px;
-  border-bottom-right-radius: 13px;
-}
-
-.playerRow:active { background: #2C2C2E; }
-
-.playerInfo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  overflow: hidden;
-  flex: 1;
+  border-bottom-left-radius: 11px;
+  border-bottom-right-radius: 11px;
 }
 
 .playerName {
   color: #FFFFFF;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.playerSeed { color: #636366; font-size: 12px; font-weight: 500; }
+.playerSeed { color: #5F6067; font-size: 11px; }
 
 /* States */
-.selected { background: #12202d !important; }
-.selected .playerName { color: #00B2FF; font-weight: 600; }
+.selected { background: #1C1C1E; }
+.selected .playerName { color: #00B3FF; }
 
-.correct { background: rgba(48, 209, 88, 0.15) !important; border-color: rgba(48, 209, 88, 0.3); }
-.correct .playerName { color: #30D158; }
+.correct { background: rgba(46, 125, 50, 0.1); }
+.correct .playerName { color: #4CAF50; }
+.incorrect { background: rgba(198, 40, 40, 0.1); }
+.incorrect .playerName { color: #EF5350; text-decoration: line-through; }
+.checkIcon { color: #00B3FF; margin-left: 6px; }
 
-.incorrect { background: rgba(255, 69, 58, 0.15) !important; }
-.incorrect .playerName { color: #FF453A; text-decoration: line-through; opacity: 0.7; }
+/* --- СКОБА (REAL BRACKET) --- */
+.bracketConnector {
+  position: absolute;
+  right: 0; /* Прижимаем к правому краю wrapper */
+  top: 50%;
+  transform: translateY(-50%);
+  
+  width: 10px; /* Ширина скобы */
+  
+  /* Высота скобы: 
+     Матч ~85px высотой. Центры ячеек на расстоянии ~42px.
+     Ставим высоту 42px, чтобы линии выходили из центров.
+  */
+  height: 42px; 
+  
+  /* Рисуем П-образную (или ]-образную) форму */
+  border-right: 1px solid #4C4C4C;
+  border-top: 1px solid #4C4C4C;
+  border-bottom: 1px solid #4C4C4C;
+  
+  /* Скругляем углы */
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+  
+  z-index: 1;
+}
 
-.checkIcon { color: #00B2FF; margin-left: auto; display: flex; align-items: center; }
-
-/* --- CONNECTORS --- */
-.matchContainer::after {
+/* Хвостик к следующему раунду */
+.bracketConnector::after {
   content: '';
   position: absolute;
-  right: -24px;
   top: 50%;
-  width: 24px;
+  right: -8px;
+  width: 8px;
   height: 1px;
-  background: #444;
-  z-index: 1;
-  display: none;
+  background: #4C4C4C;
 }
-.hasConnector::after { display: block; }
 
 /* --- CHAMPION --- */
 .championWrapper {
@@ -230,66 +232,64 @@
   justify-content: center;
   padding: 20px 0;
 }
+/* Стиль как у обычного матча, но выделенный */
 .championContainer {
-  width: 90%;
-  background: linear-gradient(135deg, #1E1E1E 0%, #2C2C2E 100%);
+  width: 100%;
+  background: #141414;
   border: 1px solid #FFD700;
-  border-radius: 14px;
-  padding: 0;
-  box-shadow: 0 0 30px rgba(255, 215, 0, 0.15);
-}
-.championRow {
-  height: 60px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  height: 50px;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.1);
 }
-.championText {
-  font-size: 18px;
-  font-weight: 700;
+.championName {
   color: #FFD700;
-  margin-left: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  margin-left: 8px;
 }
 
 /* --- FOOTER --- */
-/* Теперь футер не перекрывает скролл, он просто висит внизу */
 .footer {
   position: fixed;
-  bottom: 0;
+  bottom: 30px;
   left: 0;
   right: 0;
-  padding: 20px 24px calc(20px + env(safe-area-inset-bottom));
-  /* Плавный градиент, чтобы текст под кнопкой уходил в затемнение */
-  background: linear-gradient(to top, #000000 70%, rgba(0,0,0,0) 100%);
-  z-index: 50;
   display: flex;
   justify-content: center;
-  pointer-events: none; /* Чтобы можно было скроллить "сквозь" прозрачную часть */
+  z-index: 50;
+  pointer-events: none;
 }
 
-.footerContent {
-  width: 100%;
-  pointer-events: auto;
-}
-
+/* Save Button (Glass Style) */
 .saveButton {
-  width: 100%;
-  height: 50px;
-  border-radius: 25px;
-  background: rgba(0, 122, 255, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: white;
-  font-size: 16px;
-  font-weight: 600;
+  pointer-events: auto;
+  background-color: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #FFFFFF;
+  
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  padding: 12px 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  gap: 8px;
+  transition: transform 0.2s;
 }
+.saveButton:active { transform: scale(0.95); }
+
+/* Success State (White) */
 .saveButtonSuccess {
-  background: rgba(50, 215, 75, 0.8);
-  border-color: rgba(50, 215, 75, 0.3);
+  background-color: #FFFFFF;
+  color: #000000;
+  border-color: #FFFFFF;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
 }

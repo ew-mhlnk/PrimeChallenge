@@ -6,7 +6,7 @@ import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 import { useState } from 'react';
 
-// ... (Иконки оставляем те же: BackIcon, CheckIcon, TrophyIcon) ...
+// --- ICONS ---
 const BackIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M15 18l-6-6 6-6"/>
@@ -20,7 +20,7 @@ const CheckIcon = () => (
 );
 
 const TrophyIcon = () => (
-  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="1.5">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2">
     <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
     <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
     <path d="M4 22h16" />
@@ -30,24 +30,30 @@ const TrophyIcon = () => (
   </svg>
 );
 
-// ... (SaveButton оставляем тот же) ...
+// --- SAVE BUTTON ---
 const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' | 'loading' | 'success' }) => {
-  const isSuccess = status === 'success';
   return (
     <motion.button
       layout
       onClick={onClick}
       disabled={status !== 'idle'}
-      className={`${styles.saveButton} ${isSuccess ? styles.saveButtonSuccess : ''}`}
-      whileTap={status === 'idle' ? { scale: 0.97 } : {}}
+      className={`${styles.saveButton} ${status === 'success' ? styles.saveButtonSuccess : ''}`}
+      initial={false}
+      animate={{
+        width: status === 'loading' ? 50 : 200,
+        backgroundColor: status === 'success' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.1)',
+        color: status === 'success' ? '#000000' : '#FFFFFF'
+      }}
+      transition={{ type: "spring", stiffness: 500, damping: 30 }}
     >
       <AnimatePresence mode="wait" initial={false}>
         {status === 'idle' && (
           <motion.span
             key="idle"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, filter: "blur(5px)" }}
+            animate={{ opacity: 1, filter: "blur(0px)" }}
+            exit={{ opacity: 0, filter: "blur(5px)" }}
+            transition={{ duration: 0.2 }}
           >
             Сохранить
           </motion.span>
@@ -58,20 +64,20 @@ const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' |
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            className="flex items-center justify-center"
           >
-            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-            </svg>
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           </motion.div>
         )}
         {status === 'success' && (
           <motion.span
             key="success"
-            initial={{ opacity: 0, scale: 0.8 }}
+            initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
             className="flex items-center gap-2"
           >
+            <CheckIcon />
             Готово
           </motion.span>
         )}
@@ -80,7 +86,7 @@ const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' |
   );
 };
 
-// АНИМАЦИЯ
+// --- GRID ANIMATION ---
 const variants: Variants = {
   enter: (direction: number) => ({
     x: direction > 0 ? '100%' : '-100%',
@@ -105,10 +111,8 @@ const variants: Variants = {
 };
 
 const transitionSettings = {
-  type: "spring",
-  stiffness: 300,
-  damping: 30,
-  mass: 1
+  duration: 0.5,
+  ease: [0.32, 0.72, 0, 1]
 };
 
 export default function BracketPage({ id }: { id: string }) {
@@ -138,6 +142,7 @@ export default function BracketPage({ id }: { id: string }) {
     const currentIndex = rounds.indexOf(selectedRound);
     const newIndex = rounds.indexOf(newRound);
     if (currentIndex === newIndex) return;
+    
     setDirection(newIndex > currentIndex ? 1 : -1);
     setSelectedRound(newRound);
   };
@@ -152,7 +157,6 @@ export default function BracketPage({ id }: { id: string }) {
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const currentIndex = rounds.indexOf(selectedRound);
     const threshold = 50;
-    // Блокируем смену раунда, если свайп был вертикальным (скролл)
     if (Math.abs(info.offset.y) > Math.abs(info.offset.x)) return;
 
     if (info.offset.x < -threshold && currentIndex < rounds.length - 1) {
@@ -180,7 +184,7 @@ export default function BracketPage({ id }: { id: string }) {
          <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[16px] opacity-90"></div>
       </div>
 
-      {/* Rounds */}
+      {/* Rounds Navigation (CSS Only) */}
       <div className={styles.roundsContainer}>
         {rounds.map((round) => (
           <button
@@ -193,7 +197,7 @@ export default function BracketPage({ id }: { id: string }) {
         ))}
       </div>
 
-      {/* Bracket Window: ФИКСИРОВАННАЯ ВЫСОТА, ВНУТРИ СКРОЛЛ */}
+      {/* Bracket Window (Fixed Container) */}
       <div className={styles.bracketWindow}>
         <div className={styles.scrollArea}>
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
@@ -208,12 +212,10 @@ export default function BracketPage({ id }: { id: string }) {
               
               layout 
               
-              // Настройка свайпа
               drag="x"
               dragConstraints={{ left: 0, right: 0 }}
               dragElastic={0.2}
-              // ВАЖНО: Это позволяет скроллить вертикально, не блокируя свайп
-              dragDirectionLock={true} 
+              dragDirectionLock={true}
               onDragEnd={handleDragEnd}
               
               className={styles.sliderWrapper}
@@ -221,20 +223,22 @@ export default function BracketPage({ id }: { id: string }) {
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match) => {
                   
+                  // --- CHAMPION ---
                   if (isChampionRound) {
                      const championName = match.actual_winner || match.predicted_winner || match.player1?.name || 'TBD';
                      return (
                         <div key={match.id} className={styles.championWrapper}>
                             <div className={styles.championContainer}>
-                                <div className={styles.championRow}>
+                                <div className="flex items-center justify-center w-full h-full">
                                     <TrophyIcon />
-                                    <span className={styles.championText}>{championName}</span>
+                                    <span className={styles.championName}>{championName}</span>
                                 </div>
                             </div>
                         </div>
                      );
                   }
 
+                  // --- MATCH ---
                   const p1 = match.player1;
                   const p2 = match.player2;
                   const p1Name = p1?.name || 'TBD';
@@ -256,7 +260,7 @@ export default function BracketPage({ id }: { id: string }) {
 
                   return (
                     <div key={match.id} className={styles.matchWrapper}>
-                      <div className={`${styles.matchContainer} ${selectedRound !== 'F' ? styles.hasConnector : ''}`}>
+                      <div className={styles.matchContainer}>
                         <div 
                           className={getPlayerClass(p1Name, isP1Picked)}
                           onClick={() => !isLiveOrClosed && p1Name !== 'TBD' && p1Name !== 'Bye' && handlePick(selectedRound!, match.id, p1Name)}
@@ -279,6 +283,9 @@ export default function BracketPage({ id }: { id: string }) {
                            <span className={styles.playerSeed}>{p2.seed || ''}</span>
                         </div>
                       </div>
+
+                      {/* Bracket Connector ( ] ) */}
+                      {selectedRound !== 'F' && <div className={styles.bracketConnector} />}
                     </div>
                   );
                 })
