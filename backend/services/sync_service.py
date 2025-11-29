@@ -6,7 +6,7 @@ from sqlalchemy import Engine, text
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import pytz
-import re # Импорт регулярных выражений
+import re
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,22 +29,36 @@ def parse_datetime(date_str: str) -> datetime:
         except ValueError:
             return None
 
-# === НОВАЯ ФУНКЦИЯ ДЛЯ СРАВНЕНИЯ ИМЕН ===
-def clean_name_for_compare(name: str) -> str:
+# === УЛУЧШЕННАЯ ОЧИСТКА ИМЕНИ ===
+def normalize_name(name: str) -> str:
     if not name: return ""
-    # 1. Убираем все, что в скобках в конце (1), (WC), (Q)
+    # 1. Убираем содержимое скобок в конце: "A. Zverev (1)" -> "A. Zverev "
     name = re.sub(r'\s*\(.*?\)$', '', name)
-    # 2. Убираем эмодзи (флаги) - оставляем только буквы, точки, дефисы и пробелы
-    # Этот regex оставляет латиницу, кириллицу, пробелы, точки и дефисы
-    # name = re.sub(r'[^\w\s\.\-]', '', name) - слишком агрессивно
+    # 2. Убираем флаги (любые символы, не являющиеся буквами, цифрами, точкой, пробелом или дефисом)
+    # Внимание: это удалит эмодзи.
+    # Если имена на латинице:
+    name_clean = re.sub(r'[^\w\s\.\-]', '', name)
+    return name_clean.strip().lower()
+
+def is_same_player(p1_raw, p2_raw):
+    n1 = normalize_name(p1_raw)
+    n2 = normalize_name(p2_raw)
+    if not n1 or not n2: return False
     
-    # Простой вариант: если есть флаг в начале, он обычно отделен пробелом
-    # "🇪🇸 Name" -> "Name"
-    # Но надежнее просто привести к нижнему регистру и стрипнуть
-    return name.strip().lower()
+    # Прямое совпадение
+    if n1 == n2: return True
+    
+    # Проверка по фамилии (последнее слово)
+    # n1="a. zverev", n2="zverev" -> match
+    parts1 = n1.split()
+    parts2 = n2.split()
+    if parts1 and parts2 and parts1[-1] == parts2[-1]:
+        return True
+        
+    return False
 
 async def sync_google_sheets_with_db(engine: Engine) -> None:
-    print("--- STARTING SMART SYNC ---")
+    print("--- STARTING SYNC ---")
     try:
         client = get_google_sheets_client()
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
@@ -53,7 +67,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         return
 
     with engine.connect() as conn:
-        # 1. SYNC TOURNAMENTS
+        # 1. TOURNAMENTS
         try:
             rows = sheet.worksheet("tournaments").get_all_values()
         except: return
@@ -89,9 +103,9 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     logger.error(f"Row error: {e}")
         conn.commit()
 
-        # 2. SYNC MATCHES
+        # 2. MATCHES
         for tid, sheet_name in tournaments_to_sync:
-            print(f"Syncing T{tid} ({sheet_name})...")
+            print(f"Syncing T{tid}...")
             try:
                 with conn.begin_nested():
                     try:
@@ -128,44 +142,35 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             
                             winner = None
                             
-                            # 1. BYE Check
+                            # 1. BYE LOGIC
                             if p2.lower() == "bye": winner = p1
                             elif p1.lower() == "bye": winner = p2
                             
-                            # 2. Next Round Check (FUZZY MATCH)
+                            # 2. REGULAR LOGIC
                             elif round_name != "F":
                                 curr_r_idx = rounds.index(round_name)
                                 if curr_r_idx < len(rounds) - 1:
                                     next_r = rounds[curr_r_idx + 1]
                                     if next_r in cols:
                                         n_idx = cols[next_r]
-                                        
                                         np1 = r1[n_idx].strip() if n_idx < len(r1) else ""
                                         np2 = r2[n_idx].strip() if n_idx < len(r2) else ""
                                         
-                                        # Сравниваем очищенные имена
-                                        cp1 = clean_name_for_compare(p1)
-                                        cp2 = clean_name_for_compare(p2)
-                                        cnp1 = clean_name_for_compare(np1)
-                                        cnp2 = clean_name_for_compare(np2)
-
-                                        # Логика: если имя из след. раунда совпадает с P1 или P2
-                                        if cnp1 and (cnp1 == cp1 or cnp1 in cp1 or cp1 in cnp1): 
+                                        if is_same_player(p1, np1) or is_same_player(p1, np2):
                                             winner = p1
-                                        elif cnp1 and (cnp1 == cp2 or cnp1 in cp2 or cp2 in cnp1): 
+                                        elif is_same_player(p2, np1) or is_same_player(p2, np2):
                                             winner = p2
-                                        elif cnp2 and (cnp2 == cp1 or cnp2 in cp1 or cp1 in cnp2):
-                                            winner = p1
-                                        elif cnp2 and (cnp2 == cp2 or cnp2 in cp2 or cp2 in cnp2):
-                                            winner = p2
+                                        
+                                        # LOGGING FOR DEBUG
+                                        if not winner:
+                                            print(f"⚠️ No winner found for {round_name} #{m_num}: '{p1}' vs '{p2}'. Next round has: '{np1}' / '{np2}'")
 
-                            # 3. Final
+                            # 3. FINAL
                             if round_name == "F" and champion:
-                                c_clean = clean_name_for_compare(champion)
-                                if c_clean == clean_name_for_compare(p1): winner = p1
-                                elif c_clean == clean_name_for_compare(p2): winner = p2
+                                if is_same_player(p1, champion): winner = p1
+                                elif is_same_player(p2, champion): winner = p2
 
-                            # Scores
+                            # SCORES
                             scores = []
                             for s_off in range(1, 6):
                                 sc_idx = idx + s_off
@@ -200,6 +205,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             ON CONFLICT (tournament_id, round, match_number) DO UPDATE
                             SET winner=EXCLUDED.winner, player1=EXCLUDED.player1
                         """), {"tid": tid, "name": champion})
+                        
                         conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": tid})
 
             except Exception as e:
