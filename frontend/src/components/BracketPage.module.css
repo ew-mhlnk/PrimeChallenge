@@ -47,15 +47,17 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  /* Добавил отступ справа, чтобы Champion не прилипал к краю */
-  padding: 0 24px 10px 24px; 
+  padding: 0 24px 10px 24px;
   overflow-x: auto;
   scrollbar-width: none;
   height: 50px;
   z-index: 20;
   margin-bottom: 10px;
 }
-.roundsContainer::-webkit-scrollbar { display: none; }
+
+.roundsContainer::-webkit-scrollbar {
+  display: none;
+}
 
 .roundButton {
   position: relative;
@@ -69,7 +71,7 @@
   background: #1C1C1E;
   color: #5F6067;
   border: 1px solid transparent;
-  flex-shrink: 0; 
+  flex-shrink: 0;
 }
 
 .activeRound {
@@ -90,27 +92,30 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  
-  /* Минимальная высота, чтобы не схлопывался */
   min-height: 200px;
-  
-  /* Отступ до футера */
   margin-bottom: 115px;
-  
   transition: all 0.4s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.bracketWindowFull { flex: 1; }
-.bracketWindowCompact { flex-grow: 0; height: auto; }
+.bracketWindowFull {
+  flex: 1;
+}
+.bracketWindowCompact {
+  flex-grow: 0;
+  height: auto;
+}
 
 /* --- SCROLL AREA --- */
 .scrollArea {
-  flex: 1; 
+  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 20px 0;
 }
-.scrollArea::-webkit-scrollbar { display: none; }
+
+.scrollArea::-webkit-scrollbar {
+  display: none;
+}
 
 /* --- SLIDER WRAPPER --- */
 .sliderWrapper {
@@ -120,7 +125,6 @@
   width: 100%;
   padding: 0 20px;
   box-sizing: border-box;
-  min-height: auto; 
 }
 
 /* --- MATCH --- */
@@ -142,6 +146,7 @@
   z-index: 2;
 }
 
+/* === ОБНОВЛЁННЫЙ playerRow === */
 .playerRow {
   height: 44px;
   width: 100%;
@@ -151,19 +156,24 @@
   cursor: pointer;
   position: relative;
   transition: background 0.2s;
+  background: #1E1E1E; /* Дефолтный фон */
 }
-.playerRow:first-child { 
+
+.playerRow:first-child {
   border-bottom: 1px solid #2C2C2E;
   border-top-left-radius: 11px;
   border-top-right-radius: 11px;
 }
+
 .playerRow:last-child {
   border-bottom-left-radius: 11px;
   border-bottom-right-radius: 11px;
 }
-.playerRow:active { background: #2C2C2E; }
 
-/* Убираем бордер для одиночной ячейки (Чемпион) */
+.playerRow:active {
+  background: #2C2C2E;
+}
+
 .singleRow .playerRow {
   border-bottom: none;
   border-radius: 11px;
@@ -185,7 +195,54 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.playerSeed { color: #666; font-size: 11px; margin-left: 8px; }
+
+.playerSeed {
+  color: #666;
+  font-size: 11px;
+  margin-left: 8px;
+}
+
+/* === НОВЫЕ КРАСИВЫЕ СОСТОЯНИЯ === */
+
+/* 1. Выбрано (матч ещё не сыгран) — Синий */
+.selected {
+  background: #152230 !important;
+}
+
+.selected .playerName {
+  color: #00B3FF;
+  font-weight: 600;
+}
+
+/* 2. Угадал — Зелёный градиент */
+.correct {
+  background: linear-gradient(90deg, #1D1F1A 0%, #161616 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.correct .playerName {
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+/* 3. Не угадал — Красный градиент */
+.incorrect {
+  background: linear-gradient(90deg, #201212 0%, #161616 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.incorrect .playerName {
+  color: #7E5B5B;
+  text-decoration: line-through;
+}
+
+/* На будущее — подсказка кто реально победил */
+.realWinnerHint {
+  font-size: 11px;
+  color: #4CAF50;
+  margin-left: 8px;
+  font-style: italic;
+}
 
 /* --- Check Icon --- */
 .checkIcon {
@@ -194,14 +251,6 @@
   display: flex;
   align-items: center;
 }
-
-/* States */
-.selected { background: #152230 !important; }
-.selected .playerName { color: #00B3FF; font-weight: 600; }
-.correct { background: rgba(48, 209, 88, 0.15) !important; }
-.correct .playerName { color: #30D158; }
-.incorrect { background: rgba(255, 69, 58, 0.15) !important; }
-.incorrect .playerName { color: #FF453A; text-decoration: line-through; opacity: 0.7; }
 
 /* --- CONNECTORS --- */
 .bracketConnector {
@@ -218,6 +267,7 @@
   border-bottom-right-radius: 6px;
   z-index: 1;
 }
+
 .bracketConnector::after {
   content: '';
   position: absolute;
@@ -229,7 +279,6 @@
 }
 
 /* --- CHAMPION WRAPPER --- */
-/* Просто центрируем и используем те же стили */
 .championWrapper {
   width: 100%;
   display: flex;
@@ -251,7 +300,7 @@
 
 .saveButton {
   pointer-events: auto;
-  background-color: rgba(255, 255, 255, 0.15); 
+  background-color: rgba(255, 255, 0.15);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   color: #FFFFFF;
@@ -267,7 +316,11 @@
   gap: 8px;
   transition: all 0.3s;
 }
-.saveButton:active { transform: scale(0.96); }
+
+.saveButton:active {
+  transform: scale(0.96);
+}
+
 .saveButtonSuccess {
   background-color: #FFFFFF;
   color: #000000;

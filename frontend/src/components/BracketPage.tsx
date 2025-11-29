@@ -19,8 +19,19 @@ const CheckIcon = () => (
   </svg>
 );
 
+const TrophyIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2">
+    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+    <path d="M4 22h16" />
+    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+  </svg>
+);
+
 // --- SAVE BUTTON ---
-const SaveButton = ({ onClick, status }: { onClick: () => void; status: 'idle' | 'loading' | 'success' }) => {
+const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' | 'loading' | 'success' }) => {
   return (
     <motion.button
       layout
@@ -31,12 +42,17 @@ const SaveButton = ({ onClick, status }: { onClick: () => void; status: 'idle' |
       animate={{
         width: status === 'loading' ? 50 : 200,
         backgroundColor: status === 'success' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.15)',
-        color: status === 'success' ? '#000000' : '#FFFFFF',
+        color: status === 'success' ? '#000000' : '#FFFFFF'
       }}
     >
       <AnimatePresence mode="wait" initial={false}>
         {status === 'idle' && (
-          <motion.span key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.span
+            key="idle"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
             Сохранить
           </motion.span>
         )}
@@ -93,13 +109,13 @@ const variants: Variants = {
 
 const transitionSettings = {
   duration: 0.5,
-  ease: [0.32, 0.72, 0, 1],
+  ease: [0.32, 0.72, 0, 1]
 };
 
-// Функция очистки имени — перед компонентом
+// Хелпер очистки имен
 const cleanName = (name: string | undefined | null) => {
-  if (!name) return '';
-  return name.replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
+    if (!name) return "";
+    return name.replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
 };
 
 export default function BracketPage({ id }: { id: string }) {
@@ -115,7 +131,7 @@ export default function BracketPage({ id }: { id: string }) {
     handlePick,
     savePicks,
   } = useTournamentLogic({ id });
-
+  
   const [saveStatus, setSaveStatus] = useState<'idle' | 'loading' | 'success'>('idle');
   const [direction, setDirection] = useState(0);
 
@@ -156,14 +172,15 @@ export default function BracketPage({ id }: { id: string }) {
   const isCompactRound = ['SF', 'F', 'Champion'].includes(selectedRound);
 
   const getSetScore = (scoreStr: string | undefined, playerIdx: 0 | 1) => {
-    if (!scoreStr) return null;
-    const parts = scoreStr.split('-');
-    if (parts.length < 2) return null;
-    return parts[playerIdx];
+      if (!scoreStr) return null;
+      const parts = scoreStr.split('-');
+      if (parts.length < 2) return null;
+      return parts[playerIdx];
   };
 
   return (
     <div className={styles.container}>
+      
       <div className={styles.header}>
         <button onClick={() => router.back()} className={styles.backArrow}>
           <BackIcon />
@@ -172,7 +189,7 @@ export default function BracketPage({ id }: { id: string }) {
       </div>
 
       <div className={styles.bannerWrapper}>
-        <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[16px] opacity-90"></div>
+         <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[16px] opacity-90"></div>
       </div>
 
       <div className={styles.roundsContainer}>
@@ -189,6 +206,7 @@ export default function BracketPage({ id }: { id: string }) {
 
       <div className={`${styles.bracketWindow} ${isCompactRound ? styles.bracketWindowCompact : styles.bracketWindowFull}`}>
         <div className={styles.scrollArea}>
+          
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
             <motion.div
               key={selectedRound}
@@ -198,7 +216,7 @@ export default function BracketPage({ id }: { id: string }) {
               animate="center"
               exit="exit"
               transition={transitionSettings}
-              layout
+              layout 
               drag="x"
               dragConstraints={{ left: 0, right: 0 }}
               dragElastic={0.2}
@@ -208,22 +226,59 @@ export default function BracketPage({ id }: { id: string }) {
             >
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match) => {
+                  
+                  const realWinner = match.actual_winner;
+                  const isMatchFinished = !!realWinner;
+
+                  const getPlayerClass = (name: string, isPicked: boolean) => {
+                      // 1. ИСПРАВЛЕНИЕ: Используем const
+                      const cls = styles.playerRow;
+                      if (name === 'TBD') return `${cls} ${styles.tbd}`;
+
+                      if (isLiveOrClosed && isPicked) {
+                          if (!isMatchFinished) {
+                              return `${cls} ${styles.selected}`;
+                          }
+                          if (cleanName(name) === cleanName(realWinner)) {
+                              return `${cls} ${styles.correct}`;
+                          } else {
+                              return `${cls} ${styles.incorrect}`;
+                          }
+                      }
+
+                      if (!isLiveOrClosed && isPicked) {
+                          return `${cls} ${styles.selected}`;
+                      }
+
+                      return cls;
+                  };
+
+                  // --- CHAMPION ---
                   if (isChampionRound) {
-                    const championName = match.actual_winner || match.predicted_winner || match.player1?.name || 'TBD';
-                    return (
-                      <div key={match.id} className={styles.championWrapper}>
-                        <div className={`${styles.matchContainer} ${styles.selected}`} style={{ border: 'none' }}>
-                          <div className={styles.playerRow} style={{ height: '60px', cursor: 'default' }}>
-                            <div className={styles.playerInfo}>
-                              <span className={styles.playerName} style={{ fontSize: '16px' }}>
-                                {championName}
-                              </span>
+                     const championName = match.actual_winner || match.predicted_winner || match.player1?.name || 'TBD';
+                     
+                     let champClass = styles.selected;
+                     if (isLiveOrClosed && isMatchFinished && match.predicted_winner) {
+                        if (cleanName(match.predicted_winner) === cleanName(match.actual_winner)) {
+                            champClass = styles.correct;
+                        } else {
+                            champClass = styles.incorrect;
+                        }
+                     } else if (!match.predicted_winner) {
+                         // Если не выбрано, и это просто TBD/победитель без прогноза
+                         champClass = ""; 
+                     }
+
+                     return (
+                        <div key={match.id} className={styles.championWrapper}>
+                            <div className={`${styles.championContainer} ${champClass}`} style={{ border: 'none' }}>
+                                <div className={styles.championRow}>
+                                    <TrophyIcon />
+                                    <span className={styles.championName}>{championName}</span>
+                                </div>
                             </div>
-                            <div className={styles.checkIcon}><CheckIcon /></div>
-                          </div>
                         </div>
-                      </div>
-                    );
+                     );
                   }
 
                   const p1 = match.player1;
@@ -232,75 +287,56 @@ export default function BracketPage({ id }: { id: string }) {
                   const p2Name = p2?.name || 'TBD';
                   const isP1Picked = match.predicted_winner === p1Name;
                   const isP2Picked = match.predicted_winner === p2Name;
-
-                  const realWinner = match.actual_winner;
-                  const isMatchFinished = !!realWinner;
-                  const scores = match.scores || [];
-
-                  const getPlayerClass = (name: string, isPicked: boolean) => {
-                    const cls = styles.playerRow; // <-- теперь const, как хочет ESLint
-                    if (name === 'TBD') return `${cls} ${styles.tbd}`;
-
-                    if (!isLiveOrClosed && isPicked) {
-                      return `${cls} ${styles.selected}`;
-                    }
-
-                    if (isLiveOrClosed && isPicked) {
-                      if (!isMatchFinished) {
-                        return `${cls} ${styles.selected}`;
-                      }
-
-                      if (cleanName(name) === cleanName(realWinner)) {
-                        return `${cls} ${styles.correct}`;
-                      } else {
-                        return `${cls} ${styles.incorrect}`;
-                      }
-                    }
-
-                    return cls;
-                  };
+                  const scores = match.scores || []; 
 
                   return (
                     <div key={match.id} className={styles.matchWrapper}>
                       <div className={styles.matchContainer}>
-                        <div
+                        
+                        {/* Player 1 */}
+                        <div 
                           className={getPlayerClass(p1Name, isP1Picked)}
                           onClick={() => !isLiveOrClosed && p1Name !== 'TBD' && p1Name !== 'Bye' && handlePick(selectedRound!, match.id, p1Name)}
                         >
                           <div className={styles.playerInfo}>
-                            <span className={styles.playerName}>{p1Name}</span>
+                              <span className={styles.playerName}>{p1Name}</span>
                           </div>
-
+                          
                           <div className="flex gap-2 mr-2">
-                            {scores.map((s, i) => {
-                              const val = getSetScore(s, 0);
-                              if (!val) return null;
-                              return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>;
-                            })}
+                             {scores.map((s, i) => {
+                                 const val = getSetScore(s, 0);
+                                 if (!val) return null;
+                                 return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>
+                             })}
                           </div>
 
-                          {!isLiveOrClosed && isP1Picked && <div className={styles.checkIcon}><CheckIcon /></div>}
-                          <span className={styles.playerSeed}>{p1?.seed || ''}</span>
+                          {/* 2. ИСПРАВЛЕНИЕ: Используем isP1Picked */}
+                          {!isLiveOrClosed && isP1Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
+                          
+                          <span className={styles.playerSeed}>{p1.seed || ''}</span>
                         </div>
 
-                        <div
+                        {/* Player 2 */}
+                        <div 
                           className={getPlayerClass(p2Name, isP2Picked)}
                           onClick={() => !isLiveOrClosed && p2Name !== 'TBD' && p2Name !== 'Bye' && handlePick(selectedRound!, match.id, p2Name)}
                         >
-                          <div className={styles.playerInfo}>
-                            <span className={styles.playerName}>{p2Name}</span>
-                          </div>
+                           <div className={styles.playerInfo}>
+                              <span className={styles.playerName}>{p2Name}</span>
+                           </div>
 
-                          <div className="flex gap-2 mr-2">
-                            {scores.map((s, i) => {
-                              const val = getSetScore(s, 1);
-                              if (!val) return null;
-                              return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>;
-                            })}
-                          </div>
+                           <div className="flex gap-2 mr-2">
+                             {scores.map((s, i) => {
+                                 const val = getSetScore(s, 1);
+                                 if (!val) return null;
+                                 return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>
+                             })}
+                           </div>
 
-                          {!isLiveOrClosed && isP2Picked && <div className={styles.checkIcon}><CheckIcon /></div>}
-                          <span className={styles.playerSeed}>{p2?.seed || ''}</span>
+                           {/* 3. ИСПРАВЛЕНИЕ: Используем isP2Picked */}
+                           {!isLiveOrClosed && isP2Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
+                           
+                           <span className={styles.playerSeed}>{p2.seed || ''}</span>
                         </div>
                       </div>
 
@@ -309,18 +345,19 @@ export default function BracketPage({ id }: { id: string }) {
                   );
                 })
               ) : (
-                <div className="flex h-full items-center justify-center py-20">
-                  <p className="text-[#5F6067] text-sm">Нет матчей</p>
-                </div>
+                  <div className="flex h-full items-center justify-center py-20">
+                    <p className="text-[#5F6067] text-sm">Нет матчей</p>
+                  </div>
               )}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
 
+      {/* Footer */}
       {!isLiveOrClosed && (
         <div className={styles.footer}>
-          <SaveButton onClick={handleSave} status={saveStatus} />
+             <SaveButton onClick={handleSave} status={saveStatus} />
         </div>
       )}
     </div>
