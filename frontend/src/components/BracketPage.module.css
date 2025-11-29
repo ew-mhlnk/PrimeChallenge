@@ -1,4 +1,4 @@
-/* --- Layout --- */
+/* --- Глобальная структура --- */
 .container {
   height: 100dvh;
   width: 100%;
@@ -8,6 +8,7 @@
   overflow: hidden;
 }
 
+/* --- Header --- */
 .header {
   flex-shrink: 0;
   display: flex;
@@ -35,30 +36,31 @@
   letter-spacing: -0.5px;
 }
 
+/* --- Banner --- */
 .bannerWrapper {
   flex-shrink: 0;
   padding: 0 24px 15px 24px;
   z-index: 20;
 }
 
-/* --- Rounds Navigation --- */
+/* --- Navigation --- */
 .roundsContainer {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  /* Добавляем padding-right, чтобы последняя кнопка не обрезалась */
-  padding: 0 24px 10px 24px; 
+  padding: 0 24px 10px 24px;
   overflow-x: auto;
   scrollbar-width: none;
   height: 50px;
   z-index: 20;
+  margin-bottom: 10px; /* Небольшой отступ до сетки */
 }
 .roundsContainer::-webkit-scrollbar { display: none; }
 
 .roundButton {
   position: relative;
-  padding: 8px 18px; /* Чуть больше по ширине */
+  padding: 8px 18px;
   border-radius: 99px;
   font-size: 13px;
   font-weight: 600;
@@ -68,31 +70,21 @@
   background: #1C1C1E;
   color: #5F6067;
   border: 1px solid transparent;
-  
-  /* Чтобы кнопка не сжималась */
   flex-shrink: 0; 
 }
 
 .activeRound {
-  color: #FFFFFF; /* Белый текст */
-  /* Градиент из фигмы */
+  color: #FFFFFF;
   background: linear-gradient(180deg, #008CFF 0%, #0077FF 100%);
-  /* Обводка */
   border: 1px solid #00B3FF;
   box-shadow: 0 0 15px rgba(0, 140, 255, 0.4);
 }
 
-/* --- Bracket Container --- */
+/* --- BRACKET WINDOW (ОБЩИЕ СТИЛИ) --- */
 .bracketWindow {
-  /* Занимает всё доступное место */
-  flex: 1;
-  /* Позволяет сжиматься */
-  min-height: 0; 
-  
   width: calc(100% - 32px);
   margin: 0 auto;
   
-  /* Видимый контейнер */
   background: #121212;
   border: 1px solid #333;
   border-radius: 24px;
@@ -100,27 +92,46 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Обрезаем вылеты */
+  overflow: hidden;
+  
+  /* ВАЖНО: Отступ снизу до кнопки */
+  /* 50px (кнопка) + 30px (отступ футера) + 35px (твой зазор) = 115px */
+  margin-bottom: 115px;
+  
+  transition: all 0.3s ease; /* Плавное изменение размера контейнера */
+}
+
+/* ВАРИАНТ 1: Длинный список (R32, R16...) */
+.bracketWindowFull {
+  flex: 1; /* Растягивается на всё доступное место */
+  min-height: 0; /* Включает скролл внутри, если не влезает */
+}
+
+/* ВАРИАНТ 2: Короткий список (SF, F, Champion) */
+.bracketWindowCompact {
+  flex: 0; /* Не растягивается */
+  height: auto; /* Высота ровно по контенту */
+  /* На случай, если телефон очень маленький, чтобы не вылезло */
+  max-height: 100%; 
 }
 
 .scrollArea {
   flex: 1;
-  height: 100%;
-  overflow-y: auto; /* Вертикальный скролл */
+  overflow-y: auto;
   overflow-x: hidden;
-  padding-bottom: 100px; /* Место под кнопку */
+  /* Внутренние отступы контейнера */
+  padding: 20px 0;
 }
 .scrollArea::-webkit-scrollbar { display: none; }
 
-/* --- Animation Wrapper --- */
+/* --- Slider --- */
 .sliderWrapper {
   display: flex;
   flex-direction: column;
   gap: 24px;
   width: 100%;
-  /* Отступы сверху и снизу внутри скролла */
-  padding: 24px 0; 
-  min-height: 100%;
+  padding: 0 20px; /* Отступы по бокам внутри */
+  box-sizing: border-box;
 }
 
 /* --- Match --- */
@@ -129,19 +140,17 @@
   width: 100%;
   display: flex;
   justify-content: flex-start;
-  /* Отступ слева и справа внутри контейнера */
-  padding: 0 20px; 
 }
 
 .matchContainer {
   display: flex;
   flex-direction: column;
-  width: 100%; /* Занимает всю ширину враппера */
+  width: 100%;
   background: #1E1E1E;
   border: 1px solid #38383A;
   border-radius: 12px;
   position: relative;
-  z-index: 2; /* Поверх линий */
+  z-index: 2;
 }
 
 .playerRow {
@@ -184,58 +193,46 @@
 }
 .playerSeed { color: #666; font-size: 11px; margin-left: 8px; }
 
-/* --- Check Icon --- */
 .checkIcon {
   color: #00B3FF;
-  /* Прижимаем к правому краю */
-  margin-left: auto; 
+  margin-left: auto;
   display: flex;
   align-items: center;
 }
 
-/* --- States --- */
-.selected { background: #152230 !important; } /* Темно-синий фон */
+/* States */
+.selected { background: #152230 !important; }
 .selected .playerName { color: #00B3FF; font-weight: 600; }
-
 .correct { background: rgba(48, 209, 88, 0.15) !important; }
 .correct .playerName { color: #30D158; }
-
 .incorrect { background: rgba(255, 69, 58, 0.15) !important; }
 .incorrect .playerName { color: #FF453A; text-decoration: line-through; opacity: 0.7; }
 
-/* --- CONNECTORS (СКОБЫ) --- */
-/* Они рисуются справа от матча */
+/* --- CONNECTORS --- */
 .bracketConnector {
   position: absolute;
-  /* Прижимаем к правому краю matchWrapper */
-  right: 0; 
+  right: 0;
   top: 50%;
   transform: translateY(-50%);
+  width: 20px; /* Ширина скобы */
   
-  /* Ширина линии, заходящей в matchWrapper */
-  width: 20px; 
-  
-  /* Высота скобы (расстояние между центрами ячеек = 44px) */
+  /* Высота скобы = высота матча (88px) / 2 = 44px */
   height: 45px; 
   
-  /* Рисуем скобу */
   border-right: 1px solid #555;
   border-top: 1px solid #555;
   border-bottom: 1px solid #555;
   
-  /* Скругление углов */
   border-top-right-radius: 6px;
   border-bottom-right-radius: 6px;
-  
   z-index: 1;
 }
 
-/* Хвостик вправо */
 .bracketConnector::after {
   content: '';
   position: absolute;
   top: 50%;
-  right: -10px; /* Торчит наружу */
+  right: -10px;
   width: 10px;
   height: 1px;
   background: #555;
@@ -244,8 +241,25 @@
 /* --- Champion --- */
 .championWrapper {
   width: 100%;
-  padding: 0 20px; /* Те же отступы */
+  /* Центрируем чемпиона по вертикали внутри компактного окна */
+  display: flex;
+  justify-content: center;
 }
+
+.championContainer {
+  width: 100%;
+  background: linear-gradient(135deg, #1E1E1E 0%, #252525 100%);
+  border: 1px solid #FFD700;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.1);
+}
+.championLabel { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.championName { font-size: 16px; font-weight: 700; color: #FFD700; }
 
 /* --- Footer --- */
 .footer {
@@ -261,7 +275,6 @@
 
 .saveButton {
   pointer-events: auto;
-  /* Полупрозрачный фон */
   background-color: rgba(255, 255, 255, 0.15); 
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
