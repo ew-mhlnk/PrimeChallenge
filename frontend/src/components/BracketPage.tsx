@@ -6,7 +6,6 @@ import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 import { useState } from 'react';
 
-// --- ICONS ---
 const BackIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M15 18l-6-6 6-6"/>
@@ -16,17 +15,6 @@ const BackIcon = () => (
 const CheckIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-
-const TrophyIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2">
-    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-    <path d="M4 22h16" />
-    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
-    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
-    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
   </svg>
 );
 
@@ -41,19 +29,17 @@ const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' |
       initial={false}
       animate={{
         width: status === 'loading' ? 50 : 200,
-        backgroundColor: status === 'success' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.1)',
+        backgroundColor: status === 'success' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.15)',
         color: status === 'success' ? '#000000' : '#FFFFFF'
       }}
-      transition={{ type: "spring", stiffness: 500, damping: 30 }}
     >
       <AnimatePresence mode="wait" initial={false}>
         {status === 'idle' && (
           <motion.span
             key="idle"
-            initial={{ opacity: 0, filter: "blur(5px)" }}
-            animate={{ opacity: 1, filter: "blur(0px)" }}
-            exit={{ opacity: 0, filter: "blur(5px)" }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
           >
             Сохранить
           </motion.span>
@@ -74,7 +60,6 @@ const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' |
             key="success"
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
             className="flex items-center gap-2"
           >
             <CheckIcon />
@@ -86,12 +71,13 @@ const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' |
   );
 };
 
-// --- GRID ANIMATION ---
+// --- АНИМАЦИЯ (TENNISBB STYLE) ---
+// Используем точные кривые из твоего примера
 const variants: Variants = {
   enter: (direction: number) => ({
-    x: direction > 0 ? '100%' : '-100%',
+    x: direction > 0 ? '100%' : '-100%', // Выезжает сбоку
     opacity: 0,
-    scale: 0.95,
+    scale: 0.95, // Чуть увеличивается при входе
   }),
   center: {
     x: 0,
@@ -102,8 +88,8 @@ const variants: Variants = {
   exit: (direction: number) => ({
     x: direction < 0 ? '100%' : '-100%',
     opacity: 0,
-    scale: 0.95,
-    position: 'absolute',
+    scale: 0.95, // Чуть уменьшается при уходе
+    position: 'absolute', // ВАЖНО: Убираем из потока, чтобы контейнер мог сжаться (accordion effect)
     top: 0,
     left: 0,
     width: '100%',
@@ -112,7 +98,7 @@ const variants: Variants = {
 
 const transitionSettings = {
   duration: 0.5,
-  ease: [0.32, 0.72, 0, 1]
+  ease: [0.32, 0.72, 0, 1] // Твоя кривая
 };
 
 export default function BracketPage({ id }: { id: string }) {
@@ -171,7 +157,6 @@ export default function BracketPage({ id }: { id: string }) {
   return (
     <div className={styles.container}>
       
-      {/* Header */}
       <div className={styles.header}>
         <button onClick={() => router.back()} className={styles.backArrow}>
           <BackIcon />
@@ -179,12 +164,10 @@ export default function BracketPage({ id }: { id: string }) {
         <h2 className={styles.tournamentTitle}>{tournament.name}</h2>
       </div>
 
-      {/* Banner */}
       <div className={styles.bannerWrapper}>
          <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[16px] opacity-90"></div>
       </div>
 
-      {/* Rounds Navigation (CSS Only) */}
       <div className={styles.roundsContainer}>
         {rounds.map((round) => (
           <button
@@ -197,9 +180,10 @@ export default function BracketPage({ id }: { id: string }) {
         ))}
       </div>
 
-      {/* Bracket Window (Fixed Container) */}
       <div className={styles.bracketWindow}>
         <div className={styles.scrollArea}>
+          
+          {/* mode="popLayout" + layout prop = Анимация Аккордеона */}
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
             <motion.div
               key={selectedRound}
@@ -209,8 +193,7 @@ export default function BracketPage({ id }: { id: string }) {
               animate="center"
               exit="exit"
               transition={transitionSettings}
-              
-              layout 
+              layout // Плавное изменение высоты
               
               drag="x"
               dragConstraints={{ left: 0, right: 0 }}
@@ -223,22 +206,24 @@ export default function BracketPage({ id }: { id: string }) {
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match) => {
                   
-                  // --- CHAMPION ---
+                  // CHAMPION (Выглядит как обычная выбранная ячейка)
                   if (isChampionRound) {
                      const championName = match.actual_winner || match.predicted_winner || match.player1?.name || 'TBD';
                      return (
                         <div key={match.id} className={styles.championWrapper}>
-                            <div className={styles.championContainer}>
-                                <div className="flex items-center justify-center w-full h-full">
-                                    <TrophyIcon />
-                                    <span className={styles.championName}>{championName}</span>
+                            {/* Используем тот же стиль matchContainer с классом selected */}
+                            <div className={`${styles.matchContainer} ${styles.selected}`}>
+                                <div className={styles.playerRow} style={{ height: '60px', cursor: 'default' }}>
+                                    <span className={styles.playerName} style={{ fontSize: '16px' }}>
+                                        {championName}
+                                    </span>
+                                    <div className={styles.checkIcon}><CheckIcon /></div>
                                 </div>
                             </div>
                         </div>
                      );
                   }
 
-                  // --- MATCH ---
                   const p1 = match.player1;
                   const p2 = match.player2;
                   const p1Name = p1?.name || 'TBD';
@@ -268,6 +253,7 @@ export default function BracketPage({ id }: { id: string }) {
                           <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p1Name}</span>
                           </div>
+                          {/* Галочка прижата вправо стилем .checkIcon */}
                           {!isLiveOrClosed && isP1Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
                           <span className={styles.playerSeed}>{p1.seed || ''}</span>
                         </div>
@@ -284,7 +270,7 @@ export default function BracketPage({ id }: { id: string }) {
                         </div>
                       </div>
 
-                      {/* Bracket Connector ( ] ) */}
+                      {/* Скоба (рисуется если не финал) */}
                       {selectedRound !== 'F' && <div className={styles.bracketConnector} />}
                     </div>
                   );
@@ -302,9 +288,7 @@ export default function BracketPage({ id }: { id: string }) {
       {/* Footer */}
       {!isLiveOrClosed && (
         <div className={styles.footer}>
-          <div className={styles.footerContent}>
              <SaveButton onClick={handleSave} status={saveStatus} />
-          </div>
         </div>
       )}
     </div>

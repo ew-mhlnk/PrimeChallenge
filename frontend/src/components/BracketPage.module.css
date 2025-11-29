@@ -1,21 +1,20 @@
-/* --- Глобальная структура --- */
+/* --- Layout --- */
 .container {
   height: 100dvh;
   width: 100%;
-  background-color: #141414;
+  background-color: #000000;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* --- Header --- */
 .header {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   padding: 20px 24px 10px;
   gap: 12px;
-  background-color: #141414;
+  background-color: #000000;
   z-index: 30;
 }
 
@@ -31,134 +30,132 @@
 
 .tournamentTitle {
   color: #FFFFFF;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: -0.5px;
 }
 
-/* --- Banner --- */
 .bannerWrapper {
   flex-shrink: 0;
   padding: 0 24px 15px 24px;
   z-index: 20;
 }
 
-/* --- НАВИГАЦИЯ РАУНДОВ (CSS STYLES) --- */
+/* --- Rounds Navigation --- */
 .roundsContainer {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 12px; /* Отступ между кнопками */
-  padding: 0 24px 10px 24px;
+  gap: 8px;
+  /* Добавляем padding-right, чтобы последняя кнопка не обрезалась */
+  padding: 0 24px 10px 24px; 
   overflow-x: auto;
   scrollbar-width: none;
-  height: 60px;
+  height: 50px;
   z-index: 20;
 }
 .roundsContainer::-webkit-scrollbar { display: none; }
 
 .roundButton {
   position: relative;
-  /* Размеры как в макете */
-  min-width: 53px;
-  height: 36px;
-  padding: 0 12px;
-  
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  
-  border-radius: 18px; /* Половина высоты для капсулы */
-  font-size: 14px;
-  font-weight: 500;
+  padding: 8px 18px; /* Чуть больше по ширине */
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: all 0.2s ease;
-  
-  /* Default state (Inactive) */
-  background: transparent;
+  transition: all 0.3s ease;
+  background: #1C1C1E;
   color: #5F6067;
   border: 1px solid transparent;
+  
+  /* Чтобы кнопка не сжималась */
+  flex-shrink: 0; 
 }
 
-/* Active State (Стиль из Figma) */
 .activeRound {
-  color: #CBCBCB;
-  /* Градиентный фон */
-  background: linear-gradient(180deg, rgba(0, 140, 255, 0.26) 0%, rgba(0, 119, 255, 0.26) 100%);
+  color: #FFFFFF; /* Белый текст */
+  /* Градиент из фигмы */
+  background: linear-gradient(180deg, #008CFF 0%, #0077FF 100%);
   /* Обводка */
-  border: 2px solid #00B3FF;
-  /* Легкое свечение */
-  box-shadow: 0 0 10px rgba(0, 179, 255, 0.2);
+  border: 1px solid #00B3FF;
+  box-shadow: 0 0 15px rgba(0, 140, 255, 0.4);
 }
 
-/* --- КОНТЕЙНЕР СЕТКИ --- */
+/* --- Bracket Container --- */
 .bracketWindow {
-  /* Занимает все оставшееся место */
+  /* Занимает всё доступное место */
   flex: 1;
-  /* Критично для скролла внутри флекса */
+  /* Позволяет сжиматься */
   min-height: 0; 
   
-  width: 100%;
-  max-width: 600px;
+  width: calc(100% - 32px);
   margin: 0 auto;
   
+  /* Видимый контейнер */
+  background: #121212;
+  border: 1px solid #333;
+  border-radius: 24px;
+  
   position: relative;
-  /* Скрываем вылетающие элементы анимации */
-  overflow: hidden; 
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Обрезаем вылеты */
 }
 
 .scrollArea {
+  flex: 1;
   height: 100%;
-  overflow-y: auto; /* Вертикальный скролл здесь */
+  overflow-y: auto; /* Вертикальный скролл */
   overflow-x: hidden;
-  padding: 10px 24px 100px 24px; /* Отступ снизу под кнопку */
+  padding-bottom: 100px; /* Место под кнопку */
 }
 .scrollArea::-webkit-scrollbar { display: none; }
 
-/* --- SLIDER --- */
+/* --- Animation Wrapper --- */
 .sliderWrapper {
   display: flex;
   flex-direction: column;
-  gap: 24px; 
+  gap: 24px;
   width: 100%;
+  /* Отступы сверху и снизу внутри скролла */
+  padding: 24px 0; 
   min-height: 100%;
 }
 
-/* --- MATCH --- */
+/* --- Match --- */
 .matchWrapper {
   position: relative;
   width: 100%;
   display: flex;
-  /* Оставляем место справа под скобу */
-  padding-right: 16px; 
+  justify-content: flex-start;
+  /* Отступ слева и справа внутри контейнера */
+  padding: 0 20px; 
 }
 
 .matchContainer {
   display: flex;
   flex-direction: column;
-  width: 100%;
-  background: #141414;
-  border: 1px solid #333;
+  width: 100%; /* Занимает всю ширину враппера */
+  background: #1E1E1E;
+  border: 1px solid #38383A;
   border-radius: 12px;
   position: relative;
-  z-index: 2;
+  z-index: 2; /* Поверх линий */
 }
 
 .playerRow {
-  height: 42px; /* Компактнее */
+  height: 44px;
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 0 12px;
   cursor: pointer;
   position: relative;
   transition: background 0.2s;
 }
-
-.playerRow:first-child {
-  border-bottom: 1px solid #2A2A2A;
+.playerRow:first-child { 
+  border-bottom: 1px solid #2C2C2E;
   border-top-left-radius: 11px;
   border-top-right-radius: 11px;
 }
@@ -167,91 +164,90 @@
   border-bottom-right-radius: 11px;
 }
 
+.playerRow:active { background: #2C2C2E; }
+
+.playerInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  flex: 1;
+}
+
 .playerName {
-  color: #FFFFFF;
+  color: #DDD;
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.playerSeed { color: #5F6067; font-size: 11px; }
+.playerSeed { color: #666; font-size: 11px; margin-left: 8px; }
 
-/* States */
-.selected { background: #1C1C1E; }
-.selected .playerName { color: #00B3FF; }
+/* --- Check Icon --- */
+.checkIcon {
+  color: #00B3FF;
+  /* Прижимаем к правому краю */
+  margin-left: auto; 
+  display: flex;
+  align-items: center;
+}
 
-.correct { background: rgba(46, 125, 50, 0.1); }
-.correct .playerName { color: #4CAF50; }
-.incorrect { background: rgba(198, 40, 40, 0.1); }
-.incorrect .playerName { color: #EF5350; text-decoration: line-through; }
-.checkIcon { color: #00B3FF; margin-left: 6px; }
+/* --- States --- */
+.selected { background: #152230 !important; } /* Темно-синий фон */
+.selected .playerName { color: #00B3FF; font-weight: 600; }
 
-/* --- СКОБА (REAL BRACKET) --- */
+.correct { background: rgba(48, 209, 88, 0.15) !important; }
+.correct .playerName { color: #30D158; }
+
+.incorrect { background: rgba(255, 69, 58, 0.15) !important; }
+.incorrect .playerName { color: #FF453A; text-decoration: line-through; opacity: 0.7; }
+
+/* --- CONNECTORS (СКОБЫ) --- */
+/* Они рисуются справа от матча */
 .bracketConnector {
   position: absolute;
-  right: 0; /* Прижимаем к правому краю wrapper */
+  /* Прижимаем к правому краю matchWrapper */
+  right: 0; 
   top: 50%;
   transform: translateY(-50%);
   
-  width: 10px; /* Ширина скобы */
+  /* Ширина линии, заходящей в matchWrapper */
+  width: 20px; 
   
-  /* Высота скобы: 
-     Матч ~85px высотой. Центры ячеек на расстоянии ~42px.
-     Ставим высоту 42px, чтобы линии выходили из центров.
-  */
-  height: 42px; 
+  /* Высота скобы (расстояние между центрами ячеек = 44px) */
+  height: 45px; 
   
-  /* Рисуем П-образную (или ]-образную) форму */
-  border-right: 1px solid #4C4C4C;
-  border-top: 1px solid #4C4C4C;
-  border-bottom: 1px solid #4C4C4C;
+  /* Рисуем скобу */
+  border-right: 1px solid #555;
+  border-top: 1px solid #555;
+  border-bottom: 1px solid #555;
   
-  /* Скругляем углы */
-  border-top-right-radius: 4px;
-  border-bottom-right-radius: 4px;
+  /* Скругление углов */
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
   
   z-index: 1;
 }
 
-/* Хвостик к следующему раунду */
+/* Хвостик вправо */
 .bracketConnector::after {
   content: '';
   position: absolute;
   top: 50%;
-  right: -8px;
-  width: 8px;
+  right: -10px; /* Торчит наружу */
+  width: 10px;
   height: 1px;
-  background: #4C4C4C;
+  background: #555;
 }
 
-/* --- CHAMPION --- */
+/* --- Champion --- */
 .championWrapper {
   width: 100%;
-  display: flex;
-  justify-content: center;
-  padding: 20px 0;
-}
-/* Стиль как у обычного матча, но выделенный */
-.championContainer {
-  width: 100%;
-  background: #141414;
-  border: 1px solid #FFD700;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 50px;
-  box-shadow: 0 0 15px rgba(255, 215, 0, 0.1);
-}
-.championName {
-  color: #FFD700;
-  font-size: 15px;
-  font-weight: 700;
-  margin-left: 8px;
+  padding: 0 20px; /* Те же отступы */
 }
 
-/* --- FOOTER --- */
+/* --- Footer --- */
 .footer {
   position: fixed;
   bottom: 30px;
@@ -263,33 +259,33 @@
   pointer-events: none;
 }
 
-/* Save Button (Glass Style) */
 .saveButton {
   pointer-events: auto;
-  background-color: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* Полупрозрачный фон */
+  background-color: rgba(255, 255, 255, 0.15); 
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  
   color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 12px 24px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
   
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   gap: 8px;
-  transition: transform 0.2s;
+  transition: all 0.3s;
 }
-.saveButton:active { transform: scale(0.95); }
+.saveButton:active { transform: scale(0.96); }
 
-/* Success State (White) */
 .saveButtonSuccess {
   background-color: #FFFFFF;
   color: #000000;
   border-color: #FFFFFF;
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.4);
 }
