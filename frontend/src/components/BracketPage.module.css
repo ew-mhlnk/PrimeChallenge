@@ -47,7 +47,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 24px 10px 24px;
+  /* Добавил отступ справа, чтобы Champion не прилипал к краю */
+  padding: 0 24px 10px 24px; 
   overflow-x: auto;
   scrollbar-width: none;
   height: 50px;
@@ -78,21 +79,19 @@
   box-shadow: 0 0 15px rgba(0, 140, 255, 0.4);
 }
 
-/* --- BRACKET WINDOW (КОНТЕЙНЕР) --- */
+/* --- BRACKET WINDOW --- */
 .bracketWindow {
   width: calc(100% - 32px);
   margin: 0 auto;
-  
   background: #121212;
   border: 1px solid #333;
   border-radius: 24px;
-  
   position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   
-  /* Гарантируем, что контейнер никогда не схлопнется в 0 */
+  /* Минимальная высота, чтобы не схлопывался */
   min-height: 200px;
   
   /* Отступ до футера */
@@ -101,23 +100,12 @@
   transition: all 0.4s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* 1. ПОЛНЫЙ РЕЖИМ (R32...QF) - Растягиваемся */
-.bracketWindowFull {
-  flex: 1; 
-}
-
-/* 2. КОМПАКТНЫЙ РЕЖИМ (SF...Champion) - По высоте контента */
-.bracketWindowCompact {
-  flex-grow: 0; /* Не занимать лишнее место */
-  height: auto; /* Высота зависит от детей */
-}
+.bracketWindowFull { flex: 1; }
+.bracketWindowCompact { flex-grow: 0; height: auto; }
 
 /* --- SCROLL AREA --- */
 .scrollArea {
-  /* ВАЖНО: Убрали height: 100%, поставили flex: 1 */
-  /* Это позволяет работать и в Full (растягивается), и в Compact (облегает) */
   flex: 1; 
-  
   overflow-y: auto;
   overflow-x: hidden;
   padding: 20px 0;
@@ -132,8 +120,6 @@
   width: 100%;
   padding: 0 20px;
   box-sizing: border-box;
-  
-  /* ВАЖНО: auto вместо 100%, чтобы Compact режим мог сжать контейнер */
   min-height: auto; 
 }
 
@@ -176,6 +162,12 @@
   border-bottom-right-radius: 11px;
 }
 .playerRow:active { background: #2C2C2E; }
+
+/* Убираем бордер для одиночной ячейки (Чемпион) */
+.singleRow .playerRow {
+  border-bottom: none;
+  border-radius: 11px;
+}
 
 .playerInfo {
   display: flex;
@@ -236,33 +228,13 @@
   background: #555;
 }
 
-/* --- CHAMPION --- */
+/* --- CHAMPION WRAPPER --- */
+/* Просто центрируем и используем те же стили */
 .championWrapper {
   width: 100%;
   display: flex;
   justify-content: center;
-  padding: 0; /* Убрали лишние отступы */
-}
-.championContainer {
-  width: 100%; /* На всю ширину, как обычный матч */
-  background: linear-gradient(135deg, #1E1E1E 0%, #2C2C2E 100%);
-  border: 1px solid #FFD700;
-  border-radius: 12px;
   padding: 0;
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.1);
-}
-.championRow {
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-}
-.championText {
-  font-size: 16px;
-  font-weight: 700;
-  color: #FFD700;
-  margin-left: 10px;
 }
 
 /* --- Footer --- */

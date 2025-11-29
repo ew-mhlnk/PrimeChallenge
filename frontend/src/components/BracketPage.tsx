@@ -6,7 +6,6 @@ import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 import { useState } from 'react';
 
-// --- ICONS ---
 const BackIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M15 18l-6-6 6-6"/>
@@ -16,17 +15,6 @@ const BackIcon = () => (
 const CheckIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-
-const TrophyIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2">
-    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-    <path d="M4 22h16" />
-    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
-    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
-    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
   </svg>
 );
 
@@ -83,10 +71,10 @@ const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' |
   );
 };
 
-// --- АНИМАЦИЯ ---
+// --- ANIMATION ---
 const variants: Variants = {
   enter: (direction: number) => ({
-    x: direction > 0 ? '100%' : '-100%',
+    x: direction > 0 ? 50 : -50,
     opacity: 0,
     scale: 0.95,
   }),
@@ -97,7 +85,7 @@ const variants: Variants = {
     position: 'relative',
   },
   exit: (direction: number) => ({
-    x: direction < 0 ? '100%' : '-100%',
+    x: direction < 0 ? 50 : -50,
     opacity: 0,
     scale: 0.95,
     position: 'absolute',
@@ -139,7 +127,6 @@ export default function BracketPage({ id }: { id: string }) {
     const currentIndex = rounds.indexOf(selectedRound);
     const newIndex = rounds.indexOf(newRound);
     if (currentIndex === newIndex) return;
-    
     setDirection(newIndex > currentIndex ? 1 : -1);
     setSelectedRound(newRound);
   };
@@ -164,7 +151,6 @@ export default function BracketPage({ id }: { id: string }) {
   };
 
   const isChampionRound = selectedRound === 'Champion';
-  // Определяем, нужен ли компактный режим (SF = 2 матча, F = 1 матч, Champion = 1)
   const isCompactRound = ['SF', 'F', 'Champion'].includes(selectedRound);
 
   return (
@@ -193,12 +179,7 @@ export default function BracketPage({ id }: { id: string }) {
         ))}
       </div>
 
-      {/* Bracket Window с анимацией высоты */}
-      <motion.div 
-        className={`${styles.bracketWindow} ${isCompactRound ? styles.bracketWindowCompact : styles.bracketWindowFull}`}
-        layout // Включает плавное изменение размеров контейнера
-        transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }} // Та же кривая для контейнера
-      >
+      <div className={`${styles.bracketWindow} ${isCompactRound ? styles.bracketWindowCompact : styles.bracketWindowFull}`}>
         <div className={styles.scrollArea}>
           
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
@@ -210,27 +191,32 @@ export default function BracketPage({ id }: { id: string }) {
               animate="center"
               exit="exit"
               transition={transitionSettings}
-              
               layout 
               drag="x"
               dragConstraints={{ left: 0, right: 0 }}
               dragElastic={0.2}
               dragDirectionLock={true}
               onDragEnd={handleDragEnd}
-              
               className={styles.sliderWrapper}
             >
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match) => {
                   
+                  // --- CHAMPION ROUND (Простая ячейка) ---
                   if (isChampionRound) {
                      const championName = match.actual_winner || match.predicted_winner || match.player1?.name || 'TBD';
                      return (
                         <div key={match.id} className={styles.championWrapper}>
-                            <div className={styles.championContainer}>
-                                <TrophyIcon />
-                                <span className={styles.championLabel}>Winner</span>
-                                <span className={styles.championName}>{championName}</span>
+                            {/* Используем тот же matchContainer, но добавляем класс singleRow для скругления */}
+                            <div className={`${styles.matchContainer} ${styles.singleRow}`}>
+                                {/* Стиль .selected делает его синим */}
+                                <div className={`${styles.playerRow} ${styles.selected}`} style={{ cursor: 'default' }}>
+                                    <div className={styles.playerInfo}>
+                                        <span className={styles.playerName} style={{ fontSize: '15px' }}>{championName}</span>
+                                    </div>
+                                    {/* Галочка */}
+                                    <div className={styles.checkIcon}><CheckIcon /></div>
+                                </div>
                             </div>
                         </div>
                      );
@@ -281,7 +267,7 @@ export default function BracketPage({ id }: { id: string }) {
                         </div>
                       </div>
 
-                      {/* Скобка справа (если не финал) */}
+                      {/* Коннектор */}
                       {selectedRound !== 'F' && <div className={styles.bracketConnector} />}
                     </div>
                   );
@@ -294,9 +280,9 @@ export default function BracketPage({ id }: { id: string }) {
             </motion.div>
           </AnimatePresence>
         </div>
-      </motion.div>
+      </div>
 
-      {/* Footer (кнопка) */}
+      {/* Footer */}
       {!isLiveOrClosed && (
         <div className={styles.footer}>
              <SaveButton onClick={handleSave} status={saveStatus} />
