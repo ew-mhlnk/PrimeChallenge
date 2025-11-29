@@ -14,7 +14,6 @@ def get_google_sheets_client():
     credentials_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
     if not credentials_json:
         raise ValueError("GOOGLE_SHEETS_CREDENTIALS missing")
-    
     credentials = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(credentials_json), scope)
     return gspread.authorize(credentials)
 
@@ -26,8 +25,7 @@ def parse_datetime(date_str: str) -> datetime:
         try:
             return datetime.strptime(date_str, "%d.%m.%Y %H:%M").replace(tzinfo=pytz.UTC)
         except ValueError:
-            logger.error(f"Date error: {date_str}")
-            raise
+            return None
 
 async def sync_google_sheets_with_db(engine: Engine) -> None:
     logger.info("Starting sync...")
@@ -42,13 +40,12 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         # 1. ТУРНИРЫ
         try:
             rows = sheet.worksheet("tournaments").get_all_values()
-        except:
-            return
+        except: return
 
         tournaments_to_sync = []
         now = datetime.now(pytz.UTC)
 
-        for row in rows[1:]: # Skip headers
+        for row in rows[1:]:
             if len(row) < 10: continue
             with conn.begin_nested():
                 try:
@@ -56,12 +53,11 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     tid = int(tid)
                     status = status.upper().strip()
 
-                    # Авто-закрытие по времени
+                    # Auto-close logic
                     if start:
-                        try:
-                            if status == "ACTIVE" and now > parse_datetime(start):
-                                status = "CLOSED"
-                        except: pass
+                        start_dt = parse_datetime(start)
+                        if start_dt and status == "ACTIVE" and now > start_dt:
+                            status = "CLOSED"
 
                     conn.execute(text("""
                         INSERT INTO tournaments (id, name, dates, status, sheet_name, starting_round, type, start, close, tag)
@@ -79,7 +75,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
 
         conn.commit()
 
-        # 2. МАТЧИ И ЧЕМПИОНЫ
+        # 2. МАТЧИ
         for tid, sheet_name in tournaments_to_sync:
             try:
                 with conn.begin_nested():
@@ -91,17 +87,17 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     if len(data) < 2: continue
                     headers = data[0]
                     
-                    # Индексы колонок
+                    # Карта колонок раундов
+                    # R128 - col A (0), R64 - col G (6), R32 - col M (12) ... (шаг 6)
                     cols = {h: i for i, h in enumerate(headers)}
                     rounds = ["R128", "R64", "R32", "R16", "QF", "SF", "F"]
                     
-                    # --- ЧЕМПИОН ---
+                    # Чемпион
                     champion = None
                     if "Champion" in cols and len(data) > 1:
                         val = data[1][cols["Champion"]].strip()
                         if val: champion = val
 
-                    # --- МАТЧИ ---
                     row_idx = 1
                     while row_idx < len(data) - 1:
                         r1, r2 = data[row_idx], data[row_idx+1]
@@ -115,46 +111,67 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             
                             if not p1 or not p2: continue
 
-                            # Номер матча (считаем заполненные пары выше)
                             m_num = 1
                             for i in range(1, row_idx, 2):
                                 if idx < len(data[i]) and data[i][idx].strip(): m_num += 1
                             
-                            # Определение победителя
                             winner = None
                             
-                            # 1. Логика BYE (Авто-победа)
+                            # 1. BYE Logic (Automatic win)
                             if p2.lower() == "bye": winner = p1
                             elif p1.lower() == "bye": winner = p2
                             
-                            # 2. Логика обычная (смотрим след. раунд)
-                            else:
-                                # Находим следующий раунд
+                            # 2. Regular Match Logic
+                            elif round_name != "F":
                                 curr_r_idx = rounds.index(round_name)
                                 if curr_r_idx < len(rounds) - 1:
                                     next_r = rounds[curr_r_idx + 1]
                                     if next_r in cols:
                                         n_idx = cols[next_r]
-                                        # Победитель должен появиться в следующей колонке в одной из этих двух строк
+                                        # Проверяем следующую колонку
                                         np1 = r1[n_idx].strip() if n_idx < len(r1) else ""
                                         np2 = r2[n_idx].strip() if n_idx < len(r2) else ""
                                         if np1 in [p1, p2]: winner = np1
                                         elif np2 in [p1, p2]: winner = np2
+                            
+                            # 3. Final Logic
+                            if round_name == "F" and champion and champion in [p1, p2]:
+                                winner = champion
+
+                            # === СЧЕТ (SCORES) ===
+                            # Структура: Имя | S1 | S2 | S3 | S4 | S5 | СледующийРаунд
+                            # Индексы:   idx | +1 | +2 | +3 | +4 | +5
+                            scores = []
+                            for s_off in range(1, 6):
+                                sc_idx = idx + s_off
+                                if sc_idx >= len(r1): break
                                 
-                                # Если это финал, проверяем чемпиона
-                                if round_name == "F" and champion and champion in [p1, p2]:
-                                    winner = champion
+                                s1_val = r1[sc_idx].strip()
+                                s2_val = r2[sc_idx].strip()
+                                
+                                if s1_val and s2_val:
+                                    scores.append(f"{s1_val}-{s2_val}")
+                                else:
+                                    scores.append(None)
+                            
+                            # Дополняем до 5
+                            while len(scores) < 5: scores.append(None)
+                            s1, s2, s3, s4, s5 = scores
 
                             conn.execute(text("""
-                                INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner)
-                                VALUES (:tid, :rnd, :mn, :p1, :p2, :win)
+                                INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner, set1, set2, set3, set4, set5)
+                                VALUES (:tid, :rnd, :mn, :p1, :p2, :win, :s1, :s2, :s3, :s4, :s5)
                                 ON CONFLICT (tournament_id, round, match_number) DO UPDATE
-                                SET player1=EXCLUDED.player1, player2=EXCLUDED.player2, winner=EXCLUDED.winner
-                            """), {"tid": tid, "rnd": round_name, "mn": m_num, "p1": p1, "p2": p2, "win": winner})
+                                SET player1=EXCLUDED.player1, player2=EXCLUDED.player2, winner=EXCLUDED.winner,
+                                    set1=EXCLUDED.set1, set2=EXCLUDED.set2, set3=EXCLUDED.set3, set4=EXCLUDED.set4, set5=EXCLUDED.set5
+                            """), {
+                                "tid": tid, "rnd": round_name, "mn": m_num, "p1": p1, "p2": p2, "win": winner,
+                                "s1": s1, "s2": s2, "s3": s3, "s4": s4, "s5": s5
+                            })
 
                         row_idx += 2
 
-                    # Сохраняем чемпиона как отдельный раунд
+                    # Чемпион
                     if champion:
                         conn.execute(text("""
                             INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner)
@@ -163,7 +180,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             SET winner=EXCLUDED.winner, player1=EXCLUDED.player1
                         """), {"tid": tid, "name": champion})
                         
-                        # Ставим статус COMPLETED
+                        # Ставим COMPLETED
                         conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": tid})
 
             except Exception as e:

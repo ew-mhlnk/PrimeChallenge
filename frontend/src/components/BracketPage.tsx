@@ -6,6 +6,7 @@ import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 import { useState } from 'react';
 
+// --- ICONS ---
 const BackIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M15 18l-6-6 6-6"/>
@@ -153,6 +154,14 @@ export default function BracketPage({ id }: { id: string }) {
   const isChampionRound = selectedRound === 'Champion';
   const isCompactRound = ['SF', 'F', 'Champion'].includes(selectedRound);
 
+  // Хелпер для парсинга счета "6-4"
+  const getSetScore = (scoreStr: string | undefined, playerIdx: 0 | 1) => {
+      if (!scoreStr) return null;
+      const parts = scoreStr.split('-');
+      if (parts.length < 2) return null;
+      return parts[playerIdx];
+  };
+
   return (
     <div className={styles.container}>
       
@@ -202,19 +211,18 @@ export default function BracketPage({ id }: { id: string }) {
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match) => {
                   
-                  // --- CHAMPION ROUND (Простая ячейка) ---
+                  // --- CHAMPION (Обычная синяя ячейка) ---
                   if (isChampionRound) {
                      const championName = match.actual_winner || match.predicted_winner || match.player1?.name || 'TBD';
                      return (
                         <div key={match.id} className={styles.championWrapper}>
-                            {/* Используем тот же matchContainer, но добавляем класс singleRow для скругления */}
-                            <div className={`${styles.matchContainer} ${styles.singleRow}`}>
-                                {/* Стиль .selected делает его синим */}
-                                <div className={`${styles.playerRow} ${styles.selected}`} style={{ cursor: 'default' }}>
+                            <div className={`${styles.matchContainer} ${styles.selected}`} style={{ border: 'none' }}>
+                                <div className={styles.playerRow} style={{ height: '60px', cursor: 'default' }}>
                                     <div className={styles.playerInfo}>
-                                        <span className={styles.playerName} style={{ fontSize: '15px' }}>{championName}</span>
+                                        <span className={styles.playerName} style={{ fontSize: '16px' }}>
+                                            {championName}
+                                        </span>
                                     </div>
-                                    {/* Галочка */}
                                     <div className={styles.checkIcon}><CheckIcon /></div>
                                 </div>
                             </div>
@@ -229,7 +237,8 @@ export default function BracketPage({ id }: { id: string }) {
                   const isP1Picked = match.predicted_winner === p1Name;
                   const isP2Picked = match.predicted_winner === p2Name;
                   const realWinner = match.actual_winner;
-                  
+                  const scores = match.scores || []; 
+
                   const getPlayerClass = (name: string, isPicked: boolean) => {
                       let cls = styles.playerRow;
                       if (name === 'TBD') return `${cls} ${styles.tbd}`;
@@ -244,6 +253,8 @@ export default function BracketPage({ id }: { id: string }) {
                   return (
                     <div key={match.id} className={styles.matchWrapper}>
                       <div className={styles.matchContainer}>
+                        
+                        {/* Player 1 */}
                         <div 
                           className={getPlayerClass(p1Name, isP1Picked)}
                           onClick={() => !isLiveOrClosed && p1Name !== 'TBD' && p1Name !== 'Bye' && handlePick(selectedRound!, match.id, p1Name)}
@@ -251,10 +262,21 @@ export default function BracketPage({ id }: { id: string }) {
                           <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p1Name}</span>
                           </div>
+                          
+                          {/* SCORE P1 */}
+                          <div className="flex gap-2 mr-2">
+                             {scores.map((s, i) => {
+                                 const val = getSetScore(s, 0);
+                                 if (!val) return null;
+                                 return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>
+                             })}
+                          </div>
+
                           {!isLiveOrClosed && isP1Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
                           <span className={styles.playerSeed}>{p1.seed || ''}</span>
                         </div>
 
+                        {/* Player 2 */}
                         <div 
                           className={getPlayerClass(p2Name, isP2Picked)}
                           onClick={() => !isLiveOrClosed && p2Name !== 'TBD' && p2Name !== 'Bye' && handlePick(selectedRound!, match.id, p2Name)}
@@ -262,12 +284,22 @@ export default function BracketPage({ id }: { id: string }) {
                            <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p2Name}</span>
                            </div>
+
+                           {/* SCORE P2 */}
+                           <div className="flex gap-2 mr-2">
+                             {scores.map((s, i) => {
+                                 const val = getSetScore(s, 1);
+                                 if (!val) return null;
+                                 return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>
+                             })}
+                           </div>
+
                            {!isLiveOrClosed && isP2Picked && <div className={styles.checkIcon}><CheckIcon/></div>}
                            <span className={styles.playerSeed}>{p2.seed || ''}</span>
                         </div>
                       </div>
 
-                      {/* Коннектор */}
+                      {/* Connector */}
                       {selectedRound !== 'F' && <div className={styles.bracketConnector} />}
                     </div>
                   );

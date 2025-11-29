@@ -1,11 +1,10 @@
-from sqlalchemy import Column, Integer, String, Enum, ForeignKey, DateTime, Boolean, BigInteger # <--- Добавили BigInteger
+from sqlalchemy import Column, Integer, String, Enum, ForeignKey, DateTime, Boolean, BigInteger
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.schema import UniqueConstraint
 from database.db import Base
 import enum
 
-# ... (TournamentStatus и Tournament остаются без изменений) ...
 class TournamentStatus(enum.Enum):
     ACTIVE = "ACTIVE"
     CLOSED = "CLOSED"
@@ -36,23 +35,22 @@ class TrueDraw(Base):
     match_number = Column(Integer)
     player1 = Column(String)
     player2 = Column(String)
+    winner = Column(String, nullable=True)
+    
+    # Сет-скоры (например, "6-4")
     set1 = Column(String, nullable=True)
     set2 = Column(String, nullable=True)
     set3 = Column(String, nullable=True)
     set4 = Column(String, nullable=True)
     set5 = Column(String, nullable=True)
-    winner = Column(String, nullable=True)
+
     __table_args__ = (
-        UniqueConstraint('tournament_id', 'round', 'match_number', name='unique_true_draw_tournament_round_match'),
+        UniqueConstraint('tournament_id', 'round', 'match_number', name='unique_match'),
     )
     tournament = relationship("Tournament", back_populates="true_draws")
 
-# === ИЗМЕНЕНИЯ ЗДЕСЬ ===
-
 class User(Base):
     __tablename__ = "users"
-
-    # Меняем Integer на BigInteger
     user_id = Column(BigInteger, primary_key=True, index=True) 
     first_name = Column(String)
     last_name = Column(String, nullable=True)
@@ -60,12 +58,11 @@ class User(Base):
 
     user_picks = relationship("UserPick", back_populates="user")
     scores = relationship("UserScore", back_populates="user")
+    leaderboard_entries = relationship("Leaderboard", back_populates="user")
 
 class UserPick(Base):
     __tablename__ = "user_picks"
-
     id = Column(Integer, primary_key=True, index=True)
-    # Меняем Integer на BigInteger в ForeignKey
     user_id = Column(BigInteger, ForeignKey("users.user_id"), index=True) 
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
     round = Column(String)
@@ -81,9 +78,7 @@ class UserPick(Base):
 
 class UserScore(Base):
     __tablename__ = "user_scores"
-
     id = Column(Integer, primary_key=True, index=True)
-    # Меняем Integer на BigInteger в ForeignKey
     user_id = Column(BigInteger, ForeignKey("users.user_id"), index=True) 
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
     score = Column(Integer, default=0)
@@ -95,18 +90,13 @@ class UserScore(Base):
 
 class Leaderboard(Base):
     __tablename__ = "leaderboard"
-
     id = Column(Integer, primary_key=True, index=True)
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
-    # Меняем Integer на BigInteger в ForeignKey
     user_id = Column(BigInteger, ForeignKey("users.user_id"), index=True) 
     rank = Column(Integer)
     score = Column(Integer)
     correct_picks = Column(Integer)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     
-    user = relationship("User", back_populates="leaderboard_entries") # Добавил связь для полноты
+    user = relationship("User", back_populates="leaderboard_entries")
     tournament = relationship("Tournament")
-
-# Добавьте это в User, чтобы связь работала
-User.leaderboard_entries = relationship("Leaderboard", back_populates="user")

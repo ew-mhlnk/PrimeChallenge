@@ -3,13 +3,11 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
-# Перечисление статусов турнира
 class TournamentStatus(str, Enum):
     ACTIVE = "ACTIVE"
     CLOSED = "CLOSED"
     COMPLETED = "COMPLETED"
 
-# Базовые модели для сериализации
 class UserBase(BaseModel):
     user_id: int
     first_name: str
@@ -17,7 +15,7 @@ class UserBase(BaseModel):
     username: Optional[str] = None
 
     class Config:
-        from_attributes = True  # ИЗМЕНЕНО: было orm_mode
+        from_attributes = True
 
 class TournamentBase(BaseModel):
     id: int
@@ -32,7 +30,7 @@ class TournamentBase(BaseModel):
     tag: Optional[str] = None
 
     class Config:
-        from_attributes = True  # ИЗМЕНЕНО
+        from_attributes = True
 
 class TrueDrawBase(BaseModel):
     id: int
@@ -41,15 +39,17 @@ class TrueDrawBase(BaseModel):
     match_number: Optional[int] = None
     player1: Optional[str] = None
     player2: Optional[str] = None
+    winner: Optional[str] = None
+    
+    # Добавили сеты
     set1: Optional[str] = None
     set2: Optional[str] = None
     set3: Optional[str] = None
     set4: Optional[str] = None
     set5: Optional[str] = None
-    winner: Optional[str] = None
 
     class Config:
-        from_attributes = True  # ИЗМЕНЕНО
+        from_attributes = True
 
 class UserPickBase(BaseModel):
     id: int
@@ -64,7 +64,7 @@ class UserPickBase(BaseModel):
     updated_at: Optional[datetime] = None
 
     class Config:
-        from_attributes = True  # ИЗМЕНЕНО
+        from_attributes = True
 
 class UserScoreBase(BaseModel):
     id: int
@@ -75,7 +75,7 @@ class UserScoreBase(BaseModel):
     updated_at: Optional[datetime] = None
 
     class Config:
-        from_attributes = True  # ИЗМЕНЕНО
+        from_attributes = True
 
 class LeaderboardBase(BaseModel):
     id: int
@@ -87,31 +87,29 @@ class LeaderboardBase(BaseModel):
     updated_at: Optional[datetime] = None
 
     class Config:
-        from_attributes = True  # ИЗМЕНЕНО
+        from_attributes = True
 
-# Модели для создания
 class UserPickCreate(BaseModel):
     tournament_id: int
     round: str
     match_number: int
     predicted_winner: str
 
-# Модель для игрока
 class Player(BaseModel):
     name: str
     seed: Optional[int] = None
 
-# Модель для матча в сетке
 class BracketMatch(BaseModel):
     id: str
     round: str
+    match_number: int
     player1: Player
     player2: Player
     predicted_winner: Optional[str] = None
-    actual_winner: Optional[str] = None # Добавлено для отображения результатов
+    actual_winner: Optional[str] = None
+    scores: Optional[List[str]] = None # Массив счетов ["6-4", "7-5"]
     source_matches: List[Dict[str, Any]] = []
 
-# Модели с отношениями
 class TrueDraw(TrueDrawBase):
     pass
 

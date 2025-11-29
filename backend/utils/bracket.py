@@ -1,12 +1,9 @@
 from typing import Dict, List, Any, Optional
 import logging
-from sqlalchemy.orm import Session
-from database import models
 
 logger = logging.getLogger(__name__)
 
 def parse_player(name: Optional[str]) -> Dict[str, Any]:
-    """Парсит имя игрока с seed (e.g., 'A. Zverev (1)' → {name: 'A. Zverev', seed: 1})."""
     if not name or name == "Bye":
         return {"name": name or "TBD", "seed": None}
     if "(" in name and ")" in name:
@@ -22,20 +19,13 @@ def parse_player(name: Optional[str]) -> Dict[str, Any]:
     return {"name": name, "seed": None}
 
 def generate_bracket(tournament, true_draws, user_picks, rounds) -> Dict[str, List[Dict]]:
-    """
-    Генерирует сетку для ВСЕХ переданных раундов.
-    """
     bracket = {}
-    # ДОБАВЛЕНО: "Champion": 1
     match_counts = {"R128": 64, "R64": 32, "R32": 16, "R16": 8, "QF": 4, "SF": 2, "F": 1, "Champion": 1}
     
     for round_name in rounds:
         bracket[round_name] = []
         count = match_counts.get(round_name, 0)
-        
-        # Если раунд неизвестен или count=0, пропускаем, чтобы не было пустых списков
-        if count == 0:
-            continue
+        if count == 0: continue
 
         for match_number in range(1, count + 1):
             true_match = next(
@@ -48,23 +38,23 @@ def generate_bracket(tournament, true_draws, user_picks, rounds) -> Dict[str, Li
             )
             
             predicted_winner = user_pick.predicted_winner if user_pick else None
-            
-            # Для раунда Champion player1/player2 не актуальны в том же смысле, 
-            # но чтобы фронтенд не ломался, оставим TBD
             p1_raw = true_match.player1 if true_match else "TBD"
             p2_raw = true_match.player2 if true_match else "TBD"
 
-            player1 = parse_player(p1_raw)
-            player2 = parse_player(p2_raw)
+            # Собираем счета
+            scores = []
+            if true_match:
+                scores = [s for s in [true_match.set1, true_match.set2, true_match.set3, true_match.set4, true_match.set5] if s]
 
             match_data = {
                 "id": f"{tournament.id}_{round_name}_{match_number}",
                 "round": round_name,
                 "match_number": match_number,
-                "player1": player1,
-                "player2": player2,
+                "player1": parse_player(p1_raw),
+                "player2": parse_player(p2_raw),
                 "predicted_winner": predicted_winner,
-                "actual_winner": true_match.winner if true_match else None
+                "actual_winner": true_match.winner if true_match else None,
+                "scores": scores # <--- ДОБАВИЛИ
             }
             bracket[round_name].append(match_data)
 

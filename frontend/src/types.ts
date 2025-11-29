@@ -147,3 +147,15 @@ export interface TournamentHistoryRow {
   percent_correct: string;
   tag: string; // <--- НОВОЕ ПОЛЕ
 }
+
+export interface BracketMatch {
+  id: string;
+  match_number: number;
+  round: string;
+  player1: Player;
+  player2: Player;
+  predicted_winner?: string | null;
+  actual_winner?: string | null;
+  scores?: string[]; // <--- МАССИВ СТРОК "6-4"
+  source_matches: Array<{ round: string; match_number: number }>;
+}
