@@ -19,6 +19,18 @@ const CheckIcon = () => (
   </svg>
 );
 
+// ВЕРНУЛИ TROPHY ICON
+const TrophyIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2">
+    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+    <path d="M4 22h16" />
+    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+  </svg>
+);
+
 // --- SAVE BUTTON ---
 const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' | 'loading' | 'success' }) => {
   return (
@@ -218,9 +230,9 @@ export default function BracketPage({ id }: { id: string }) {
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match) => {
                   
-                  // === 1. ОБЪЯВЛЕНИЕ ВСЕХ ПЕРЕМЕННЫХ В НАЧАЛЕ ===
-                  const p1 = match.player1; // Теперь p1 виден везде
-                  const p2 = match.player2; // Теперь p2 виден везде
+                  // === ОБЪЯВЛЕНИЕ ПЕРЕМЕННЫХ (ВСЕ В НАЧАЛЕ) ===
+                  const p1 = match.player1;
+                  const p2 = match.player2;
                   const p1Name = p1?.name || 'TBD';
                   const p2Name = p2?.name || 'TBD';
                   const myPick = match.predicted_winner;
@@ -228,7 +240,7 @@ export default function BracketPage({ id }: { id: string }) {
                   const isMatchFinished = !!realWinner;
                   const scores = match.scores || []; 
 
-                  // --- ФУНКЦИЯ СТИЛЕЙ ---
+                  // --- ФУНКЦИЯ СТИЛЯ ---
                   const getPlayerState = (name: string, isPicked: boolean, slotRealName: string) => {
                       const cls = styles.playerRow;
                       if (name === 'TBD') return { className: `${cls} ${styles.tbd}`, hint: null };
@@ -247,32 +259,39 @@ export default function BracketPage({ id }: { id: string }) {
                           const cleanRealSlot = cleanName(slotRealName);
                           const cleanWinner = cleanName(realWinner);
 
-                          // 1. Призрак
                           if (cleanRealSlot !== 'tbd' && cleanPicked !== cleanRealSlot) {
-                              return { className: `${cls} ${styles.incorrect}`, hint: slotRealName };
+                              return { 
+                                  className: `${cls} ${styles.incorrect}`, 
+                                  hint: slotRealName 
+                              };
                           }
-                          // 2. Результат
+
                           if (isMatchFinished) {
                               if (cleanPicked === cleanWinner) {
                                   return { className: `${cls} ${styles.correct}`, hint: null };
                               } else {
-                                  return { className: `${cls} ${styles.incorrect}`, hint: realWinner };
+                                  return { 
+                                      className: `${cls} ${styles.incorrect}`, 
+                                      hint: realWinner 
+                                  };
                               }
                           }
-                          // 3. Ждем
+
                           return { className: `${cls} ${styles.selected}`, hint: null };
                       }
 
                       if (!isLiveOrClosed && isPicked) {
                           return { className: `${cls} ${styles.selected}`, hint: null };
                       }
+
                       return { className: cls, hint: null };
                   };
 
-                  // --- CHAMPION ROUND ---
+                  // --- CHAMPION BLOCK ---
                   if (isChampionRound) {
                      const championName = (!hasPicks && isLiveOrClosed) ? (match.actual_winner || 'TBD') : (match.predicted_winner || 'TBD');
                      const realChampSlot = match.player1?.name || 'TBD';
+                     
                      const state = getPlayerState(championName, !!match.predicted_winner, realChampSlot);
 
                      return (
@@ -285,32 +304,40 @@ export default function BracketPage({ id }: { id: string }) {
                             }}>
                                 <div className={state.className} style={{ height: '60px', cursor: 'default', borderRadius: '12px', background: 'transparent' }}>
                                     <div className={styles.playerInfo}>
-                                        <span className={styles.playerName} style={{ fontSize: '16px' }}>{championName}</span>
-                                        {state.hint && (<div className={styles.correctionText}>→ <span>{state.hint}</span></div>)}
+                                        <span className={styles.playerName} style={{ fontSize: '16px' }}>
+                                            {championName}
+                                        </span>
+                                        {state.hint && (
+                                            <div className={styles.correctionText}>
+                                                → <span>{state.hint}</span>
+                                            </div>
+                                        )}
                                     </div>
-                                    {/* Галочка для чемпиона */}
-                                    <div className={styles.checkIcon}><CheckIcon /></div>
+                                    <div className={styles.checkIcon}><TrophyIcon /></div>
                                 </div>
                             </div>
                         </div>
                      );
                   }
+
+                  // --- REGULAR MATCH LOGIC ---
                   
-                  // --- REGULAR MATCH ---
                   let p1NameDisplay = p1Name;
-                  const p2NameDisplay = p2Name; // Теперь const
+                  const p2NameDisplay = p2Name; // const, т.к. не меняется
                   
                   let p1State = getPlayerState(p1Name, myPick === p1Name, p1Name);
-                  const p2State = getPlayerState(p2Name, myPick === p2Name, p2Name); // Теперь const
+                  const p2State = getPlayerState(p2Name, myPick === p2Name, p2Name); // const
 
-                  // Логика призрака
                   if (!isFirstRound && hasPicks && myPick && 
                       cleanName(myPick) !== cleanName(p1Name) && 
                       cleanName(myPick) !== cleanName(p2Name) &&
                       p1Name !== 'TBD' && p2Name !== 'TBD'
                   ) {
                       p1NameDisplay = myPick;
-                      p1State = { className: `${styles.playerRow} ${styles.incorrect}`, hint: p1Name };
+                      p1State = { 
+                          className: `${styles.playerRow} ${styles.incorrect}`, 
+                          hint: p1Name 
+                      };
                   }
 
                   return (
@@ -323,8 +350,14 @@ export default function BracketPage({ id }: { id: string }) {
                         >
                           <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p1NameDisplay}</span>
+                              {/* Seed */}
                               {p1NameDisplay === p1Name && <span className={styles.playerSeed}>{match.player1?.seed ? `[${match.player1.seed}]` : ''}</span>}
-                              {p1State.hint && (<div className={styles.correctionText}>→ <span>{p1State.hint}</span></div>)}
+                              
+                              {p1State.hint && (
+                                  <div className={styles.correctionText}>
+                                      → <span>{p1State.hint}</span>
+                                  </div>
+                              )}
                           </div>
                           <div className="flex gap-2 mr-2">
                              {scores.map((s, i) => {
@@ -333,6 +366,7 @@ export default function BracketPage({ id }: { id: string }) {
                                  return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>
                              })}
                           </div>
+                          {/* Галочка для P1 */}
                           {myPick === p1NameDisplay && !isMatchFinished && <div className={styles.checkIcon}><CheckIcon/></div>}
                         </div>
 
@@ -352,6 +386,7 @@ export default function BracketPage({ id }: { id: string }) {
                                  return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>
                              })}
                            </div>
+                           {/* Галочка для P2 */}
                            {myPick === p2NameDisplay && !isMatchFinished && <div className={styles.checkIcon}><CheckIcon/></div>}
                         </div>
                       </div>
