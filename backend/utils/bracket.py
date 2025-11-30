@@ -4,45 +4,50 @@ import re
 
 logger = logging.getLogger(__name__)
 
-def normalize_name(name: Optional[str]) -> str:
+def normalize_name_for_comparison(name: Optional[str]) -> str:
     """
-    Очищает имя для отправки и СРАВНЕНИЯ.
-    '🇪🇸 A. Zverev (1)' -> 'a. zverev'
+    Агрессивная очистка для СРАВНЕНИЯ.
+    '🇪🇸 A. Zverev (1)' -> 'azverev'
+    'F. Fognini (WC)' -> 'ffognini'
     """
-    if not name or name.lower() == "bye":
+    if not name or name.lower() in ["bye", "tbd"]:
         return "tbd"
     
-    # 1. Убираем скобки в конце (Seed)
-    clean = re.sub(r'\s*\(.*?\)$', '', name)
+    # 1. Убираем всё содержимое скобок (сиды, WC)
+    name_no_bracket = re.sub(r'\s*\(.*?\)', '', name)
     
-    # 2. Убираем эмодзи и мусор, оставляем буквы, точки, пробелы, дефисы
-    # Важно: приводим к нижнему регистру для надежного сравнения
-    clean = re.sub(r'[^\w\s\.\-]', '', clean).strip().lower()
+    # 2. Оставляем ТОЛЬКО буквы (убираем флаги, точки, пробелы, дефисы)
+    # Это самый надежный способ сравнить "A. Zverev" и "A.Zverev"
+    clean = re.sub(r'[^a-zA-Z]', '', name_no_bracket).lower()
     
     return clean if clean else "tbd"
 
-def parse_player(name: Optional[str]) -> Dict[str, Any]:
-    """Парсит имя игрока для отображения (красивое)"""
+def parse_player_display(name: Optional[str]) -> Dict[str, Any]:
+    """
+    Подготовка имени для ОТОБРАЖЕНИЯ (сохраняем красоту).
+    """
     if not name or name.lower() == "bye":
-        return {"name": name or "TBD", "seed": None}
+        return {"name": "TBD", "seed": None}
     
     seed = None
     display_name = name
 
-    # Вытаскиваем Seed (1) для UI
+    # Пытаемся вытащить Seed (1) красиво
     if "(" in name and ")" in name:
         try:
-            start = name.rfind("(")
-            end = name.rfind(")")
-            seed_str = name[start+1:end]
-            # Имя для отображения (без сида, но с флагами если есть)
-            display_name = name[:start].strip() 
-            if seed_str.isdigit():
-                seed = int(seed_str)
+            # Ищем последние скобки
+            match = re.search(r'\((\d+)\)$', name)
+            if match:
+                seed = int(match.group(1))
+                # Убираем сид из имени отображения
+                display_name = name[:match.start()].strip()
+            else:
+                # Если это (WC) или (Q) - оставляем в имени или убираем по вкусу
+                # Сейчас просто уберем сид если это цифра
+                display_name = re.sub(r'\s*\(\d+\)$', '', name).strip()
         except Exception:
             pass
             
-    # display_name оставляем красивым (с большой буквы), а normalize будем делать на фронте или в логике
     return {"name": display_name, "seed": seed}
 
 def generate_bracket(tournament, true_draws, user_picks, rounds) -> Dict[str, List[Dict]]:
@@ -55,13 +60,13 @@ def generate_bracket(tournament, true_draws, user_picks, rounds) -> Dict[str, Li
         if count == 0: continue
 
         for match_number in range(1, count + 1):
-            # 1. Ищем реальный матч в БД (REALITY)
+            # 1. Данные из БД (REALITY)
             true_match = next(
                 (m for m in true_draws if m.round == round_name and m.match_number == match_number),
                 None
             )
             
-            # 2. Ищем прогноз юзера (FANTASY)
+            # 2. Прогноз юзера (FANTASY)
             user_pick = next(
                 (p for p in user_picks if p.round == round_name and p.match_number == match_number),
                 None
@@ -69,12 +74,11 @@ def generate_bracket(tournament, true_draws, user_picks, rounds) -> Dict[str, Li
             
             predicted_winner = user_pick.predicted_winner if user_pick else None
             
-            # Исходные данные из БД
             p1_raw = true_match.player1 if true_match else "TBD"
             p2_raw = true_match.player2 if true_match else "TBD"
             winner_raw = true_match.winner if true_match else None
 
-            # Важно: Счета
+            # Счета
             scores = []
             if true_match:
                 scores = [s for s in [true_match.set1, true_match.set2, true_match.set3, true_match.set4, true_match.set5] if s]
@@ -84,13 +88,11 @@ def generate_bracket(tournament, true_draws, user_picks, rounds) -> Dict[str, Li
                 "round": round_name,
                 "match_number": match_number,
                 
-                # Игроки (сырые данные для отображения)
-                "player1": parse_player(p1_raw),
-                "player2": parse_player(p2_raw),
+                "player1": parse_player_display(p1_raw),
+                "player2": parse_player_display(p2_raw),
                 
-                # Победители (сырые данные)
-                "predicted_winner": predicted_winner, 
-                "actual_winner": winner_raw, 
+                "predicted_winner": predicted_winner, # Сырое имя (как сохранил юзер)
+                "actual_winner": winner_raw,          # Сырое имя (из true_draw)
                 
                 "scores": scores
             }
