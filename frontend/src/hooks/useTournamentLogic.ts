@@ -28,15 +28,6 @@ const waitForTelegram = async () => {
     return null;
 };
 
-// Функция мягкой очистки для сравнения внутри логики
-const cleanNameLogic = (name: string | null | undefined) => {
-    if (!name || name === 'TBD' || name.toLowerCase() === 'bye') return "tbd";
-    // Убираем скобки и всё кроме букв
-    let n = name.replace(/\s*\(.*?\)/g, '');
-    n = n.replace(/[^a-zA-Z]/g, '').toLowerCase();
-    return n;
-};
-
 export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   const { getTournamentData, loadTournament } = useTournamentContext();
   const cached = getTournamentData(id);
@@ -52,7 +43,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
 
   const isProcessed = useRef(false);
 
-  // 1. Создание структуры
+  // 1. Создание скелета
   const ensureStructure = useCallback((base: BracketRoundMap, rList: string[], tId: number): BracketRoundMap => {
     const newB: BracketRoundMap = JSON.parse(JSON.stringify(base));
     for (let i = 0; i < rList.length; i++) {
@@ -74,9 +65,8 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     return newB;
   }, []);
 
-  // 2. Продвижение победителя (С МЯГКИМ СРАВНЕНИЕМ)
+  // 2. Функция "Протаскивания"
   const propagate = useCallback((bState: BracketRoundMap, rList: string[], cRound: string, mNum: number, wName: string | null) => {
-    // console.log(`[Propagate] ${wName} from ${cRound} match ${mNum}`);
     const idx = rList.indexOf(cRound);
     if (idx === -1 || idx === rList.length - 1) return;
     const nRound = rList[idx + 1];
@@ -95,24 +85,17 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       const target = isP1 ? 'player1' : 'player2';
       nm[target] = { name: wName || 'TBD' };
       
-      // ВАЖНО: Сравниваем очищенные имена!
-      // Если имена "похожи" (например Zverev и A. Zverev), то мы НЕ сбрасываем прогноз.
-      // Сбрасываем только если это реально разные люди.
-      if (nm.predicted_winner) {
-          const oldClean = cleanNameLogic(nm.predicted_winner);
-          const newClean = cleanNameLogic(wName);
-          
-          if (oldClean !== newClean && newClean !== 'tbd') {
-              console.log(`[Mismatch] Resetting future pick: ${nm.predicted_winner} != ${wName}`);
-              nm.predicted_winner = null;
-              propagate(bState, rList, nRound, nNum, null);
-          }
+      // Если игрок поменялся, сбрасываем следующий прогноз
+      if (nm.predicted_winner && nm.predicted_winner !== wName) {
+           nm.predicted_winner = null;
+           propagate(bState, rList, nRound, nNum, null);
       }
     }
   }, []);
 
+  // 3. Инициализация (Восстановление)
   const processData = useCallback((data: Tournament) => {
-      console.log("Processing Data (ONCE)...");
+      console.log("Restoring User Bracket...");
       setTournament(data);
       const rList = data.rounds || [];
       setRounds(rList);
@@ -120,10 +103,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
 
       const base = ensureStructure(data.bracket || {}, rList, data.id);
       
-      // REALITY
-      setTrueBracket(JSON.parse(JSON.stringify(base)));
-
-      // FANTASY
+      // Рабочая копия
       const userB: BracketRoundMap = JSON.parse(JSON.stringify(base));
       
       // Очистка будущего
@@ -137,15 +117,15 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
           }
       }
 
-      let foundPicks = false;
+      let foundPick = false;
 
-      // Симуляция (R32 -> R16 -> ...)
+      // Восстановление
       for (let i = 0; i < rList.length; i++) {
         const rName = rList[i];
         if (!userB[rName]) continue;
         
         userB[rName].forEach((m) => {
-            // A. BYE в R32
+            // BYE (1 круг)
             if (i === 0) {
                  if (m.player1?.name === 'Bye' && m.player2?.name && m.player2.name !== 'TBD') {
                      const w = m.player2.name; 
@@ -158,19 +138,19 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
                  }
             }
 
-            // B. Продвигаем существующий прогноз
+            // Прогнозы
             if (m.predicted_winner) {
-                foundPicks = true;
+                foundPick = true;
                 propagate(userB, rList, rName, m.match_number, m.predicted_winner);
             }
         });
       }
       
       setBracket(userB);
-      if (data.has_picks || foundPicks) setHasPicks(true);
+      if (data.has_picks || foundPick) setHasPicks(true);
+      setTrueBracket(JSON.parse(JSON.stringify(base)));
   }, [ensureStructure, propagate]);
 
-  // Эффект загрузки
   useEffect(() => {
     let mounted = true;
     const init = async () => {
@@ -201,13 +181,11 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     return () => { mounted = false; };
   }, [id, loadTournament, cached, processData]);
 
-  // Клик
   const handlePick = (round: string, matchId: string, player: string) => {
     if (tournament?.status !== 'ACTIVE') { 
         toast.error('Турнир не активен'); 
         return; 
     }
-    
     if (!player || player === 'Bye' || player === 'TBD') return;
 
     setBracket((prev) => {
@@ -254,9 +232,6 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         
         toast.success('Сохранено');
-        // Разрешаем пересчет, чтобы убедиться, что данные с сервера встали корректно
-        isProcessed.current = false; 
-        loadTournament(id, initData);
     } catch (e) {
         console.error(e);
         toast.error('Ошибка сохранения');
