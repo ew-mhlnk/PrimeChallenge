@@ -1,4 +1,4 @@
-/* --- GLOBAL --- */
+/* --- Глобальная структура --- */
 .container {
   height: 100dvh;
   width: 100%;
@@ -8,6 +8,7 @@
   overflow: hidden;
 }
 
+/* --- Header --- */
 .header {
   flex-shrink: 0;
   display: flex;
@@ -35,13 +36,14 @@
   letter-spacing: -0.5px;
 }
 
+/* --- Banner --- */
 .bannerWrapper {
   flex-shrink: 0;
   padding: 0 24px 15px 24px;
   z-index: 20;
 }
 
-/* --- NAVIGATION --- */
+/* --- Navigation --- */
 .roundsContainer {
   flex-shrink: 0;
   display: flex;
@@ -54,10 +56,7 @@
   z-index: 20;
   margin-bottom: 10px;
 }
-
-.roundsContainer::-webkit-scrollbar {
-  display: none;
-}
+.roundsContainer::-webkit-scrollbar { display: none; }
 
 .roundButton {
   position: relative;
@@ -71,7 +70,7 @@
   background: #1C1C1E;
   color: #5F6067;
   border: 1px solid transparent;
-  flex-shrink: 0;
+  flex-shrink: 0; 
 }
 
 .activeRound {
@@ -93,18 +92,12 @@
   flex-direction: column;
   overflow: hidden;
   min-height: 200px;
-  margin-bottom: 115px;
+  margin-bottom: 115px; /* Отступ до футера */
   transition: all 0.4s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.bracketWindowFull {
-  flex: 1;
-}
-
-.bracketWindowCompact {
-  flex-grow: 0;
-  height: auto;
-}
+.bracketWindowFull { flex: 1; }
+.bracketWindowCompact { flex-grow: 0; height: auto; }
 
 /* --- SCROLL AREA --- */
 .scrollArea {
@@ -113,12 +106,8 @@
   overflow-x: hidden;
   padding: 20px 0;
 }
+.scrollArea::-webkit-scrollbar { display: none; }
 
-.scrollArea::-webkit-scrollbar {
-  display: none;
-}
-
-/* --- SLIDER WRAPPER --- */
 .sliderWrapper {
   display: flex;
   flex-direction: column;
@@ -126,6 +115,7 @@
   width: 100%;
   padding: 0 20px;
   box-sizing: border-box;
+  min-height: auto; 
 }
 
 /* --- MATCH --- */
@@ -134,7 +124,6 @@
   width: 100%;
   display: flex;
   justify-content: flex-start;
-  padding-right: 15px; /* Место под коннектор */
 }
 
 .matchContainer {
@@ -146,8 +135,10 @@
   border-radius: 12px;
   position: relative;
   z-index: 2;
+  overflow: hidden; /* Чтобы цветная полоска слева не вылезала */
 }
 
+/* --- PLAYER ROW --- */
 .playerRow {
   height: 46px;
   width: 100%;
@@ -157,124 +148,115 @@
   cursor: pointer;
   position: relative;
   transition: background 0.2s;
+  background: #1E1E1E;
+  border-left: 4px solid transparent; /* Место под цветной статус */
 }
-
-.playerRow:first-child {
-  border-bottom: 1px solid #2C2C2E;
-  border-top-left-radius: 11px;
-  border-top-right-radius: 11px;
+.playerRow:first-child { 
+  border-bottom: 1px solid #2C2C2E; 
 }
-
-.playerRow:last-child {
-  border-bottom-left-radius: 11px;
-  border-bottom-right-radius: 11px;
-}
-
-.playerRow:active { 
-  background: #2C2C2E; 
-}
+.playerRow:active { background: #2C2C2E; }
 
 .playerInfo {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   overflow: hidden;
   flex: 1;
+  white-space: nowrap;
 }
 
 .playerName {
   color: #DDD;
   font-size: 13px;
   font-weight: 500;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.playerSeed { color: #666; font-size: 11px; }
 
-.playerSeed { 
-  color: #666; 
-  font-size: 11px; 
-  margin-left: 4px; 
+/* --- STATES --- */
+
+/* 1. Нейтральный (не участвовал или не выбрано) */
+.neutral {
+  opacity: 0.5;
+  color: #888;
 }
 
-/* --- States --- */
-/* 1. Синий (Выбрано, ожидание) */
+/* 2. Выбрано (Синий) - ожидание или 1-й круг */
 .selected { 
   background: #152230 !important; 
+  border-left-color: #00B3FF !important;
 }
-
 .selected .playerName { 
   color: #00B3FF; 
   font-weight: 600; 
 }
 
-/* 2. Зеленый (Угадано) */
+/* 3. Верно (Зеленый) */
 .correct { 
   background: rgba(48, 209, 88, 0.15) !important; 
-  border-color: rgba(48, 209, 88, 0.3); 
+  border-left-color: #30D158 !important;
 }
-
 .correct .playerName { 
   color: #30D158; 
+  font-weight: 700;
 }
 
-/* 3. Красный (Ошибка) */
+/* 4. Неверно (Красный) */
 .incorrect { 
   background: rgba(255, 69, 58, 0.15) !important; 
+  border-left-color: #FF453A !important;
 }
-
 .incorrect .playerName { 
   color: #FF453A; 
   text-decoration: line-through; 
-  opacity: 0.7; 
+  opacity: 0.7;
 }
 
-/* Текст исправления (кто выиграл на самом деле) */
+/* Подсказка (имя реального победителя) */
 .correctionText {
   font-size: 11px;
   color: #8E8E93;
-  margin-left: 8px;
+  margin-left: 6px;
   display: flex;
   align-items: center;
   gap: 4px;
 }
-
 .correctionText span {
-  color: #FFFFFF;
+  color: #FFFFFF; 
   font-weight: 500;
 }
 
-.checkIcon { 
-  color: #00B3FF; 
-  margin-left: auto; 
-  display: flex; 
-  align-items: center; 
+.checkIcon {
+  color: #00B3FF;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
 }
 
 /* --- CONNECTORS --- */
 .bracketConnector {
   position: absolute;
-  right: -12px;
+  right: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 10px;
-  height: 41px;
-  border-right: 1px solid #4C4C4C;
-  border-top: 1px solid #4C4C4C;
-  border-bottom: 1px solid #4C4C4C;
-  border-top-right-radius: 4px;
-  border-bottom-right-radius: 4px;
+  width: 20px;
+  height: 45px;
+  border-right: 1px solid #555;
+  border-top: 1px solid #555;
+  border-bottom: 1px solid #555;
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
   z-index: 1;
 }
-
 .bracketConnector::after {
   content: '';
   position: absolute;
   top: 50%;
-  right: -8px;
-  width: 8px;
+  right: -10px;
+  width: 10px;
   height: 1px;
-  background: #4C4C4C;
+  background: #555;
 }
 
 /* --- CHAMPION --- */
@@ -284,69 +266,48 @@
   justify-content: center;
   padding: 0;
 }
-
 .championContainer {
   width: 100%;
-  background: linear-gradient(135deg, #1E1E1E 0%, #2C2C2E 100%);
-  border: 1px solid #FFD700;
+  background: #1E1E1E;
+  border: 1px solid #38383A;
   border-radius: 12px;
   padding: 0;
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.1);
+  overflow: hidden;
 }
 
-.championRow {
-  height: 60px;
+/* --- Footer --- */
+.footer {
+  position: fixed;
+  bottom: 30px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 50;
+  pointer-events: none;
+}
+.saveButton {
+  pointer-events: auto;
+  background-color: rgba(255, 255, 255, 0.15); 
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  padding: 12px 24px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  gap: 8px;
+  transition: all 0.3s;
 }
-
-.championName {
-  color: #FFD700;
-  font-size: 16px;
-  font-weight: 700;
-  margin-left: 10px;
-}
-
-/* --- FOOTER --- */
-.footer { 
-  position: fixed; 
-  bottom: 30px; 
-  left: 0; 
-  right: 0; 
-  display: flex; 
-  justify-content: center; 
-  z-index: 50; 
-  pointer-events: none; 
-}
-
-.saveButton { 
-  pointer-events: auto; 
-  background-color: rgba(255, 255, 255, 0.15); 
-  backdrop-filter: blur(12px); 
-  -webkit-backdrop-filter: blur(12px); 
-  color: #FFFFFF; 
-  border: 1px solid rgba(255, 255, 255, 0.2); 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  padding: 12px 24px; 
-  border-radius: 999px; 
-  font-size: 15px; 
-  font-weight: 600; 
-  cursor: pointer; 
-  gap: 8px; 
-  transition: all 0.3s; 
-}
-
-.saveButton:active { 
-  transform: scale(0.96); 
-}
-
-.saveButtonSuccess { 
-  background-color: #FFFFFF; 
-  color: #000000; 
-  border-color: #FFFFFF; 
-  box-shadow: 0 0 25px rgba(255, 255, 255, 0.4); 
+.saveButton:active { transform: scale(0.96); }
+.saveButtonSuccess {
+  background-color: #FFFFFF;
+  color: #000000;
+  border-color: #FFFFFF;
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.4);
 }
