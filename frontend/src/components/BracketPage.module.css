@@ -100,6 +100,7 @@
 .bracketWindowFull {
   flex: 1;
 }
+
 .bracketWindowCompact {
   flex-grow: 0;
   height: auto;
@@ -182,9 +183,10 @@
 .playerInfo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;               /* обновлённый gap */
   overflow: hidden;
   flex: 1;
+  white-space: nowrap;
 }
 
 .playerName {
@@ -202,9 +204,17 @@
   margin-left: 8px;
 }
 
+/* Счет прижат вправо */
+.scoreContainer {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  margin-right: 8px;
+}
+
 /* === НОВЫЕ КРАСИВЫЕ СОСТОЯНИЯ === */
 
-/* 1. Выбрано (матч ещё не сыгран) — Синий */
+/* 1. Выбрано пользователем (матч ещё не сыгран) — Синий */
 .selected {
   background: #152230 !important;
 }
@@ -236,7 +246,7 @@
   text-decoration: line-through;
 }
 
-/* На будущее — подсказка кто реально победил */
+/* Подсказка кто реально победил (на будущее) */
 .realWinnerHint {
   font-size: 11px;
   color: #4CAF50;
@@ -278,7 +288,7 @@
   background: #555;
 }
 
-/* --- CHAMPION WRAPPER --- */
+/* --- CHAMPION --- */
 .championWrapper {
   width: 100%;
   display: flex;
@@ -286,7 +296,31 @@
   padding: 0;
 }
 
-/* --- Footer --- */
+.championContainer {
+  width: 100%;
+  background: linear-gradient(135deg, #1E1E1E 0%, #2C2C2E 100%);
+  border: 1px solid #FFD700;
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.1);
+}
+
+.championRow {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.championName {
+  color: #FFD700;
+  font-size: 16px;
+  font-weight: 700;
+  margin-left: 10px;
+}
+
+/* --- FOOTER --- */
 .footer {
   position: fixed;
   bottom: 30px;
@@ -300,7 +334,7 @@
 
 .saveButton {
   pointer-events: auto;
-  background-color: rgba(255, 255, 0.15);
+  background-color: rgba(255, 255, 0, 0.15); /* жёлтый оттенок */
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   color: #FFFFFF;
@@ -326,29 +360,4 @@
   color: #000000;
   border-color: #FFFFFF;
   box-shadow: 0 0 25px rgba(255, 255, 255, 0.4);
-}
-
-.correctionText {
-  font-size: 11px;
-  color: #6E6E73; /* Серый цвет */
-  margin-left: 8px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.correctionText span {
-  color: #FFFFFF; /* Имя победителя белым */
-}
-
-/* Обновим стиль playerInfo, чтобы он не обрезал подсказку */
-.playerInfo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-  flex: 1;
-  /* Важно: разрешаем перенос, если имя очень длинное, или скрываем */
-  white-space: nowrap; 
 }

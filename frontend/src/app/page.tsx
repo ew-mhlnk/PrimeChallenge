@@ -7,22 +7,9 @@ import useTournaments from '../hooks/useTournaments';
 import useAuth from '../hooks/useAuth';
 import { Tournament } from '@/types';
 
-// --- КОМПОНЕНТ ЗАГРУЗКИ ---
-const LoadingScreen = () => (
-  <div className="fixed inset-0 z-50 bg-[#141414] flex flex-col items-center justify-center">
-    <div 
-        className="absolute top-[-100px] left-[-100px] w-[453px] h-[453px] rounded-full pointer-events-none"
-        style={{ background: '#0B80B3', filter: 'blur(90px)', opacity: 0.6, transform: 'rotate(-60deg)' }}
-    />
-    <div className="relative z-10 flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-[#00B2FF] border-t-transparent rounded-full animate-spin" />
-        <p className="text-[#00B2FF] font-bold text-sm tracking-widest uppercase animate-pulse">Загрузка...</p>
-    </div>
-  </div>
-);
+// --- КОМПОНЕНТЫ UI ---
 
-// --- ОСТАЛЬНЫЕ КОМПОНЕНТЫ UI ---
-
+// 1. Аватарка
 const UserAvatar = ({ name }: { name: string }) => {
   const letter = name ? name.charAt(0).toUpperCase() : 'U';
   return (
@@ -33,6 +20,7 @@ const UserAvatar = ({ name }: { name: string }) => {
   );
 };
 
+// 2. Теги
 interface FilterPillProps {
   label: string;
   isActive: boolean;
@@ -64,8 +52,34 @@ const FilterPill = ({ label, isActive, onClick, colorClass }: FilterPillProps) =
   );
 };
 
+// 3. Карточка турнира (с новой логикой статусов)
 const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
   const isActive = tournament.status === 'ACTIVE';
+  const isClosed = tournament.status === 'CLOSED';
+  const isCompleted = tournament.status === 'COMPLETED';
+  
+  let statusText = 'Скоро начнется';
+  let statusColor = 'text-[#8E8E93]';
+  let dotColor = 'bg-[#8E8E93]';
+
+  if (isActive) {
+      statusText = 'Live • Идет сейчас';
+      statusColor = 'text-[#32D74B]';
+      dotColor = 'bg-[#32D74B] animate-pulse';
+  } 
+  
+  if (isClosed) {
+      statusText = 'Турнир уже начался, следи за результатами';
+      statusColor = 'text-[#FFD700]'; // Желтый/Золотой
+      dotColor = 'bg-[#FFD700]';
+  }
+
+  if (isCompleted) {
+      statusText = 'Турнир завершен';
+      statusColor = 'text-[#8E8E93]';
+      dotColor = 'bg-[#8E8E93]';
+  }
+
   return (
     <Link href={`/tournament/${tournament.id}`} className="block w-full">
       <motion.div
@@ -73,6 +87,7 @@ const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
         className="w-full relative overflow-hidden bg-[#1C1C1E] rounded-[28px] border border-white/5 p-5 shadow-lg group"
       >
         <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
         <div className="flex flex-col gap-1 relative z-10">
           <div className="flex items-start justify-between">
              <h3 className="text-[20px] font-bold text-white leading-tight pr-4">
@@ -89,13 +104,15 @@ const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
                </span>
              )}
           </div>
+
           <p className="text-[12px] font-medium text-[#8E8E93] mt-1">
             {tournament.dates || 'Даты уточняются'}
           </p>
+
           <div className="mt-5 flex items-center gap-2">
-            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[#32D74B] animate-pulse' : 'bg-[#8E8E93]'}`} />
-            <span className={`text-[11px] font-medium ${isActive ? 'text-[#32D74B]' : 'text-[#8E8E93]'}`}>
-              {isActive ? 'Live • Идет сейчас' : 'Скоро начнется'}
+            <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+            <span className={`text-[11px] font-medium ${statusColor}`}>
+              {statusText}
             </span>
           </div>
         </div>
@@ -104,8 +121,23 @@ const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
   );
 };
 
+// --- LOADING SCREEN ---
+const LoadingScreen = () => (
+  <div className="fixed inset-0 z-50 bg-[#141414] flex flex-col items-center justify-center">
+    <div 
+        className="absolute top-[-100px] left-[-100px] w-[453px] h-[453px] rounded-full pointer-events-none"
+        style={{ background: '#0B80B3', filter: 'blur(90px)', opacity: 0.6, transform: 'rotate(-60deg)' }}
+    />
+    <div className="relative z-10 flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-[#00B2FF] border-t-transparent rounded-full animate-spin" />
+        <p className="text-[#00B2FF] font-bold text-sm tracking-widest uppercase animate-pulse">Загрузка...</p>
+    </div>
+  </div>
+);
+
+// --- MAIN PAGE ---
+
 export default function Home() {
-  // Достаем isLoading из контекста
   const { tournaments, error, isLoading } = useTournaments();
   const { user } = useAuth();
   const [selectedTag, setSelectedTag] = useState<string>('ВСЕ');
@@ -117,9 +149,7 @@ export default function Home() {
     { label: 'ТБШ', color: 'bg-gradient-to-r from-[#FDF765] to-[#DAB07F]' },
   ];
 
-  // --- ИСПОЛЬЗУЕМ КОМПОНЕНТ ЗАГРУЗКИ ---
   if (isLoading) return <LoadingScreen />;
-  
   if (error) return <p className="text-red-500 px-8 pt-20">Ошибка: {error}</p>;
 
   const activeTournaments = tournaments ? tournaments.filter((tournament: Tournament) => {
@@ -133,7 +163,6 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col relative overflow-x-hidden pb-32">
       
-      {/* Фон */}
       <div 
         className="fixed top-[-100px] left-[-100px] w-[453px] h-[453px] rounded-full pointer-events-none"
         style={{
@@ -147,7 +176,6 @@ export default function Home() {
 
       <main className="relative z-10 px-6 pt-12 flex flex-col gap-8">
         
-        {/* Header */}
         <header className="flex items-center gap-5">
           <Link href="/profile">
             <UserAvatar name={user?.firstName || 'U'} />
@@ -160,7 +188,6 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Banner */}
         <motion.div 
           whileTap={{ scale: 0.98 }}
           className="w-full h-[120px] bg-[#D9D9D9] rounded-[24px] relative overflow-hidden cursor-pointer shadow-lg"
@@ -175,7 +202,6 @@ export default function Home() {
            </div>
         </motion.div>
 
-        {/* Filters & List */}
         <section>
           <div className="flex justify-between items-end mb-4">
             <h2 className="text-[20px] font-bold text-white tracking-tight">
@@ -207,6 +233,7 @@ export default function Home() {
                 </div>
             ) : (
                 activeTournaments.map((tournament: Tournament) => (
+                  // ИСПРАВЛЕНИЕ: Используем правильное имя компонента
                   <TournamentCard key={tournament.id} tournament={tournament} />
                 ))
             )}
