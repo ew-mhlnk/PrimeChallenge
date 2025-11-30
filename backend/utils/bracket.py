@@ -5,24 +5,27 @@ import re
 logger = logging.getLogger(__name__)
 
 def normalize_name_for_comparison(name: Optional[str]) -> str:
+    """
+    Чистит имя ТОЛЬКО для логики сравнения (зеленый/красный).
+    """
     if not name or name.lower() in ["bye", "tbd"]: return "tbd"
+    # Убираем всё содержимое скобок и всё кроме букв
     n = re.sub(r'\s*\(.*?\)', '', name)
     n = re.sub(r'[^a-zA-Z]', '', n).lower()
     return n if n else "tbd"
 
 def parse_player_display(name: Optional[str]) -> Dict[str, Any]:
-    if not name or name.lower() == "bye": return {"name": "Bye", "seed": None}
+    """
+    Возвращает имя для ОТОБРАЖЕНИЯ.
+    Мы БОЛЬШЕ НЕ ОБРЕЗАЕМ (1), (WC) и т.д.
+    Пусть юзер видит полную информацию всю дорогу.
+    """
+    if not name or name.lower() == "bye":
+        return {"name": "Bye", "seed": None}
     
-    seed = None
-    display_name = name
-    if "(" in name and ")" in name:
-        try:
-            match = re.search(r'\((\d+)\)$', name)
-            if match:
-                seed = int(match.group(1))
-                display_name = name[:match.start()].strip()
-        except: pass
-    return {"name": display_name, "seed": seed}
+    # Просто возвращаем имя как есть в базе.
+    # Фронтенд сам разберется, как это отрисовать.
+    return {"name": name, "seed": None}
 
 def generate_bracket(tournament, true_draws, user_picks, rounds) -> Dict[str, List[Dict]]:
     bracket = {}

@@ -41,10 +41,9 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   const [selectedRound, setSelectedRound] = useState(cached?.starting_round || cached?.rounds?.[0] || null);
   const [rounds, setRounds] = useState(cached?.rounds || []);
 
-  // Используем Ref, чтобы избежать бесконечного цикла при обновлении
   const isProcessed = useRef(false);
 
-  // 1. Структура (Скелет)
+  // 1. Создание структуры
   const ensureStructure = useCallback((base: BracketRoundMap, rList: string[], tId: number): BracketRoundMap => {
     const newB: BracketRoundMap = JSON.parse(JSON.stringify(base));
     for (let i = 0; i < rList.length; i++) {
@@ -66,9 +65,8 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     return newB;
   }, []);
 
-  // 2. Продвижение (Симуляция)
+  // 2. Логика продвижения
   const propagate = useCallback((bState: BracketRoundMap, rList: string[], cRound: string, mNum: number, wName: string | null) => {
-    // console.log(`[Propagate] ${wName} from ${cRound} match ${mNum}`);
     const idx = rList.indexOf(cRound);
     if (idx === -1 || idx === rList.length - 1) return;
     const nRound = rList[idx + 1];
@@ -87,7 +85,6 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       const target = isP1 ? 'player1' : 'player2';
       nm[target] = { name: wName || 'TBD' };
       
-      // Если игрок сменился, сбрасываем прогноз дальше
       if (nm.predicted_winner && nm.predicted_winner !== wName) {
           nm.predicted_winner = null;
           propagate(bState, rList, nRound, nNum, null);
@@ -95,25 +92,22 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     }
   }, []);
 
-  // 3. Обработка данных (ВЫЗЫВАТЬ ТОЛЬКО ПРИ ЗАГРУЗКЕ!)
   const processData = useCallback((data: Tournament) => {
       console.log("Processing Data (ONCE)...");
       setTournament(data);
       const rList = data.rounds || [];
       setRounds(rList);
-      // Устанавливаем раунд только если он еще не выбран
       setSelectedRound(prev => prev || data.starting_round || rList[0]);
 
-      // 1. База
       const base = ensureStructure(data.bracket || {}, rList, data.id);
       
-      // 2. REALITY (Как есть)
+      // REALITY
       setTrueBracket(JSON.parse(JSON.stringify(base)));
 
-      // 3. FANTASY (Строим с нуля)
+      // FANTASY
       const userB: BracketRoundMap = JSON.parse(JSON.stringify(base));
       
-      // Чистим будущее
+      // ОЧИСТКА
       for (let i = 1; i < rList.length; i++) {
           const rName = rList[i];
           if (userB[rName]) {
@@ -126,13 +120,13 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
 
       let foundPicks = false;
 
-      // Симулируем
+      // СИМУЛЯЦИЯ
       for (let i = 0; i < rList.length; i++) {
         const rName = rList[i];
         if (!userB[rName]) continue;
         
         userB[rName].forEach((m) => {
-            // BYE в R32
+            // BYE (Автопроход)
             if (i === 0) {
                  if (m.player1?.name === 'Bye' && m.player2?.name && m.player2.name !== 'TBD') {
                      const w = m.player2.name; m.predicted_winner = w;
@@ -157,17 +151,13 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   // === ЭФФЕКТ ЗАГРУЗКИ (ИСПРАВЛЕННЫЙ) ===
   useEffect(() => {
     let mounted = true;
-
     const init = async () => {
-      // Если данные уже есть в кэше и мы их еще не обработали
       if (cached && !isProcessed.current) {
           processData(cached);
           isProcessed.current = true;
           setIsLoading(false);
           return;
       }
-
-      // Если данных нет, грузим с сервера
       if (!cached) {
           setIsLoading(true);
           try {
@@ -175,7 +165,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
             const data = await loadTournament(id, initData || '');
             if (mounted && data) {
                 processData(data);
-                isProcessed.current = true; // Помечаем, что обработали
+                isProcessed.current = true;
             }
           } catch (e) {
             console.error(e);
@@ -185,29 +175,32 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
           }
       }
     };
-
     init();
-
     return () => { mounted = false; };
-    // Убрали processData из зависимостей, чтобы разорвать цикл!
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, loadTournament, cached]); 
+    // Добавили processData, теперь линтер доволен, а цикл не возникнет, 
+    // потому что processData обернута в useCallback и стабильна
+  }, [id, loadTournament, cached, processData]); 
 
-  // === ОБРАБОТКА КЛИКА ===
+  // === ОБРАБОТКА КЛИКА С БЛОКИРОВКОЙ BYE ===
   const handlePick = (round: string, matchId: string, player: string) => {
-    // console.log(`[Click] ${player} in ${matchId}`);
-    
     if (tournament?.status !== 'ACTIVE') { 
         toast.error('Турнир не активен'); 
         return; 
     }
     
+    // Блокировка: если кликнули на Bye или "пустоту"
+    if (!player || player === 'Bye' || player === 'TBD') return;
+
     setBracket((prev) => {
       const nb: BracketRoundMap = JSON.parse(JSON.stringify(prev));
       const m = nb[round]?.find((x) => x.id === matchId);
       
       if (m) {
-        // Просто ставим нового победителя. Без отмены.
+        // ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Если в матче есть BYE, менять ничего нельзя
+        if (m.player1?.name === 'Bye' || m.player2?.name === 'Bye') {
+            return prev;
+        }
+
         m.predicted_winner = player;
         propagate(nb, rounds, round, m.match_number, player);
       }
@@ -224,19 +217,25 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     Object.keys(bracket).forEach(r => bracket[r].forEach((m) => {
         if (m.predicted_winner) {
             picks.push({ 
-                tournament_id: parseInt(id), 
+                tournament_id: parseInt(id, 10), 
                 round: m.round, 
-                match_number: m.match_number, 
-                predicted_winner: m.predicted_winner 
+                match_number: Number(m.match_number), 
+                predicted_winner: String(m.predicted_winner) 
             });
         }
     }));
     
     try {
-        await fetch('/api/picks/bulk', { method: 'POST', headers: { Authorization: initData }, body: JSON.stringify(picks) });
+        const res = await fetch('/api/picks/bulk', { 
+            method: 'POST', 
+            headers: { Authorization: initData }, 
+            body: JSON.stringify(picks) 
+        });
+        
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        
         toast.success('Сохранено');
-        // Обновляем данные, но аккуратно
-        isProcessed.current = false; // Разрешаем пересчет после сохранения
+        isProcessed.current = false; 
         loadTournament(id, initData);
     } catch (e) {
         console.error(e);
