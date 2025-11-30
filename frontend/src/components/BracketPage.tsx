@@ -11,7 +11,6 @@ const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="no
 const CheckIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>);
 const TrophyIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>);
 
-// --- Save Button ---
 const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' | 'loading' | 'success' }) => (
     <motion.button layout onClick={onClick} disabled={status !== 'idle'} className={`${styles.saveButton} ${status === 'success' ? styles.saveButtonSuccess : ''}`} initial={false} animate={{ width: status === 'loading' ? 50 : 200, backgroundColor: status === 'success' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.15)', color: status === 'success' ? '#000000' : '#FFFFFF' }}>
       <AnimatePresence mode="wait" initial={false}>
@@ -29,13 +28,11 @@ const variants: Variants = {
 };
 const transitionSettings = { duration: 0.5, ease: [0.32, 0.72, 0, 1] };
 
-// === СУПЕР ВАЖНАЯ ФУНКЦИЯ ОЧИСТКИ ===
-// Она превращает "🇪🇸 A. Zverev (1)" в "azverev" для точного сравнения
+// ОЧИСТКА ИМЕН
 const cleanName = (name: string | undefined | null) => {
     if (!name || name === 'TBD' || name.toLowerCase() === 'bye') return "tbd";
-    // 1. Убираем скобки (1), (WC)
+    // Убираем скобки и всё кроме букв
     let n = name.replace(/\s*\(.*?\)/g, '');
-    // 2. Убираем всё, кроме букв (флаги, пробелы, точки) и в нижний регистр
     n = n.replace(/[^a-zA-Z]/g, '').toLowerCase();
     return n || "tbd";
 };
@@ -87,7 +84,7 @@ export default function BracketPage({ id }: { id: string }) {
       return parts[playerIdx];
   };
 
-  // Показываем: User Bracket (Фантазию), но будем сравнивать с True Bracket (Реальностью)
+  // Показываем "Фантазию", но сравниваем с "Реальностью"
   const displayBracket = (hasPicks || tournament.status === 'ACTIVE') ? bracket : trueBracket;
 
   return (
@@ -124,19 +121,19 @@ export default function BracketPage({ id }: { id: string }) {
               {displayBracket[selectedRound]?.length > 0 ? (
                 displayBracket[selectedRound].map((match, index) => {
                   
-                  // 1. ДАННЫЕ ИЗ РЕАЛЬНОСТИ (True Draw)
+                  // Данные ИЗ РЕАЛЬНОСТИ
                   const realMatch = trueBracket[selectedRound]?.[index];
-                  const realWinner = realMatch?.actual_winner;
+                  const realWinner = realMatch?.actual_winner; 
+                  // Матч сыгран, если есть победитель
                   const isMatchFinished = cleanName(realWinner) !== 'tbd';
 
-                  // 2. ДАННЫЕ ИЗ ФАНТАЗИИ (User Bracket)
+                  // Данные ИЗ МОЕЙ СЕТКИ
                   const uP1 = match.player1;
                   const uP2 = match.player2;
-                  
-                  const myPick = match.predicted_winner; // Кого я выбрал ПОБЕДИТЕЛЕМ ЭТОГО матча
+                  const myPick = match.predicted_winner;
                   const scores = match.scores || [];
 
-                  // === ЛОГИКА ЦВЕТОВ (Исправленная) ===
+                  // === ЛОГИКА ОКРАШИВАНИЯ ===
                   const getPlayerState = (userPlayerName: string, realPlayerName: string, isPick: boolean) => {
                       const cls = styles.playerRow;
                       
@@ -144,79 +141,61 @@ export default function BracketPage({ id }: { id: string }) {
                       const cReal = cleanName(realPlayerName);
                       const cRealWinner = cleanName(realWinner);
 
-                      // 1. Не участвовал в турнире (просто смотрим)
-                      if (!hasPicks && isLiveOrClosed) {
-                          if (cReal === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
-                          return { className: cls, display: realPlayerName, hint: null };
-                      }
-
-                      // 2. Пустая ячейка
+                      // 1. Пустая ячейка или TBD
                       if (cUser === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
 
-                      // 3. ПЕРВЫЙ КРУГ (Всегда совпадает)
+                      // 2. ПЕРВЫЙ КРУГ - НИКОГДА НЕ КРАСИТЬ В КРАСНЫЙ/ЗЕЛЕНЫЙ
                       if (isFirstRound) {
-                          if (isLiveOrClosed) {
-                             // Если я выбрал этого игрока
-                             if (isPick) {
-                                 if (isMatchFinished) {
-                                     // Матч закончен. Я угадал?
-                                     if (cRealWinner === cUser) return { className: `${cls} ${styles.correct}`, display: userPlayerName, hint: null }; // Выиграл
-                                     return { className: `${cls} ${styles.incorrect}`, display: userPlayerName, hint: null }; // Проиграл
-                                 }
-                                 // Матч еще идет
-                                 return { className: `${cls} ${styles.selected}`, display: userPlayerName, hint: null };
-                             }
-                             // Я не выбрал его
-                             return { className: cls, display: userPlayerName, hint: null };
-                          }
-                          // ACTIVE: Просто выделяем выбор
                           if (isPick) return { className: `${cls} ${styles.selected}`, display: userPlayerName, hint: null };
                           return { className: cls, display: userPlayerName, hint: null };
                       }
 
-                      // 4. СЛЕДУЮЩИЕ КРУГИ (CLOSED / COMPLETED)
+                      // 3. CLOSED / COMPLETED (R2 и далее)
                       if (isLiveOrClosed) {
-                          
-                          // КЕЙС 1: Игрока НЕТ в реальности (он вылетел раньше)
-                          // У меня: Фонини. В реальности: Муте.
+
+                          // КЕЙС A: ИГРОК НЕ СОВПАДАЕТ
+                          // У меня Фонини, а в реальности Муте (потому что Фонини вылетел раньше)
                           if (cReal !== 'tbd' && cUser !== cReal) {
                               return { 
                                   className: `${cls} ${styles.incorrect}`, 
-                                  display: userPlayerName, // Показываем мой неверный выбор
-                                  hint: realPlayerName     // Подсказываем, кто там на самом деле
+                                  display: userPlayerName, 
+                                  hint: realPlayerName // Показываем стрелочкой реального игрока
                               };
                           }
 
-                          // КЕЙС 2: Игрок ЕСТЬ в реальности (дошел до сюда)
+                          // КЕЙС B: ИГРОК СОВПАДАЕТ (Добрался до этого круга)
                           if (cUser === cReal) {
-                              // Я выбрал его победителем *этого* матча?
+                              // Я выбрал его победителем этого матча?
                               if (isPick) {
-                                  // Матч уже закончился?
+                                  // Матч сыгран?
                                   if (isMatchFinished) {
-                                      // Он выиграл этот матч?
+                                      // Если он выиграл этот матч -> ЗЕЛЕНЫЙ
                                       if (cRealWinner === cUser) {
-                                          return { className: `${cls} ${styles.correct}`, display: userPlayerName, hint: null }; // Зеленый (прошел дальше)
+                                          return { className: `${cls} ${styles.correct}`, display: userPlayerName, hint: null };
                                       } else {
-                                          // Он проиграл этот матч (как Зверев в R16)
-                                          return { className: `${cls} ${styles.incorrect}`, display: userPlayerName, hint: null }; // Красный
+                                          // Если он проиграл этот матч (как Зверев в R16) -> КРАСНЫЙ
+                                          return { 
+                                              className: `${cls} ${styles.incorrect}`, 
+                                              display: userPlayerName, 
+                                              hint: realWinner // Показываем, кто его выбил
+                                          };
                                       }
                                   } else {
-                                      // Матч еще не сыгран, но игрок на месте
-                                      return { className: `${cls} ${styles.selected}`, display: userPlayerName, hint: null }; // Голубой
+                                      // Матч не сыгран -> ГОЛУБОЙ (Ждем)
+                                      return { className: `${cls} ${styles.selected}`, display: userPlayerName, hint: null };
                                   }
                               }
-                              // Я не выбрал его победителем, но он тут есть (просто показываем)
+                              // Не выбирала его -> просто показываем
                               return { className: cls, display: userPlayerName, hint: null };
                           }
 
-                          // КЕЙС 3: Реального соперника еще нет (предыдущий матч не сыгран)
+                          // КЕЙС C: В реальности еще TBD (предыдущий матч не сыгран)
                           if (cReal === 'tbd') {
-                              // Если это мой пик, показываем голубым (ждун)
                               if (isPick) return { className: `${cls} ${styles.selected}`, display: userPlayerName, hint: null };
                           }
                       }
 
-                      // 5. ACTIVE (Режим выбора)
+                      // 4. ACTIVE
                       if (isPick) return { className: `${cls} ${styles.selected}`, display: userPlayerName, hint: null };
 
                       return { className: cls, display: userPlayerName, hint: null };
@@ -240,7 +219,11 @@ export default function BracketPage({ id }: { id: string }) {
                                 <div className={state.className} style={{ height: '60px', cursor: 'default', borderRadius: '12px', background: 'transparent', border: 'none' }}>
                                     <div className={styles.playerInfo} style={{ justifyContent: 'center' }}>
                                         <span className={styles.playerName} style={{ fontSize: '16px' }}>{state.display}</span>
-                                        {state.hint && (<div className={styles.correctionText}>→ <span>{state.hint}</span></div>)}
+                                        {state.hint && (
+                                            <div className={styles.correctionText}>
+                                                <span className={styles.correctionArrow}>→</span> {state.hint}
+                                            </div>
+                                        )}
                                     </div>
                                     {(state.className.includes('selected') || state.className.includes('correct')) && <div className={styles.checkIcon}><TrophyIcon /></div>}
                                 </div>
@@ -267,7 +250,13 @@ export default function BracketPage({ id }: { id: string }) {
                           <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p1State.display}</span>
                               {p1State.display !== 'TBD' && !p1State.className.includes('incorrect') && <span className={styles.playerSeed}>{uP1.seed ? `[${uP1.seed}]` : ''}</span>}
-                              {p1State.hint && (<div className={styles.correctionText}>→ <span>{p1State.hint}</span></div>)}
+                              
+                              {/* ПОДСКАЗКА: СТРЕЛОЧКА + РЕАЛЬНЫЙ ИГРОК */}
+                              {p1State.hint && (
+                                <div className={styles.correctionText}>
+                                   <span className={styles.correctionArrow}>→</span> {p1State.hint}
+                                </div>
+                              )}
                           </div>
                           <div className="flex gap-2 mr-2">
                              {scores.map((s, i) => {
@@ -287,6 +276,12 @@ export default function BracketPage({ id }: { id: string }) {
                            <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p2State.display}</span>
                               <span className={styles.playerSeed}>{uP2.seed ? `[${uP2.seed}]` : ''}</span>
+                              
+                              {p2State.hint && (
+                                <div className={styles.correctionText}>
+                                   <span className={styles.correctionArrow}>→</span> {p2State.hint}
+                                </div>
+                              )}
                            </div>
                            <div className="flex gap-2 mr-2">
                              {scores.map((s, i) => {

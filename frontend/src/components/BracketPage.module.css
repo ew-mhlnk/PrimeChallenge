@@ -92,7 +92,7 @@
   flex-direction: column;
   overflow: hidden;
   min-height: 200px;
-  margin-bottom: 115px; /* Отступ до футера */
+  margin-bottom: 115px;
   transition: all 0.4s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
@@ -135,7 +135,7 @@
   border-radius: 12px;
   position: relative;
   z-index: 2;
-  overflow: hidden; /* Чтобы цветная полоска слева не вылезала */
+  overflow: hidden;
 }
 
 /* --- PLAYER ROW --- */
@@ -149,7 +149,7 @@
   position: relative;
   transition: background 0.2s;
   background: #1E1E1E;
-  border-left: 4px solid transparent; /* Место под цветной статус */
+  border-left: 4px solid transparent;
 }
 .playerRow:first-child { 
   border-bottom: 1px solid #2C2C2E; 
@@ -176,13 +176,9 @@
 
 /* --- STATES --- */
 
-/* 1. Нейтральный (не участвовал или не выбрано) */
-.neutral {
-  opacity: 0.5;
-  color: #888;
-}
+.tbd { opacity: 0.5; }
 
-/* 2. Выбрано (Синий) - ожидание или 1-й круг */
+/* Selected (Blue) */
 .selected { 
   background: #152230 !important; 
   border-left-color: #00B3FF !important;
@@ -192,7 +188,7 @@
   font-weight: 600; 
 }
 
-/* 3. Верно (Зеленый) */
+/* Correct (Green) */
 .correct { 
   background: rgba(48, 209, 88, 0.15) !important; 
   border-left-color: #30D158 !important;
@@ -202,7 +198,7 @@
   font-weight: 700;
 }
 
-/* 4. Неверно (Красный) */
+/* Incorrect (Red) */
 .incorrect { 
   background: rgba(255, 69, 58, 0.15) !important; 
   border-left-color: #FF453A !important;
@@ -213,18 +209,19 @@
   opacity: 0.7;
 }
 
-/* Подсказка (имя реального победителя) */
+/* Correction Text (Arrow + Real Name) */
 .correctionText {
-  font-size: 11px;
-  color: #8E8E93;
-  margin-left: 6px;
   display: flex;
   align-items: center;
   gap: 4px;
+  font-size: 13px;
+  color: #FFFFFF;
+  font-weight: 600;
+  margin-left: 6px;
 }
-.correctionText span {
-  color: #FFFFFF; 
-  font-weight: 500;
+.correctionArrow {
+  color: #8E8E93;
+  font-size: 12px;
 }
 
 .checkIcon {
