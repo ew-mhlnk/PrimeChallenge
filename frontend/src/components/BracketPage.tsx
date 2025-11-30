@@ -19,7 +19,6 @@ const CheckIcon = () => (
   </svg>
 );
 
-// ВЕРНУЛИ TROPHY ICON
 const TrophyIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2">
     <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
@@ -131,7 +130,7 @@ export default function BracketPage({ id }: { id: string }) {
     rounds,
     handlePick,
     savePicks,
-    hasPicks
+    hasPicks 
   } = useTournamentLogic({ id });
   
   const [saveStatus, setSaveStatus] = useState<'idle' | 'loading' | 'success'>('idle');
@@ -230,80 +229,90 @@ export default function BracketPage({ id }: { id: string }) {
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match) => {
                   
-                  // === ОБЪЯВЛЕНИЕ ПЕРЕМЕННЫХ (ВСЕ В НАЧАЛЕ) ===
-                  const p1 = match.player1;
-                  const p2 = match.player2;
-                  const p1Name = p1?.name || 'TBD';
-                  const p2Name = p2?.name || 'TBD';
-                  const myPick = match.predicted_winner;
                   const realWinner = match.actual_winner;
                   const isMatchFinished = !!realWinner;
+                  const myPick = match.predicted_winner;
                   const scores = match.scores || []; 
+                  
+                  // Имена в реальной сетке
+                  const p1RealName = match.player1?.name || 'TBD';
+                  const p2RealName = match.player2?.name || 'TBD';
 
-                  // --- ФУНКЦИЯ СТИЛЯ ---
-                  const getPlayerState = (name: string, isPicked: boolean, slotRealName: string) => {
+                  // --- 1. ЛОГИКА СТИЛЕЙ ---
+                  const getPlayerState = (displayName: string, slotRealName: string, isGhost: boolean) => {
                       const cls = styles.playerRow;
-                      if (name === 'TBD') return { className: `${cls} ${styles.tbd}`, hint: null };
+                      if (displayName === 'TBD') return { className: `${cls} ${styles.tbd}`, hint: null };
 
-                      if (!hasPicks && isLiveOrClosed) {
-                          return { className: cls, hint: null };
-                      }
+                      if (!hasPicks) return { className: cls, hint: null };
+
+                      // Мой ли это выбор (с учетом очистки)
+                      const isMyPick = cleanName(displayName) === cleanName(myPick);
 
                       if (isFirstRound) {
-                          if (isPicked) return { className: `${cls} ${styles.selected}`, hint: null };
-                          return { className: cls, hint: null };
+                          return isMyPick 
+                              ? { className: `${cls} ${styles.selected}`, hint: null } 
+                              : { className: cls, hint: null };
                       }
 
-                      if (isLiveOrClosed && isPicked) {
-                          const cleanPicked = cleanName(name);
-                          const cleanRealSlot = cleanName(slotRealName);
-                          const cleanWinner = cleanName(realWinner);
-
-                          if (cleanRealSlot !== 'tbd' && cleanPicked !== cleanRealSlot) {
-                              return { 
-                                  className: `${cls} ${styles.incorrect}`, 
-                                  hint: slotRealName 
-                              };
-                          }
-
-                          if (isMatchFinished) {
-                              if (cleanPicked === cleanWinner) {
-                                  return { className: `${cls} ${styles.correct}`, hint: null };
-                              } else {
+                      if (isLiveOrClosed) {
+                          if (isMyPick) {
+                              // Сценарий: "Призрак" (игрок вылетел в прошлом раунде)
+                              if (isGhost) {
                                   return { 
                                       className: `${cls} ${styles.incorrect}`, 
-                                      hint: realWinner 
+                                      hint: slotRealName 
                                   };
                               }
+
+                              // Сценарий: Матч сыгран (победитель есть)
+                              if (isMatchFinished) {
+                                  const cleanDisplay = cleanName(displayName);
+                                  const cleanWinner = cleanName(realWinner);
+                                  
+                                  if (cleanDisplay === cleanWinner) {
+                                      return { className: `${cls} ${styles.correct}`, hint: null };
+                                  } else {
+                                      return { 
+                                          className: `${cls} ${styles.incorrect}`, 
+                                          hint: realWinner 
+                                      };
+                                  }
+                              }
+
+                              // Сценарий: Ждем (синий)
+                              return { className: `${cls} ${styles.selected}`, hint: null };
                           }
-
-                          return { className: `${cls} ${styles.selected}`, hint: null };
                       }
-
-                      if (!isLiveOrClosed && isPicked) {
-                          return { className: `${cls} ${styles.selected}`, hint: null };
-                      }
+                      
+                      if (isMyPick) return { className: `${cls} ${styles.selected}`, hint: null };
 
                       return { className: cls, hint: null };
                   };
 
-                  // --- CHAMPION BLOCK ---
+                  // --- CHAMPION ROUND ---
                   if (isChampionRound) {
-                     const championName = (!hasPicks && isLiveOrClosed) ? (match.actual_winner || 'TBD') : (match.predicted_winner || 'TBD');
+                     const championName = (hasPicks && myPick) ? myPick : (match.actual_winner || 'TBD');
                      const realChampSlot = match.player1?.name || 'TBD';
                      
-                     const state = getPlayerState(championName, !!match.predicted_winner, realChampSlot);
+                     // Проверяем "призрака" для чемпиона
+                     let isGhostChamp = false;
+                     if (hasPicks && myPick && cleanName(myPick) !== cleanName(realChampSlot) && realChampSlot !== 'TBD') {
+                         isGhostChamp = true;
+                     }
+
+                     const state = getPlayerState(championName, realChampSlot, isGhostChamp);
+
+                     // Кастомный бэкграунд для блока чемпиона
+                     let bgStyle = '#1E1E1E';
+                     if (state.className.includes('correct')) bgStyle = 'rgba(48, 209, 88, 0.15)';
+                     else if (state.className.includes('incorrect')) bgStyle = 'rgba(255, 69, 58, 0.15)';
+                     else if (state.className.includes('selected')) bgStyle = '#152230';
 
                      return (
                         <div key={match.id} className={styles.championWrapper}>
-                            <div className={`${styles.championContainer}`} style={{ 
-                                border: 'none', 
-                                background: state.className.includes('correct') ? 'rgba(48, 209, 88, 0.15)' : 
-                                            state.className.includes('incorrect') ? 'rgba(255, 69, 58, 0.15)' : 
-                                            state.className.includes('selected') ? '#152230' : '#1E1E1E'
-                            }}>
-                                <div className={state.className} style={{ height: '60px', cursor: 'default', borderRadius: '12px', background: 'transparent' }}>
-                                    <div className={styles.playerInfo}>
+                            <div className={`${styles.championContainer}`} style={{ border: 'none', background: bgStyle }}>
+                                <div className={state.className} style={{ height: '60px', cursor: 'default', borderRadius: '12px', background: 'transparent', border: 'none' }}>
+                                    <div className={styles.playerInfo} style={{ justifyContent: 'center' }}>
                                         <span className={styles.playerName} style={{ fontSize: '16px' }}>
                                             {championName}
                                         </span>
@@ -313,32 +322,33 @@ export default function BracketPage({ id }: { id: string }) {
                                             </div>
                                         )}
                                     </div>
-                                    <div className={styles.checkIcon}><TrophyIcon /></div>
+                                    {(state.className.includes('selected') || state.className.includes('correct')) && 
+                                        <div className={styles.checkIcon}><TrophyIcon /></div>
+                                    }
                                 </div>
                             </div>
                         </div>
                      );
                   }
 
-                  // --- REGULAR MATCH LOGIC ---
-                  
-                  let p1NameDisplay = p1Name;
-                  const p2NameDisplay = p2Name; // const, т.к. не меняется
-                  
-                  let p1State = getPlayerState(p1Name, myPick === p1Name, p1Name);
-                  const p2State = getPlayerState(p2Name, myPick === p2Name, p2Name); // const
+                  // --- REGULAR MATCH ---
+                  let p1NameDisplay = p1RealName;
+                  // ИСПРАВЛЕНИЕ: p2Display объявлен через const
+                  const p2NameDisplay = p2RealName; 
+                  let isGhostP1 = false;
 
+                  // Логика "Призрака":
                   if (!isFirstRound && hasPicks && myPick && 
-                      cleanName(myPick) !== cleanName(p1Name) && 
-                      cleanName(myPick) !== cleanName(p2Name) &&
-                      p1Name !== 'TBD' && p2Name !== 'TBD'
+                      cleanName(myPick) !== cleanName(p1RealName) && 
+                      cleanName(myPick) !== cleanName(p2RealName) &&
+                      p1RealName !== 'TBD' && p2RealName !== 'TBD'
                   ) {
                       p1NameDisplay = myPick;
-                      p1State = { 
-                          className: `${styles.playerRow} ${styles.incorrect}`, 
-                          hint: p1Name 
-                      };
+                      isGhostP1 = true;
                   }
+
+                  const p1State = getPlayerState(p1NameDisplay, p1RealName, isGhostP1);
+                  const p2State = getPlayerState(p2NameDisplay, p2RealName, false);
 
                   return (
                     <div key={match.id} className={styles.matchWrapper}>
@@ -346,12 +356,13 @@ export default function BracketPage({ id }: { id: string }) {
                         {/* P1 */}
                         <div 
                           className={p1State.className}
-                          onClick={() => !isLiveOrClosed && p1Name !== 'TBD' && handlePick(selectedRound!, match.id, p1.name)}
+                          // ИСПРАВЛЕНИЕ: Используем p1RealName для клика
+                          onClick={() => !isLiveOrClosed && p1RealName !== 'TBD' && handlePick(selectedRound!, match.id, match.player1?.name)}
                         >
                           <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p1NameDisplay}</span>
-                              {/* Seed */}
-                              {p1NameDisplay === p1Name && <span className={styles.playerSeed}>{match.player1?.seed ? `[${match.player1.seed}]` : ''}</span>}
+                              {/* Seed только если это реальный игрок */}
+                              {!isGhostP1 && <span className={styles.playerSeed}>{match.player1?.seed ? `[${match.player1.seed}]` : ''}</span>}
                               
                               {p1State.hint && (
                                   <div className={styles.correctionText}>
@@ -366,14 +377,17 @@ export default function BracketPage({ id }: { id: string }) {
                                  return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>
                              })}
                           </div>
-                          {/* Галочка для P1 */}
-                          {myPick === p1NameDisplay && !isMatchFinished && <div className={styles.checkIcon}><CheckIcon/></div>}
+                          {/* Галочка */}
+                          {hasPicks && cleanName(myPick) === cleanName(p1NameDisplay) && !p1State.className.includes('incorrect') && 
+                             <div className={styles.checkIcon}><CheckIcon/></div>
+                          }
                         </div>
 
                         {/* P2 */}
                         <div 
                           className={p2State.className}
-                          onClick={() => !isLiveOrClosed && p2Name !== 'TBD' && handlePick(selectedRound!, match.id, p2.name)}
+                          // ИСПРАВЛЕНИЕ: Используем p2RealName для клика
+                          onClick={() => !isLiveOrClosed && p2RealName !== 'TBD' && handlePick(selectedRound!, match.id, match.player2?.name)}
                         >
                            <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p2NameDisplay}</span>
@@ -386,8 +400,10 @@ export default function BracketPage({ id }: { id: string }) {
                                  return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>
                              })}
                            </div>
-                           {/* Галочка для P2 */}
-                           {myPick === p2NameDisplay && !isMatchFinished && <div className={styles.checkIcon}><CheckIcon/></div>}
+                           {/* Галочка */}
+                           {hasPicks && cleanName(myPick) === cleanName(p2NameDisplay) && !p2State.className.includes('incorrect') && 
+                              <div className={styles.checkIcon}><CheckIcon/></div>
+                           }
                         </div>
                       </div>
                       {selectedRound !== 'F' && <div className={styles.bracketConnector} />}
