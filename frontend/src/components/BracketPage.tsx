@@ -70,6 +70,7 @@ export default function BracketPage({ id }: { id: string }) {
     setTimeout(() => setSaveStatus('idle'), 2000);
   };
 
+  // Если есть пики, ВСЕГДА показываем сетку юзера (bracket), а не реальность (trueBracket)
   const displayBracket = (hasPicks || tournament.status === 'ACTIVE') ? bracket : trueBracket;
 
   return (
@@ -98,8 +99,8 @@ export default function BracketPage({ id }: { id: string }) {
               {displayBracket[selectedRound]?.length > 0 ? (
                 displayBracket[selectedRound].map((match: BracketMatch, index: number) => {
                   
+                  // ДАННЫЕ ИЗ РЕАЛЬНОСТИ
                   const realMatch = trueBracket[selectedRound]?.[index];
-                  // Используем реального победителя через переменную, чтобы не ругался линтер
                   const realWinner = realMatch?.actual_winner; 
                   const isMatchFinished = clean(realWinner) !== 'tbd';
 
@@ -117,42 +118,61 @@ export default function BracketPage({ id }: { id: string }) {
                       const cReal = clean(safeReal);
                       const cRealWinner = clean(realWinner);
 
+                      // 0. База
                       if (cUser === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
                       if (cUser === 'bye') return { className: `${cls} ${styles.tbd}`, display: safeUser, hint: null };
                       
+                      // Если не участвовал, просто серый
                       if (!hasPicks && isLiveOrClosed) return { className: cls, display: safeReal, hint: null };
 
+                      // 1. R32 - ТОЛЬКО СИНИЙ (Выбор)
                       if (isFirstRound) {
                          if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
                          return { className: cls, display: safeUser, hint: null };
                       }
 
+                      // 2. R16+ (LIVE/CLOSED)
                       if (isLiveOrClosed) {
+                          // Если реальность неизвестна -> Ждем (Синий)
                           if (cReal === 'tbd') {
                               if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
                               return { className: cls, display: safeUser, hint: null };
                           }
 
+                          // КЕЙС 1: ИГРОК НЕ ДОШЕЛ (У меня Фонини, там Муте) -> КРАСНЫЙ
                           if (cUser !== cReal) {
-                              return { className: `${cls} ${styles.incorrect}`, display: safeUser, hint: safeReal };
+                              return { 
+                                  className: `${cls} ${styles.incorrect}`, 
+                                  display: safeUser, 
+                                  hint: safeReal 
+                              };
                           }
 
+                          // КЕЙС 2: ИГРОК ДОШЕЛ (У меня Зверев, там Зверев)
                           if (cUser === cReal) {
+                              // Я поставила на него?
                               if (isPick) {
+                                  // Матч окончен?
                                   if (isMatchFinished) {
+                                      // Он выиграл?
                                       if (cRealWinner === cUser) {
                                           return { className: `${cls} ${styles.correct}`, display: safeUser, hint: null };
-                                      } else {
+                                      } 
+                                      // Он проиграл?
+                                      else {
                                           return { className: `${cls} ${styles.incorrect}`, display: safeUser, hint: realWinner };
                                       }
                                   } else {
+                                      // Матч идет -> Синий
                                       return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
                                   }
                               }
+                              // Не ставила -> Просто серый
                               return { className: cls, display: safeUser, hint: null };
                           }
                       }
 
+                      // 3. ACTIVE
                       if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
                       return { className: cls, display: safeUser, hint: null };
                   };

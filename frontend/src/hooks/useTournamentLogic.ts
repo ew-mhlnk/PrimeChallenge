@@ -16,7 +16,7 @@ type PickPayload = {
   predicted_winner: string;
 };
 
-// Тип для карты раундов (вместо any)
+// Тип для карты раундов
 type BracketRoundMap = {
   [roundName: string]: BracketMatch[];
 };
@@ -37,6 +37,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   const [bracket, setBracket] = useState<BracketRoundMap>(cached?.bracket || {}); 
   const [trueBracket, setTrueBracket] = useState<BracketRoundMap>({}); 
   
+  // По умолчанию false, но мы это пересчитаем при загрузке данных
   const [hasPicks, setHasPicks] = useState(cached?.has_picks || false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(!cached);
@@ -63,7 +64,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
                   player2: { name: 'TBD' },
                   predicted_winner: null, 
                   actual_winner: null,
-                  source_matches: [] // Добавляем обязательное поле из интерфейса
+                  source_matches: [] 
               });
           }
       }
@@ -110,16 +111,17 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       setRounds(rList);
       setSelectedRound(prev => prev || data.starting_round || rList[0]);
 
-      // База из БД (с Муте в R16)
+      // 1. Берем базу из БД (Где в R16 уже Муте)
       const base = ensureStructure(data.bracket || {}, rList, data.id);
       
-      // REALITY (Сохраняем Муте)
+      // 2. TRUE BRACKET = РЕАЛЬНОСТЬ
       setTrueBracket(JSON.parse(JSON.stringify(base)));
 
-      // FANTASY
+      // 3. USER BRACKET = ФАНТАЗИЯ
       const userB: BracketRoundMap = JSON.parse(JSON.stringify(base));
       
-      // === ОЧИСТКА ===
+      // === ПРИНУДИТЕЛЬНАЯ ОЧИСТКА ===
+      // Удаляем всех игроков начиная со 2-го раунда, чтобы заполнить их твоими пиками
       for (let i = 1; i < rList.length; i++) {
           const rName = rList[i];
           if (userB[rName]) {
@@ -130,12 +132,15 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
           }
       }
 
+      let foundAnyPick = false;
+
       // === ЗАПОЛНЕНИЕ ===
       for (let i = 0; i < rList.length; i++) {
         const rName = rList[i];
         if (!userB[rName]) continue;
         
         userB[rName].forEach((m) => {
+            // Обработка BYE в 1-м круге
             if (i === 0) {
                  if (m.player1?.name === 'Bye' && m.player2?.name && m.player2.name !== 'TBD') {
                      m.predicted_winner = m.player2.name;
@@ -145,22 +150,25 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
                      propagate(userB, rList, rName, m.match_number, m.player1.name);
                  }
             }
+            // Протягивание пиков
             if (m.predicted_winner) {
+                foundAnyPick = true; // Нашли пик!
                 propagate(userB, rList, rName, m.match_number, m.predicted_winner);
             }
         });
       }
       
       setBracket(userB);
-      if (data.has_picks) setHasPicks(true);
+      // Если API вернул true, или мы сами нашли пики -> включаем режим просмотра
+      if (data.has_picks || foundAnyPick) {
+          setHasPicks(true);
+      }
   }, [ensureStructure, propagate]);
 
-  // Эффект для кэша
   useEffect(() => { 
       if (cached) updateState(cached); 
   }, [cached, updateState]);
 
-  // Эффект для загрузки с сервера
   useEffect(() => {
     let mounted = true;
     const init = async () => {
@@ -170,7 +178,6 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
         const data = await loadTournament(id, initData || '');
         if (mounted && data) updateState(data);
       } catch (e) { 
-          // Используем переменную e, чтобы линтер не ругался (или можно просто console.error)
           console.error(e);
           if (!cached) setError('Ошибка загрузки'); 
       } finally { 
@@ -179,7 +186,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     };
     init();
     return () => { mounted = false; };
-  }, [id, loadTournament, updateState, cached]); // Добавили все зависимости
+  }, [id, loadTournament, updateState, cached]); 
 
   const handlePick = (round: string, matchId: string, player: string) => {
     if (tournament?.status !== 'ACTIVE') { toast.error('Закрыто'); return; }
