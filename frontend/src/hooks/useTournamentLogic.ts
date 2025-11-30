@@ -5,21 +5,9 @@ import toast from 'react-hot-toast';
 import { Tournament, BracketMatch } from '@/types';
 import { useTournamentContext } from '@/context/TournamentContext';
 
-interface UseTournamentLogicProps {
-  id: string;
-}
-
-type PickPayload = {
-  tournament_id: number;
-  round: string;
-  match_number: number;
-  predicted_winner: string;
-};
-
-// Тип для карты раундов
-type BracketRoundMap = {
-  [roundName: string]: BracketMatch[];
-};
+interface UseTournamentLogicProps { id: string; }
+type PickPayload = { tournament_id: number; round: string; match_number: number; predicted_winner: string; };
+type BracketRoundMap = { [roundName: string]: BracketMatch[]; };
 
 const waitForTelegram = async () => {
     for (let i = 0; i < 20; i++) {
@@ -36,35 +24,26 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   const [tournament, setTournament] = useState<Tournament | null>(cached);
   const [bracket, setBracket] = useState<BracketRoundMap>(cached?.bracket || {}); 
   const [trueBracket, setTrueBracket] = useState<BracketRoundMap>({}); 
-  
-  // По умолчанию false, но мы это пересчитаем при загрузке данных
   const [hasPicks, setHasPicks] = useState(cached?.has_picks || false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(!cached);
   const [selectedRound, setSelectedRound] = useState(cached?.starting_round || cached?.rounds?.[0] || null);
   const [rounds, setRounds] = useState(cached?.rounds || []);
 
-  // 1. Создание структуры
+  // Создаем структуру с TBD (пустышками)
   const ensureStructure = useCallback((base: BracketRoundMap, rList: string[], tId: number): BracketRoundMap => {
     const newB: BracketRoundMap = JSON.parse(JSON.stringify(base));
-    
     for (let i = 0; i < rList.length; i++) {
       const rName = rList[i];
       if (!newB[rName]) newB[rName] = [];
-      
       const count = rName === 'Champion' ? 1 : (i === 0 ? newB[rName].length : Math.ceil(newB[rList[i-1]].length / 2));
       
       for (let m = 1; m <= count; m++) {
           if (!newB[rName].find((x) => x.match_number === m)) {
               newB[rName].push({
-                  id: `${tId}_${rName}_${m}`, 
-                  match_number: m, 
-                  round: rName,
-                  player1: { name: 'TBD' }, 
-                  player2: { name: 'TBD' },
-                  predicted_winner: null, 
-                  actual_winner: null,
-                  source_matches: [] 
+                  id: `${tId}_${rName}_${m}`, match_number: m, round: rName,
+                  player1: { name: 'TBD' }, player2: { name: 'TBD' },
+                  predicted_winner: null, actual_winner: null, source_matches: []
               });
           }
       }
@@ -73,7 +52,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     return newB;
   }, []);
 
-  // 2. Двигаем победителя
+  // Функция продвижения победителя
   const propagate = useCallback((bState: BracketRoundMap, rList: string[], cRound: string, mNum: number, wName: string | null) => {
     const idx = rList.indexOf(cRound);
     if (idx === -1 || idx === rList.length - 1) return;
@@ -81,10 +60,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
 
     if (nRound === 'Champion') {
         const cm = bState['Champion']?.find((m) => m.match_number === 1);
-        if (cm) { 
-            cm.player1 = { name: wName || 'TBD' }; 
-            cm.predicted_winner = wName; 
-        }
+        if (cm) { cm.player1 = { name: wName || 'TBD' }; cm.predicted_winner = wName; }
         return;
     }
 
@@ -96,7 +72,6 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       const target = isP1 ? 'player1' : 'player2';
       const old = nm[target]?.name;
       nm[target] = { name: wName || 'TBD' };
-      
       if (nm.predicted_winner === old && old !== wName) {
           nm.predicted_winner = null;
           propagate(bState, rList, nRound, nNum, null);
@@ -104,70 +79,78 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     }
   }, []);
 
-  // 3. Главная функция обновления
   const updateState = useCallback((data: Tournament) => {
       setTournament(data);
       const rList = data.rounds || [];
       setRounds(rList);
       setSelectedRound(prev => prev || data.starting_round || rList[0]);
 
-      // 1. Берем базу из БД (Где в R16 уже Муте)
+      // 1. Исходные данные (из БД)
       const base = ensureStructure(data.bracket || {}, rList, data.id);
       
-      // 2. TRUE BRACKET = РЕАЛЬНОСТЬ
+      // 2. Реальность (True Bracket) - Оставляем как есть (Там Муте в R16)
       setTrueBracket(JSON.parse(JSON.stringify(base)));
 
-      // 3. USER BRACKET = ФАНТАЗИЯ
+      // 3. Фантазия (User Bracket)
       const userB: BracketRoundMap = JSON.parse(JSON.stringify(base));
       
-      // === ПРИНУДИТЕЛЬНАЯ ОЧИСТКА ===
-      // Удаляем всех игроков начиная со 2-го раунда, чтобы заполнить их твоими пиками
+      // === ПЕРЕСОЗДАНИЕ СЕТКИ (MARCH MADNESS STYLE) ===
+      // Стираем всех игроков в R16 и дальше. Мы их заполним сами.
       for (let i = 1; i < rList.length; i++) {
           const rName = rList[i];
           if (userB[rName]) {
               userB[rName].forEach((m) => {
                   m.player1 = { name: 'TBD' };
                   m.player2 = { name: 'TBD' };
+                  // predicted_winner оставляем, это выбор юзера на этот раунд
               });
           }
       }
 
       let foundAnyPick = false;
 
-      // === ЗАПОЛНЕНИЕ ===
+      // Проходим по раундам СНИЗУ ВВЕРХ (R32 -> R16 -> ...)
+      // Чтобы победители R32 попали в R16 до того, как мы будем обрабатывать R16
       for (let i = 0; i < rList.length; i++) {
         const rName = rList[i];
         if (!userB[rName]) continue;
         
         userB[rName].forEach((m) => {
-            // Обработка BYE в 1-м круге
+            // АВТО-ПРОХОД BYE (Только в 1 круге)
             if (i === 0) {
                  if (m.player1?.name === 'Bye' && m.player2?.name && m.player2.name !== 'TBD') {
-                     m.predicted_winner = m.player2.name;
-                     propagate(userB, rList, rName, m.match_number, m.player2.name);
+                     // Если P1=Bye, P2 проходит автоматически
+                     const winner = m.player2.name;
+                     // Записываем как прогноз, чтобы логика работала
+                     m.predicted_winner = winner; 
+                     propagate(userB, rList, rName, m.match_number, winner);
                  } else if (m.player2?.name === 'Bye' && m.player1?.name && m.player1.name !== 'TBD') {
-                     m.predicted_winner = m.player1.name;
-                     propagate(userB, rList, rName, m.match_number, m.player1.name);
+                     const winner = m.player1.name;
+                     m.predicted_winner = winner;
+                     propagate(userB, rList, rName, m.match_number, winner);
                  }
             }
-            // Протягивание пиков
+
+            // ЕСЛИ ЕСТЬ ПРОГНОЗ -> ДВИГАЕМ ДАЛЬШЕ
+            // (Прогноз мог прийти из БД или быть результатом Bye выше)
             if (m.predicted_winner) {
-                foundAnyPick = true; // Нашли пик!
+                foundAnyPick = true;
+                // ВАЖНО: Если мы стерли player1/player2 в этом матче (в цикле выше),
+                // но прогноз есть, это значит прогноз на то, кто выиграет ЭТОТ слот.
+                // Но propagate двигает победителя В СЛЕДУЮЩИЙ раунд.
                 propagate(userB, rList, rName, m.match_number, m.predicted_winner);
             }
         });
       }
       
       setBracket(userB);
-      // Если API вернул true, или мы сами нашли пики -> включаем режим просмотра
+      // Если API говорит true ИЛИ мы нашли локально
       if (data.has_picks || foundAnyPick) {
           setHasPicks(true);
       }
   }, [ensureStructure, propagate]);
 
-  useEffect(() => { 
-      if (cached) updateState(cached); 
-  }, [cached, updateState]);
+  useEffect(() => { if (cached) updateState(cached); }, [cached, updateState]);
 
   useEffect(() => {
     let mounted = true;
@@ -190,11 +173,9 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
 
   const handlePick = (round: string, matchId: string, player: string) => {
     if (tournament?.status !== 'ACTIVE') { toast.error('Закрыто'); return; }
-    
     setBracket((prev) => {
       const nb: BracketRoundMap = JSON.parse(JSON.stringify(prev));
       const m = nb[round]?.find((x) => x.id === matchId);
-      
       if (m) {
         const newVal = m.predicted_winner === player ? null : player;
         m.predicted_winner = newVal;
@@ -208,31 +189,17 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   const savePicks = async () => {
     const initData = await waitForTelegram();
     if (!initData) return;
-    
     const picks: PickPayload[] = [];
     Object.keys(bracket).forEach(r => bracket[r].forEach((m) => {
         if (m.predicted_winner) {
-            picks.push({ 
-                tournament_id: parseInt(id), 
-                round: m.round, 
-                match_number: m.match_number, 
-                predicted_winner: m.predicted_winner 
-            });
+            picks.push({ tournament_id: parseInt(id), round: m.round, match_number: m.match_number, predicted_winner: m.predicted_winner });
         }
     }));
-    
     try {
-        await fetch('/api/picks/bulk', { 
-            method: 'POST', 
-            headers: { Authorization: initData }, 
-            body: JSON.stringify(picks) 
-        });
+        await fetch('/api/picks/bulk', { method: 'POST', headers: { Authorization: initData }, body: JSON.stringify(picks) });
         toast.success('Сохранено');
         loadTournament(id, initData);
-    } catch (e) {
-        console.error(e);
-        toast.error('Ошибка сохранения');
-    }
+    } catch (e) { console.error(e); toast.error('Ошибка сохранения'); }
   };
 
   return { tournament, bracket, trueBracket, hasPicks, error, isLoading, selectedRound, setSelectedRound, rounds, handlePick, savePicks };

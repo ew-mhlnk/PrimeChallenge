@@ -70,7 +70,6 @@ export default function BracketPage({ id }: { id: string }) {
     setTimeout(() => setSaveStatus('idle'), 2000);
   };
 
-  // Если есть пики, ВСЕГДА показываем сетку юзера (bracket), а не реальность (trueBracket)
   const displayBracket = (hasPicks || tournament.status === 'ACTIVE') ? bracket : trueBracket;
 
   return (
@@ -99,7 +98,6 @@ export default function BracketPage({ id }: { id: string }) {
               {displayBracket[selectedRound]?.length > 0 ? (
                 displayBracket[selectedRound].map((match: BracketMatch, index: number) => {
                   
-                  // ДАННЫЕ ИЗ РЕАЛЬНОСТИ
                   const realMatch = trueBracket[selectedRound]?.[index];
                   const realWinner = realMatch?.actual_winner; 
                   const isMatchFinished = clean(realWinner) !== 'tbd';
@@ -109,6 +107,7 @@ export default function BracketPage({ id }: { id: string }) {
                   const myPick = match.predicted_winner;
                   const scores = match.scores || [];
 
+                  // === ЛОГИКА ===
                   const getPlayerState = (userPlayerName: string | null | undefined, realPlayerName: string | null | undefined, isPick: boolean) => {
                       const cls = styles.playerRow;
                       const safeUser = userPlayerName || 'TBD';
@@ -122,52 +121,40 @@ export default function BracketPage({ id }: { id: string }) {
                       if (cUser === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
                       if (cUser === 'bye') return { className: `${cls} ${styles.tbd}`, display: safeUser, hint: null };
                       
-                      // Если не участвовал, просто серый
                       if (!hasPicks && isLiveOrClosed) return { className: cls, display: safeReal, hint: null };
 
-                      // 1. R32 - ТОЛЬКО СИНИЙ (Выбор)
+                      // 1. R32 - СИНИЙ
                       if (isFirstRound) {
                          if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
                          return { className: cls, display: safeUser, hint: null };
                       }
 
-                      // 2. R16+ (LIVE/CLOSED)
+                      // 2. R16+ (LIVE)
                       if (isLiveOrClosed) {
-                          // Если реальность неизвестна -> Ждем (Синий)
+                          // Если в реальности TBD -> Ждем
                           if (cReal === 'tbd') {
                               if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
                               return { className: cls, display: safeUser, hint: null };
                           }
 
-                          // КЕЙС 1: ИГРОК НЕ ДОШЕЛ (У меня Фонини, там Муте) -> КРАСНЫЙ
+                          // Mismatch (Фонини != Муте) -> Красный
                           if (cUser !== cReal) {
-                              return { 
-                                  className: `${cls} ${styles.incorrect}`, 
-                                  display: safeUser, 
-                                  hint: safeReal 
-                              };
+                              return { className: `${cls} ${styles.incorrect}`, display: safeUser, hint: safeReal };
                           }
 
-                          // КЕЙС 2: ИГРОК ДОШЕЛ (У меня Зверев, там Зверев)
+                          // Match (Зверев == Зверев)
                           if (cUser === cReal) {
-                              // Я поставила на него?
                               if (isPick) {
-                                  // Матч окончен?
                                   if (isMatchFinished) {
-                                      // Он выиграл?
                                       if (cRealWinner === cUser) {
                                           return { className: `${cls} ${styles.correct}`, display: safeUser, hint: null };
-                                      } 
-                                      // Он проиграл?
-                                      else {
+                                      } else {
                                           return { className: `${cls} ${styles.incorrect}`, display: safeUser, hint: realWinner };
                                       }
                                   } else {
-                                      // Матч идет -> Синий
                                       return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
                                   }
                               }
-                              // Не ставила -> Просто серый
                               return { className: cls, display: safeUser, hint: null };
                           }
                       }
