@@ -29,10 +29,11 @@ const variants: Variants = {
 };
 const transitionSettings = { duration: 0.5, ease: [0.32, 0.72, 0, 1] };
 
-// Очистка имени для сравнения
+// Очистка имени для жесткого сравнения
 const cleanName = (name: string | undefined | null) => {
-    if (!name || name === 'TBD') return "tbd";
-    return name.replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
+    if (!name || name === 'TBD' || name.toLowerCase() === 'bye') return "tbd";
+    // Убираем флаги, скобки, пробелы и приводим к нижнему регистру
+    return name.replace(/\s*\(.*?\)$/, '').replace(/[^\w\s\.\-]/g, '').trim().toLowerCase();
 };
 
 export default function BracketPage({ id }: { id: string }) {
@@ -46,6 +47,7 @@ export default function BracketPage({ id }: { id: string }) {
   if (error) return <div className="text-red-500 text-center pt-10">{error}</div>;
   if (!tournament || !selectedRound) return null;
 
+  // CLOSED или COMPLETED
   const isLiveOrClosed = tournament.status !== 'ACTIVE';
   const isFirstRound = selectedRound === rounds[0];
 
@@ -74,6 +76,7 @@ export default function BracketPage({ id }: { id: string }) {
 
   const isChampionRound = selectedRound === 'Champion';
   const isCompactRound = ['SF', 'F', 'Champion'].includes(selectedRound);
+  
   const getSetScore = (scoreStr: string | undefined, playerIdx: 0 | 1) => {
       if (!scoreStr) return null;
       const parts = scoreStr.split('-');
@@ -81,8 +84,10 @@ export default function BracketPage({ id }: { id: string }) {
       return parts[playerIdx];
   };
 
-  // Какую сетку рендерим? (Если не участвовал, берем TrueBracket, иначе UserBracket)
-  const displayBracket = (hasPicks || !isLiveOrClosed) ? bracket : trueBracket;
+  // Выбираем сетку для отображения
+  // Если турнир ACTIVE или я участвую -> показываем мою сетку (User Bracket)
+  // Если турнир CLOSED и я НЕ участвую -> показываем реальную сетку (True Bracket)
+  const displayBracket = (hasPicks || tournament.status === 'ACTIVE') ? bracket : trueBracket;
 
   return (
     <div className={styles.container}>
@@ -118,83 +123,96 @@ export default function BracketPage({ id }: { id: string }) {
               {displayBracket[selectedRound]?.length > 0 ? (
                 displayBracket[selectedRound].map((match, index) => {
                   
-                  // Данные из РЕАЛЬНОСТИ (True Draw)
+                  // ДАННЫЕ ИЗ РЕАЛЬНОСТИ (True Draw)
                   const realMatch = trueBracket[selectedRound]?.[index];
                   const realWinner = realMatch?.actual_winner;
                   const isMatchFinished = !!realWinner;
 
-                  // Данные из ТВОЕГО ВЫБОРА (User Bracket)
-                  // Если ты выбрала Фонини, он будет в match.player1 или player2
-                  // А в realMatch на этом месте будет Муте
+                  // ДАННЫЕ ИЗ ТВОЕГО ВЫБОРА (User Bracket)
                   const uP1 = match.player1;
                   const uP2 = match.player2;
                   
-                  const rP1 = realMatch?.player1;
-                  const rP2 = realMatch?.player2;
-
                   const myPick = match.predicted_winner;
                   const scores = match.scores || [];
 
-                  // === ГЛАВНАЯ ФУНКЦИЯ ЦВЕТА ===
-                  // userPlayer: Кто стоит в моей сетке (Фонини)
-                  // realPlayer: Кто стоит в реальной сетке (Муте)
-                  // isPick: Я выбрал этого игрока ПОБЕДИТЕЛЕМ этого матча?
+                  // === ЛОГИКА ОКРАШИВАНИЯ (СЕРДЦЕ ПРИЛОЖЕНИЯ) ===
                   const getPlayerState = (userPlayerName: string, realPlayerName: string, isPick: boolean) => {
                       const cls = styles.playerRow;
+                      
                       const cUser = cleanName(userPlayerName);
                       const cReal = cleanName(realPlayerName);
-                      
-                      // 1. Не участвовал
+                      const cRealWinner = cleanName(realWinner);
+
+                      // 1. Если я не участвую, просто показываем реальность (нейтрально)
                       if (!hasPicks && isLiveOrClosed) {
                           if (cReal === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
-                          return { className: cls, display: realPlayerName, hint: null }; // Показываем реальность
+                          return { className: cls, display: realPlayerName, hint: null };
                       }
 
-                      // 2. TBD (Слот пуст)
+                      // 2. Пустые слоты
                       if (cUser === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
 
-                      // 3. Первый круг (R32) - Всегда просто выбор
+                      // 3. ПЕРВЫЙ КРУГ (R1) - ОСОБЫЙ СЛУЧАЙ
+                      // Здесь userPlayer и realPlayer всегда совпадают.
                       if (isFirstRound) {
+                          // Если турнир идет/закончен - проверяем результат матча
+                          if (isLiveOrClosed) {
+                             if (isPick) {
+                                 // Если я выбрал этого игрока
+                                 if (isMatchFinished) {
+                                     if (cRealWinner === cUser) return { className: `${cls} ${styles.correct}`, display: userPlayerName, hint: null }; // Выиграл -> Зеленый
+                                     return { className: `${cls} ${styles.incorrect}`, display: userPlayerName, hint: realWinner }; // Проиграл -> Красный
+                                 }
+                                 // Матч идет или не сыгран -> Голубой (мой выбор)
+                                 return { className: `${cls} ${styles.selected}`, display: userPlayerName, hint: null };
+                             }
+                             // Я не выбрал этого игрока
+                             return { className: cls, display: userPlayerName, hint: null };
+                          }
+                          
+                          // Турнир ACTIVE -> просто выбор (голубой)
                           if (isPick) return { className: `${cls} ${styles.selected}`, display: userPlayerName, hint: null };
                           return { className: cls, display: userPlayerName, hint: null };
                       }
 
-                      // 4. ТУРНИР ИДЕТ (R16+) - СРАВНИВАЕМ СЛОТЫ
+                      // 4. ТУРНИР ИДЕТ (R2+) - СРАВНЕНИЕ СЛОТОВ
                       if (isLiveOrClosed) {
-                          
-                          // СИТУАЦИЯ 1: ЯЧЕЙКА НЕ СОВПАДАЕТ
-                          // У меня: Фонини. В реале: Муте.
-                          // Это значит, Фонини вылетел раньше.
+                          // СИТУАЦИЯ: Игрок в моем слоте НЕ СОВПАДАЕТ с игроком в реальном слоте
+                          // Пример: У меня Фирнли. В реале Накашима (потому что Фирнли проиграл круг назад).
+                          // Если реальный слот НЕ TBD, значит матч предыдущего круга сыгран, и мой игрок вылетел.
                           if (cReal !== 'tbd' && cUser !== cReal) {
                               return { 
                                   className: `${cls} ${styles.incorrect}`, // КРАСНЫЙ
-                                  display: userPlayerName, // Пишем Фонини (зачеркнем в CSS)
-                                  hint: realPlayerName // Подсказка: Муте
+                                  display: userPlayerName, 
+                                  hint: realPlayerName // Подсказка: Кто там на самом деле
                               };
                           }
 
-                          // СИТУАЦИЯ 2: ЯЧЕЙКА СОВПАДАЕТ (Игрок добрался до этого круга)
+                          // СИТУАЦИЯ: Игрок СОВПАДАЕТ (Добрался до этого круга)
                           if (cUser === cReal) {
-                              // Я его выбрала победителем ЭТОГО матча?
+                              // Я выбрал его победителем *этого* матча?
                               if (isPick) {
                                   // Матч уже сыгран?
                                   if (isMatchFinished) {
-                                      // Он выиграл?
-                                      if (cleanName(realWinner) === cUser) {
+                                      // Он выиграл этот матч?
+                                      if (cRealWinner === cUser) {
                                           return { className: `${cls} ${styles.correct}`, display: userPlayerName, hint: null }; // ЗЕЛЕНЫЙ
                                       } else {
-                                          // Он проиграл
-                                          return { 
-                                              className: `${cls} ${styles.incorrect}`, 
-                                              display: userPlayerName,
-                                              hint: realWinner // Кто его выбил
-                                          };
+                                          // Он проиграл этот матч
+                                          return { className: `${cls} ${styles.incorrect}`, display: userPlayerName, hint: realWinner }; // КРАСНЫЙ
                                       }
                                   } else {
-                                      // Матч не сыгран, но игрок на месте
-                                      return { className: `${cls} ${styles.selected}`, display: userPlayerName, hint: null }; // СИНИЙ
+                                      // Матч не сыгран, но игрок на месте -> Голубой (ждет игры)
+                                      return { className: `${cls} ${styles.selected}`, display: userPlayerName, hint: null };
                                   }
                               }
+                          }
+                          
+                          // СИТУАЦИЯ: Реальный слот TBD (предыдущий матч еще не сыгран)
+                          // Показываем мой выбор голубым (потенциально он может туда попасть)
+                          if (cReal === 'tbd') {
+                              // Но если это мой пик - показываем голубым
+                              if (isPick) return { className: `${cls} ${styles.selected}`, display: userPlayerName, hint: null };
                           }
                       }
 
@@ -204,14 +222,12 @@ export default function BracketPage({ id }: { id: string }) {
                       return { className: cls, display: userPlayerName, hint: null };
                   };
 
-                  // --- CHAMPION ---
+                  // --- CHAMPION ROUND ---
                   if (isChampionRound) {
                      const uChamp = match.player1?.name || 'TBD';
                      const rChamp = realMatch?.player1?.name || 'TBD';
-                     
                      // В финале predicted_winner совпадает с player1 в раунде Champion
                      const isPick = !!myPick; 
-                     
                      const state = getPlayerState(uChamp, rChamp, isPick);
                      
                      let bgStyle = '#1E1E1E';
@@ -235,8 +251,12 @@ export default function BracketPage({ id }: { id: string }) {
                   }
 
                   // --- REGULAR MATCH ---
-                  const p1State = getPlayerState(uP1.name || 'TBD', rP1?.name || 'TBD', cleanName(myPick) === cleanName(uP1.name));
-                  const p2State = getPlayerState(uP2.name || 'TBD', rP2?.name || 'TBD', cleanName(myPick) === cleanName(uP2.name));
+                  // Передаем имена из User Bracket и True Bracket для сравнения
+                  const rP1Name = realMatch?.player1?.name || 'TBD';
+                  const rP2Name = realMatch?.player2?.name || 'TBD';
+
+                  const p1State = getPlayerState(uP1.name || 'TBD', rP1Name, cleanName(myPick) === cleanName(uP1.name));
+                  const p2State = getPlayerState(uP2.name || 'TBD', rP2Name, cleanName(myPick) === cleanName(uP2.name));
 
                   return (
                     <div key={match.id} className={styles.matchWrapper}>
@@ -258,7 +278,7 @@ export default function BracketPage({ id }: { id: string }) {
                                  return <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{val}</span>
                              })}
                           </div>
-                          {/* Галочка */}
+                          {/* Галочка (только если это мой пик и он не красный) */}
                           {hasPicks && cleanName(myPick) === cleanName(p1State.display) && !p1State.className.includes('incorrect') && <div className={styles.checkIcon}><CheckIcon/></div>}
                         </div>
 
