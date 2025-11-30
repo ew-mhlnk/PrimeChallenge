@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Tournament, BracketMatch } from '@/types';
 import { useTournamentContext } from '@/context/TournamentContext';
@@ -9,7 +9,6 @@ interface UseTournamentLogicProps {
   id: string;
 }
 
-// === ВОТ ОПРЕДЕЛЕНИЕ ТИПА, КОТОРОЕ ПОТЕРЯЛОСЬ ===
 type PickPayload = {
   tournament_id: number;
   round: string;
@@ -42,7 +41,10 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
   const [selectedRound, setSelectedRound] = useState(cached?.starting_round || cached?.rounds?.[0] || null);
   const [rounds, setRounds] = useState(cached?.rounds || []);
 
-  // 1. Создание структуры
+  // Используем Ref, чтобы избежать бесконечного цикла при обновлении
+  const isProcessed = useRef(false);
+
+  // 1. Структура (Скелет)
   const ensureStructure = useCallback((base: BracketRoundMap, rList: string[], tId: number): BracketRoundMap => {
     const newB: BracketRoundMap = JSON.parse(JSON.stringify(base));
     for (let i = 0; i < rList.length; i++) {
@@ -64,9 +66,9 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     return newB;
   }, []);
 
-  // 2. Логика продвижения (propagate)
+  // 2. Продвижение (Симуляция)
   const propagate = useCallback((bState: BracketRoundMap, rList: string[], cRound: string, mNum: number, wName: string | null) => {
-    console.log(`[Propagate] Moving ${wName} from ${cRound} (Match ${mNum})`);
+    // console.log(`[Propagate] ${wName} from ${cRound} match ${mNum}`);
     const idx = rList.indexOf(cRound);
     if (idx === -1 || idx === rList.length - 1) return;
     const nRound = rList[idx + 1];
@@ -85,6 +87,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       const target = isP1 ? 'player1' : 'player2';
       nm[target] = { name: wName || 'TBD' };
       
+      // Если игрок сменился, сбрасываем прогноз дальше
       if (nm.predicted_winner && nm.predicted_winner !== wName) {
           nm.predicted_winner = null;
           propagate(bState, rList, nRound, nNum, null);
@@ -92,23 +95,25 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     }
   }, []);
 
-  const updateState = useCallback((data: Tournament) => {
-      console.log("Updating State...", data.rounds);
+  // 3. Обработка данных (ВЫЗЫВАТЬ ТОЛЬКО ПРИ ЗАГРУЗКЕ!)
+  const processData = useCallback((data: Tournament) => {
+      console.log("Processing Data (ONCE)...");
       setTournament(data);
       const rList = data.rounds || [];
       setRounds(rList);
+      // Устанавливаем раунд только если он еще не выбран
       setSelectedRound(prev => prev || data.starting_round || rList[0]);
 
-      // Базовая структура
+      // 1. База
       const base = ensureStructure(data.bracket || {}, rList, data.id);
       
-      // REALITY (Сохраняем как есть)
+      // 2. REALITY (Как есть)
       setTrueBracket(JSON.parse(JSON.stringify(base)));
 
-      // FANTASY (Строим заново)
+      // 3. FANTASY (Строим с нуля)
       const userB: BracketRoundMap = JSON.parse(JSON.stringify(base));
       
-      // ОЧИСТКА: Удаляем игроков из R16 и далее в Fantasy сетке
+      // Чистим будущее
       for (let i = 1; i < rList.length; i++) {
           const rName = rList[i];
           if (userB[rName]) {
@@ -119,15 +124,15 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
           }
       }
 
-      let foundAnyPick = false;
+      let foundPicks = false;
 
-      // СИМУЛЯЦИЯ: Заполняем Fantasy сетку на основе R32 и пиков
+      // Симулируем
       for (let i = 0; i < rList.length; i++) {
         const rName = rList[i];
         if (!userB[rName]) continue;
         
         userB[rName].forEach((m) => {
-            // Обработка BYE в 1-м круге
+            // BYE в R32
             if (i === 0) {
                  if (m.player1?.name === 'Bye' && m.player2?.name && m.player2.name !== 'TBD') {
                      const w = m.player2.name; m.predicted_winner = w;
@@ -137,37 +142,60 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
                      propagate(userB, rList, rName, m.match_number, w);
                  }
             }
-            // Протягивание пиков
+            // Пики
             if (m.predicted_winner) {
-                foundAnyPick = true;
+                foundPicks = true;
                 propagate(userB, rList, rName, m.match_number, m.predicted_winner);
             }
         });
       }
       
       setBracket(userB);
-      if (data.has_picks || foundAnyPick) setHasPicks(true);
+      if (data.has_picks || foundPicks) setHasPicks(true);
   }, [ensureStructure, propagate]);
 
-  useEffect(() => { if (cached) updateState(cached); }, [cached, updateState]);
-
+  // === ЭФФЕКТ ЗАГРУЗКИ (ИСПРАВЛЕННЫЙ) ===
   useEffect(() => {
     let mounted = true;
-    const init = async () => {
-      if (!cached) setIsLoading(true);
-      try {
-        const initData = await waitForTelegram();
-        const data = await loadTournament(id, initData || '');
-        if (mounted && data) updateState(data);
-      } catch (e) { console.error(e); if (!cached) setError('Err'); } 
-      finally { if (mounted) setIsLoading(false); }
-    };
-    init();
-    return () => { mounted = false; };
-  }, [id, loadTournament, updateState, cached]);
 
+    const init = async () => {
+      // Если данные уже есть в кэше и мы их еще не обработали
+      if (cached && !isProcessed.current) {
+          processData(cached);
+          isProcessed.current = true;
+          setIsLoading(false);
+          return;
+      }
+
+      // Если данных нет, грузим с сервера
+      if (!cached) {
+          setIsLoading(true);
+          try {
+            const initData = await waitForTelegram();
+            const data = await loadTournament(id, initData || '');
+            if (mounted && data) {
+                processData(data);
+                isProcessed.current = true; // Помечаем, что обработали
+            }
+          } catch (e) {
+            console.error(e);
+            if (mounted) setError('Ошибка');
+          } finally {
+            if (mounted) setIsLoading(false);
+          }
+      }
+    };
+
+    init();
+
+    return () => { mounted = false; };
+    // Убрали processData из зависимостей, чтобы разорвать цикл!
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, loadTournament, cached]); 
+
+  // === ОБРАБОТКА КЛИКА ===
   const handlePick = (round: string, matchId: string, player: string) => {
-    console.log(`[Click] Round: ${round}, ID: ${matchId}, Player: ${player}`);
+    // console.log(`[Click] ${player} in ${matchId}`);
     
     if (tournament?.status !== 'ACTIVE') { 
         toast.error('Турнир не активен'); 
@@ -179,9 +207,8 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       const m = nb[round]?.find((x) => x.id === matchId);
       
       if (m) {
-        // Убрана отмена выбора. Теперь всегда ставим игрока.
+        // Просто ставим нового победителя. Без отмены.
         m.predicted_winner = player;
-        console.log(`[HandlePick] Updated winner to ${player}`);
         propagate(nb, rounds, round, m.match_number, player);
       }
       return nb;
@@ -208,8 +235,13 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     try {
         await fetch('/api/picks/bulk', { method: 'POST', headers: { Authorization: initData }, body: JSON.stringify(picks) });
         toast.success('Сохранено');
+        // Обновляем данные, но аккуратно
+        isProcessed.current = false; // Разрешаем пересчет после сохранения
         loadTournament(id, initData);
-    } catch (e) { console.error(e); toast.error('Ошибка сохранения'); }
+    } catch (e) {
+        console.error(e);
+        toast.error('Ошибка сохранения');
+    }
   };
 
   return { tournament, bracket, trueBracket, hasPicks, error, isLoading, selectedRound, setSelectedRound, rounds, handlePick, savePicks };
