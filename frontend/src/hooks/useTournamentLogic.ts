@@ -43,7 +43,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
 
   const isProcessed = useRef(false);
 
-  // 1. Создание структуры
+  // 1. Создаем структуру (скелет)
   const ensureStructure = useCallback((base: BracketRoundMap, rList: string[], tId: number): BracketRoundMap => {
     const newB: BracketRoundMap = JSON.parse(JSON.stringify(base));
     for (let i = 0; i < rList.length; i++) {
@@ -65,7 +65,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     return newB;
   }, []);
 
-  // 2. Логика продвижения
+  // 2. Продвижение победителя (симуляция)
   const propagate = useCallback((bState: BracketRoundMap, rList: string[], cRound: string, mNum: number, wName: string | null) => {
     const idx = rList.indexOf(cRound);
     if (idx === -1 || idx === rList.length - 1) return;
@@ -99,15 +99,16 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       setRounds(rList);
       setSelectedRound(prev => prev || data.starting_round || rList[0]);
 
+      // 1. Исходные данные
       const base = ensureStructure(data.bracket || {}, rList, data.id);
       
-      // REALITY
+      // 2. REALITY (True Bracket)
       setTrueBracket(JSON.parse(JSON.stringify(base)));
 
-      // FANTASY
+      // 3. FANTASY (User Bracket)
       const userB: BracketRoundMap = JSON.parse(JSON.stringify(base));
       
-      // ОЧИСТКА
+      // Очистка будущего в Fantasy сетке
       for (let i = 1; i < rList.length; i++) {
           const rName = rList[i];
           if (userB[rName]) {
@@ -120,13 +121,13 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
 
       let foundPicks = false;
 
-      // СИМУЛЯЦИЯ
+      // Симуляция прохода игроков
       for (let i = 0; i < rList.length; i++) {
         const rName = rList[i];
         if (!userB[rName]) continue;
         
         userB[rName].forEach((m) => {
-            // BYE (Автопроход)
+            // BYE (Автопроход в 1 круге)
             if (i === 0) {
                  if (m.player1?.name === 'Bye' && m.player2?.name && m.player2.name !== 'TBD') {
                      const w = m.player2.name; m.predicted_winner = w;
@@ -148,7 +149,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       if (data.has_picks || foundPicks) setHasPicks(true);
   }, [ensureStructure, propagate]);
 
-  // === ЭФФЕКТ ЗАГРУЗКИ (ИСПРАВЛЕННЫЙ) ===
+  // Эффект загрузки (выполняется 1 раз)
   useEffect(() => {
     let mounted = true;
     const init = async () => {
@@ -177,18 +178,16 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     };
     init();
     return () => { mounted = false; };
-    // Добавили processData, теперь линтер доволен, а цикл не возникнет, 
-    // потому что processData обернута в useCallback и стабильна
-  }, [id, loadTournament, cached, processData]); 
+  }, [id, loadTournament, cached, processData]);
 
-  // === ОБРАБОТКА КЛИКА С БЛОКИРОВКОЙ BYE ===
+  // === ОБРАБОТКА КЛИКА ===
   const handlePick = (round: string, matchId: string, player: string) => {
     if (tournament?.status !== 'ACTIVE') { 
         toast.error('Турнир не активен'); 
         return; 
     }
     
-    // Блокировка: если кликнули на Bye или "пустоту"
+    // Блокировка: нельзя выбрать Bye или TBD
     if (!player || player === 'Bye' || player === 'TBD') return;
 
     setBracket((prev) => {
@@ -196,10 +195,8 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
       const m = nb[round]?.find((x) => x.id === matchId);
       
       if (m) {
-        // ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Если в матче есть BYE, менять ничего нельзя
-        if (m.player1?.name === 'Bye' || m.player2?.name === 'Bye') {
-            return prev;
-        }
+        // Блокировка: Если соперник Bye, менять нельзя (автопроход)
+        if (m.player1?.name === 'Bye' || m.player2?.name === 'Bye') return prev;
 
         m.predicted_winner = player;
         propagate(nb, rounds, round, m.match_number, player);
@@ -209,6 +206,7 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     setHasPicks(true);
   };
 
+  // === СОХРАНЕНИЕ (ИСПРАВЛЕНО!) ===
   const savePicks = async () => {
     const initData = await waitForTelegram();
     if (!initData) return;
@@ -228,11 +226,20 @@ export function useTournamentLogic({ id }: UseTournamentLogicProps) {
     try {
         const res = await fetch('/api/picks/bulk', { 
             method: 'POST', 
-            headers: { Authorization: initData }, 
+            // !!! ВОТ ЗДЕСЬ БЫЛА ОШИБКА. ДОБАВЛЕН Content-Type !!!
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': initData 
+            }, 
             body: JSON.stringify(picks) 
         });
         
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+            // Читаем ошибку от сервера для отладки
+            const errBody = await res.text();
+            console.error("Save Error Details:", errBody);
+            throw new Error(`HTTP ${res.status}`);
+        }
         
         toast.success('Сохранено');
         isProcessed.current = false; 
