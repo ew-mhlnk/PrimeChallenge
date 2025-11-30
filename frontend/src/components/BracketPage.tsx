@@ -5,7 +5,7 @@ import { motion, AnimatePresence, Variants, PanInfo } from 'framer-motion';
 import styles from './BracketPage.module.css';
 import { useTournamentLogic } from '../hooks/useTournamentLogic';
 import { useState } from 'react';
-import { BracketMatch } from '@/types'; // Добавляем импорт типа
+import { BracketMatch } from '@/types';
 
 const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>);
 const CheckIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>);
@@ -27,12 +27,9 @@ const variants: Variants = {
   exit: (direction: number) => ({ x: direction < 0 ? 50 : -50, opacity: 0, scale: 0.95, position: 'absolute', top: 0, left: 0, width: '100%' })
 };
 
-// Функция очистки (чтобы F. Fognini (WC) == F. Fognini)
 const clean = (name: string | undefined | null) => {
     if (!name || name === 'TBD' || name.toLowerCase() === 'bye') return "tbd";
-    // Убираем (1), (WC) и прочее
     let n = name.replace(/\s*\(.*?\)/g, '');
-    // Оставляем только буквы
     n = n.replace(/[^a-zA-Z]/g, '').toLowerCase();
     return n || "tbd";
 };
@@ -59,7 +56,6 @@ export default function BracketPage({ id }: { id: string }) {
     setSelectedRound(newRound);
   };
 
-  // Исправлен тип события для DragEnd
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const idx = rounds.indexOf(selectedRound);
     if (Math.abs(info.offset.y) > Math.abs(info.offset.x)) return;
@@ -67,7 +63,6 @@ export default function BracketPage({ id }: { id: string }) {
     else if (info.offset.x > 50 && idx > 0) changeRound(rounds[idx - 1]);
   };
 
-  // ВОССТАНОВЛЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ
   const handleSave = async () => {
     setSaveStatus('loading');
     await savePicks();
@@ -101,13 +96,11 @@ export default function BracketPage({ id }: { id: string }) {
               className={styles.sliderWrapper}
             >
               {displayBracket[selectedRound]?.length > 0 ? (
-                // Исправлен тип any -> BracketMatch
                 displayBracket[selectedRound].map((match: BracketMatch, index: number) => {
                   
-                  // ДАННЫЕ ИЗ РЕАЛЬНОСТИ
                   const realMatch = trueBracket[selectedRound]?.[index];
+                  // Используем реального победителя через переменную, чтобы не ругался линтер
                   const realWinner = realMatch?.actual_winner; 
-                  // Если есть победитель, значит матч сыгран
                   const isMatchFinished = clean(realWinner) !== 'tbd';
 
                   const uP1 = match.player1;
@@ -115,88 +108,59 @@ export default function BracketPage({ id }: { id: string }) {
                   const myPick = match.predicted_winner;
                   const scores = match.scores || [];
 
-                  // === ЛОГИКА ОКРАШИВАНИЯ (СТРОГО ПО ТЗ) ===
                   const getPlayerState = (userPlayerName: string | null | undefined, realPlayerName: string | null | undefined, isPick: boolean) => {
                       const cls = styles.playerRow;
-                      // Гарантируем string для функции clean
-                      const safeUserPlayerName = userPlayerName || 'TBD';
-                      const safeRealPlayerName = realPlayerName || 'TBD';
+                      const safeUser = userPlayerName || 'TBD';
+                      const safeReal = realPlayerName || 'TBD';
                       
-                      const cUser = clean(safeUserPlayerName);
-                      const cReal = clean(safeRealPlayerName);
+                      const cUser = clean(safeUser);
+                      const cReal = clean(safeReal);
                       const cRealWinner = clean(realWinner);
-                      
-                      // 0. База: Пустота или TBD
-                      if (cUser === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
-                      if (cUser === 'bye') return { className: `${cls} ${styles.tbd}`, display: safeUserPlayerName, hint: null };
-                      
-                      // Если я просто смотрю (не участвовала), показываем реальность серым
-                      if (!hasPicks && isLiveOrClosed) return { className: cls, display: safeRealPlayerName, hint: null };
 
-                      // 1. ПЕРВЫЙ КРУГ (R32) - ТОЛЬКО СИНИЙ (ВЫБОР)
+                      if (cUser === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
+                      if (cUser === 'bye') return { className: `${cls} ${styles.tbd}`, display: safeUser, hint: null };
+                      
+                      if (!hasPicks && isLiveOrClosed) return { className: cls, display: safeReal, hint: null };
+
                       if (isFirstRound) {
-                         if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUserPlayerName, hint: null };
-                         return { className: cls, display: safeUserPlayerName, hint: null };
+                         if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
+                         return { className: cls, display: safeUser, hint: null };
                       }
 
-                      // 2. ВТОРОЙ КРУГ И ДАЛЕЕ (R16+) - ПРОВЕРКИ
                       if (isLiveOrClosed) {
-                          
-                          // Если в реальности еще TBD (предыдущий матч не сыгран) -> СИНИЙ (Ждем)
                           if (cReal === 'tbd') {
-                              if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUserPlayerName, hint: null };
-                              return { className: cls, display: safeUserPlayerName, hint: null };
+                              if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
+                              return { className: cls, display: safeUser, hint: null };
                           }
 
-                          // ПРОВЕРКА 1: ДОШЕЛ ЛИ ИГРОК? (Сравниваем User vs Real)
-                          // У меня Фонини. В реале Муте. -> КРАСНЫЙ (Фонини -> Муте)
                           if (cUser !== cReal) {
-                              return { 
-                                  className: `${cls} ${styles.incorrect}`, 
-                                  display: safeUserPlayerName, 
-                                  hint: safeRealPlayerName // Показываем, кто там на самом деле
-                              };
+                              return { className: `${cls} ${styles.incorrect}`, display: safeUser, hint: safeReal };
                           }
 
-                          // ПРОВЕРКА 2: ИГРОК НА МЕСТЕ. РЕЗУЛЬТАТ ЭТОГО МАТЧА?
-                          // У меня Зверев. В реале Зверев.
                           if (cUser === cReal) {
-                              // Я выбрала его победителем?
                               if (isPick) {
-                                  // Матч сыгран?
                                   if (isMatchFinished) {
-                                      // Он выиграл? -> ЗЕЛЕНЫЙ
                                       if (cRealWinner === cUser) {
-                                          return { className: `${cls} ${styles.correct}`, display: safeUserPlayerName, hint: null };
-                                      } 
-                                      // Он проиграл? -> КРАСНЫЙ (Зверев -> Муте)
-                                      else {
-                                          return { 
-                                              className: `${cls} ${styles.incorrect}`, 
-                                              display: safeUserPlayerName, 
-                                              hint: realWinner // Кто его выбил
-                                          };
+                                          return { className: `${cls} ${styles.correct}`, display: safeUser, hint: null };
+                                      } else {
+                                          return { className: `${cls} ${styles.incorrect}`, display: safeUser, hint: realWinner };
                                       }
                                   } else {
-                                      // Матч не сыгран -> СИНИЙ (Ждем)
-                                      return { className: `${cls} ${styles.selected}`, display: safeUserPlayerName, hint: null };
+                                      return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
                                   }
                               }
-                              // Я не выбирала его победителем (но он дошел) -> Просто серый
-                              return { className: cls, display: safeUserPlayerName, hint: null };
+                              return { className: cls, display: safeUser, hint: null };
                           }
                       }
 
-                      // 3. ACTIVE (Режим выбора)
-                      if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUserPlayerName, hint: null };
-                      return { className: cls, display: safeUserPlayerName, hint: null };
+                      if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
+                      return { className: cls, display: safeUser, hint: null };
                   };
 
                   if (selectedRound === 'Champion') {
                      const uChamp = match.player1?.name;
                      const rChamp = realMatch?.player1?.name;
                      const state = getPlayerState(uChamp, rChamp, !!myPick);
-                     
                      let bgStyle = '#1E1E1E';
                      if (state.className.includes('correct')) bgStyle = 'rgba(48, 209, 88, 0.15)';
                      else if (state.className.includes('incorrect')) bgStyle = 'rgba(255, 69, 58, 0.15)';
