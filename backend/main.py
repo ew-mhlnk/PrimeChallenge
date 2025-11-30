@@ -6,6 +6,7 @@ from routers import auth, tournaments, picks
 from services.sync_service import sync_google_sheets_with_db
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from routers import users # Импорт
+from routers import leaderboard # Импорт
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,6 +50,7 @@ async def log_requests(request: Request, call_next):
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(tournaments.router, prefix="", tags=["tournaments"])
 app.include_router(picks.router, prefix="/picks", tags=["picks"])
+app.include_router(leaderboard.router, prefix="/leaderboard", tags=["leaderboard"])
 
 scheduler = AsyncIOScheduler()
 
