@@ -5,7 +5,6 @@ import toast from 'react-hot-toast';
 import { Tournament, BracketMatch } from '@/types';
 import { useTournamentContext } from '@/context/TournamentContext';
 
-// Типы только для этого хука
 type BracketRoundMap = { [roundName: string]: BracketMatch[]; };
 type PickPayload = {
   tournament_id: number; round: string; match_number: number; predicted_winner: string;
@@ -23,7 +22,6 @@ export function useActiveTournament(id: string) {
   const { getTournamentData, loadTournament } = useTournamentContext();
   const cached = getTournamentData(id);
 
-  // Стейт
   const [bracket, setBracket] = useState<BracketRoundMap>(cached?.bracket || {}); 
   const [selectedRound, setSelectedRound] = useState(cached?.starting_round || cached?.rounds?.[0] || null);
   const [rounds, setRounds] = useState(cached?.rounds || []);
@@ -32,8 +30,7 @@ export function useActiveTournament(id: string) {
 
   const isProcessed = useRef(false);
 
-  // --- ЛОГИКА ПОСТРОЕНИЯ СЕТКИ (ACTIVE) ---
-
+  // 1. Создаем структуру (скелет)
   const ensureStructure = useCallback((base: BracketRoundMap, rList: string[], tId: number): BracketRoundMap => {
     const newB: BracketRoundMap = JSON.parse(JSON.stringify(base));
     for (let i = 0; i < rList.length; i++) {
@@ -54,7 +51,9 @@ export function useActiveTournament(id: string) {
     return newB;
   }, []);
 
-  const propagate = useCallback((bState: BracketRoundMap, rList: string[], cRound: string, mNum: number, wName: string | null) => {
+  // 2. Функция "Протаскивания" (Propagate)
+  // isRestoring = true: МЫ НИКОГДА НЕ СТИРАЕМ ПРОГНОЗЫ. Мы только пишем имена.
+  const propagate = useCallback((bState: BracketRoundMap, rList: string[], cRound: string, mNum: number, wName: string | null, isRestoring: boolean = false) => {
     const idx = rList.indexOf(cRound);
     if (idx === -1 || idx === rList.length - 1) return;
     const nRound = rList[idx + 1];
@@ -71,51 +70,75 @@ export function useActiveTournament(id: string) {
 
     if (nm) {
       const target = isP1 ? 'player1' : 'player2';
+      // 1. Пишем имя игрока в слот
       nm[target] = { name: wName || 'TBD' };
-      if (nm.predicted_winner && nm.predicted_winner !== wName) {
-          nm.predicted_winner = null;
-          propagate(bState, rList, nRound, nNum, null);
+      
+      // 2. Если это ВОССТАНОВЛЕНИЕ:
+      // Мы доверяем тому, что в `predicted_winner` уже лежит правильный выбор из БД.
+      // Нам нужно просто протолкнуть его ДАЛЬШЕ, если он есть.
+      if (isRestoring) {
+          if (nm.predicted_winner) {
+              propagate(bState, rList, nRound, nNum, nm.predicted_winner, true);
+          }
+      } 
+      // 3. Если это КЛИК ЮЗЕРА (изменение):
+      // Если имя игрока в слоте поменялось, мы ОБЯЗАНЫ сбросить старый прогноз,
+      // иначе будет логическая ошибка (прогноз на игрока, которого уже нет в матче).
+      else {
+          if (nm.predicted_winner && nm.predicted_winner !== wName) {
+              nm.predicted_winner = null;
+              propagate(bState, rList, nRound, nNum, null, false);
+          }
       }
     }
   }, []);
 
+  // 3. Обработка данных (Восстановление)
   const processData = useCallback((data: Tournament) => {
       console.log("[ACTIVE] Restoring User Bracket...");
       const rList = data.rounds || [];
       setRounds(rList);
       setSelectedRound(prev => prev || data.starting_round || rList[0]);
 
-      // 1. Строим базу
+      // База
       const base = ensureStructure(data.bracket || {}, rList, data.id);
       const userB: BracketRoundMap = JSON.parse(JSON.stringify(base));
       
-      // 2. Очищаем будущее (верим только R32)
+      // 1. Очищаем имена в R16 и дальше (потому что там могут быть "реальные" победители, а нам нужны "фентези")
       for (let i = 1; i < rList.length; i++) {
           const rName = rList[i];
           if (userB[rName]) {
               userB[rName].forEach((m) => {
                   m.player1 = { name: 'TBD' };
                   m.player2 = { name: 'TBD' };
+                  // ВАЖНО: Мы НЕ трогаем m.predicted_winner! Он пришел из БД.
               });
           }
       }
 
-      // 3. Восстанавливаем цепочку
+      // 2. Восстанавливаем цепочку снизу вверх
       for (let i = 0; i < rList.length; i++) {
         const rName = rList[i];
         if (!userB[rName]) continue;
+        
         userB[rName].forEach((m) => {
+            // A. Если это первый круг (R32), обрабатываем BYE
             if (i === 0) {
                  if (m.player1?.name === 'Bye' && m.player2?.name && m.player2.name !== 'TBD') {
-                     const w = m.player2.name; m.predicted_winner = w;
-                     propagate(userB, rList, rName, m.match_number, w);
+                     const w = m.player2.name; 
+                     m.predicted_winner = w; // Авто-выбор
+                     propagate(userB, rList, rName, m.match_number, w, true);
                  } else if (m.player2?.name === 'Bye' && m.player1?.name && m.player1.name !== 'TBD') {
-                     const w = m.player1.name; m.predicted_winner = w;
-                     propagate(userB, rList, rName, m.match_number, w);
+                     const w = m.player1.name; 
+                     m.predicted_winner = w; // Авто-выбор
+                     propagate(userB, rList, rName, m.match_number, w, true);
                  }
             }
+
+            // B. Если в матче УЖЕ ЕСТЬ прогноз (из БД или от Bye выше) -> толкаем его дальше
             if (m.predicted_winner) {
-                propagate(userB, rList, rName, m.match_number, m.predicted_winner);
+                // Передаем isRestoring = true, чтобы НЕ удалять будущие прогнозы
+                propagate(userB, rList, rName, m.match_number, m.predicted_winner, true);
             }
         });
       }
@@ -152,11 +175,8 @@ export function useActiveTournament(id: string) {
     return () => { mounted = false; };
   }, [id, loadTournament, cached, processData]);
 
-  // Обработка клика
+  // Клик пользователя
   const handlePick = (round: string, matchId: string, player: string) => {
-    // В Active режиме не проверяем статус турнира жестко внутри функции, 
-    // так как компонент ActiveBracket рендерится только если статус Active.
-    
     if (!player || player === 'Bye' || player === 'TBD') return;
 
     setBracket((prev) => {
@@ -165,8 +185,10 @@ export function useActiveTournament(id: string) {
       
       if (m) {
         if (m.player1?.name === 'Bye' || m.player2?.name === 'Bye') return prev;
+        
         m.predicted_winner = player;
-        propagate(nb, rounds, round, m.match_number, player);
+        // isRestoring = false (это клик, тут мы хотим "честную" логику сброса при изменении)
+        propagate(nb, rounds, round, m.match_number, player, false);
       }
       return nb;
     });
@@ -205,14 +227,5 @@ export function useActiveTournament(id: string) {
     }
   };
 
-  return { 
-    bracket, 
-    isLoading, 
-    selectedRound, 
-    setSelectedRound, 
-    rounds, 
-    handlePick, 
-    savePicks,
-    saveStatus 
-  };
+  return { bracket, isLoading, selectedRound, setSelectedRound, rounds, handlePick, savePicks, saveStatus };
 }
