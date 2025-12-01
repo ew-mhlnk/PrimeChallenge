@@ -1,15 +1,36 @@
 'use client';
 
+import { useState } from 'react';
 import { motion, AnimatePresence, Variants, PanInfo } from 'framer-motion';
 import styles from './Bracket.module.css';
 import { BracketMatch } from '@/types';
-import { useState } from 'react';
 import { useClosedTournament } from '@/hooks/useClosedTournament';
 import { useRouter } from 'next/navigation';
 
-const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>);
-const CheckIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>);
-const TrophyIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>);
+// --- ИКОНКИ ---
+const BackIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M15 18l-6-6 6-6"/>
+  </svg>
+);
+
+// Добавил CheckIcon, которого не хватало
+const CheckIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const TrophyIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2">
+    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+    <path d="M4 22h16" />
+    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+  </svg>
+);
 
 const variants: Variants = {
   enter: (direction: number) => ({ x: direction > 0 ? 50 : -50, opacity: 0, scale: 0.95 }),
@@ -17,7 +38,6 @@ const variants: Variants = {
   exit: (direction: number) => ({ x: direction < 0 ? 50 : -50, opacity: 0, scale: 0.95, position: 'absolute', top: 0, left: 0, width: '100%' })
 };
 
-// Функция очистки для сравнения
 const clean = (name: string | undefined | null) => {
     if (!name || name === 'TBD' || name.toLowerCase() === 'bye') return "tbd";
     let n = name.replace(/\s*\(.*?\)/g, '');
@@ -25,6 +45,7 @@ const clean = (name: string | undefined | null) => {
     return n || "tbd";
 };
 
+// Единственный export default
 export default function ClosedBracket({ id, tournamentName }: { id: string, tournamentName: string }) {
   const router = useRouter();
   const { userBracket, trueBracket, hasPicks, isLoading, selectedRound, setSelectedRound, rounds } = useClosedTournament(id);
@@ -50,7 +71,6 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
     else if (info.offset.x > 50 && idx > 0) changeRound(rounds[idx - 1]);
   };
 
-  // Если юзер не играл, показываем TrueBracket (реальность), иначе UserBracket (фантазия)
   const displayBracket = hasPicks ? userBracket : trueBracket;
 
   return (
@@ -79,77 +99,60 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
               {displayBracket[selectedRound]?.length > 0 ? (
                 displayBracket[selectedRound].map((match: BracketMatch, index: number) => {
                   
-                  // Сравниваем Фантазию (match) с Реальностью (trueMatch)
                   const trueMatch = trueBracket[selectedRound]?.[index];
                   const trueWinner = trueMatch?.actual_winner; 
-                  const isMatchFinished = clean(trueWinner) !== 'tbd';
-
+                  
                   const uP1 = match.player1;
                   const uP2 = match.player2;
                   const myPick = match.predicted_winner;
-                  const scores = match.scores || [];
+                  const scores = trueMatch?.scores || []; 
 
-                  // === ЛОГИКА ЦВЕТОВ ===
                   const getStyle = (userP: string | null | undefined, realP: string | null | undefined, isPick: boolean) => {
                       const cls = styles.playerRow;
                       const safeUser = userP || 'TBD';
                       const safeReal = realP || 'TBD';
+                      
                       const cUser = clean(safeUser);
                       const cReal = clean(safeReal);
                       const cTrueWinner = clean(trueWinner);
 
-                      // Если мы просто зрители (без пиков) - нейтральный
+                      // Если не играл
                       if (!hasPicks) return { className: cls, display: safeReal, hint: null };
 
-                      // 0. База
+                      // База
                       if (cUser === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
                       if (cUser === 'bye') return { className: `${cls} ${styles.tbd}`, display: safeUser, hint: null };
 
-                      // 1. R32 (Первый круг) - Всегда нейтральный синий (выбор)
+                      // 1. R32
                       if (isFirstRound) {
                          if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
                          return { className: cls, display: safeUser, hint: null };
                       }
 
-                      // 2. R16+ (Сравнение)
-                      // Если реальность еще не определена (TBD) -> Синий (Ждем)
+                      // 2. R16+
                       if (cReal === 'tbd') {
                           if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
                           return { className: cls, display: safeUser, hint: null };
                       }
 
-                      // КЕЙС 1: MISMATCH (Я выбрала Фонини, а в реальности Муте) -> КРАСНЫЙ
+                      // Mismatch
                       if (cUser !== cReal) {
                           return { 
                               className: `${cls} ${styles.incorrect}`, 
                               display: safeUser, 
-                              hint: safeReal // "Фонини -> Муте"
+                              hint: safeReal 
                           };
                       }
 
-                      // КЕЙС 2: MATCH (Зверев = Зверев). Проверяем исход.
+                      // Match
                       if (cUser === cReal) {
-                          if (isPick) {
-                              if (isMatchFinished) {
-                                  // Зверев выиграл -> ЗЕЛЕНЫЙ
-                                  if (cTrueWinner === cUser) {
-                                      return { className: `${cls} ${styles.correct}`, display: safeUser, hint: null };
-                                  } 
-                                  // Зверев проиграл -> КРАСНЫЙ
-                                  else {
-                                      return { 
-                                          className: `${cls} ${styles.incorrect}`, 
-                                          display: safeUser, 
-                                          hint: trueWinner // "Зверев -> Муте"
-                                      };
-                                  }
-                              } else {
-                                  // Матч идет -> СИНИЙ
-                                  return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
-                              }
+                          if (cTrueWinner !== 'tbd' && cTrueWinner !== cUser) {
+                              // Проиграл, но дошел сюда = Зеленый (как участник раунда)
+                              // Но если хотите показать поражение в этом раунде, можно менять логику.
+                              // Пока оставляем зеленым за то, что угадали проход в этот раунд.
+                              return { className: `${cls} ${styles.correct}`, display: safeUser, hint: null };
                           }
-                          // Не ставила на него -> просто серый
-                          return { className: cls, display: safeUser, hint: null };
+                          return { className: `${cls} ${styles.correct}`, display: safeUser, hint: null };
                       }
                       
                       return { className: cls, display: safeUser, hint: null };
@@ -170,7 +173,7 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                                         <span className={styles.playerName} style={{ fontSize: '16px' }}>{state.display}</span>
                                         {state.hint && (<div className={styles.correctionText}><span className={styles.correctionArrow}>→</span> {state.hint}</div>)}
                                     </div>
-                                    {(state.className.includes('selected') || state.className.includes('correct')) && <div className={styles.checkIcon}><TrophyIcon /></div>}
+                                    {(state.className.includes('correct')) && <div className={styles.checkIcon}><TrophyIcon /></div>}
                                 </div>
                             </div>
                         </div>
