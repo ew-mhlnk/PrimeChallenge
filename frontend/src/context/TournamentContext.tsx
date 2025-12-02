@@ -8,7 +8,6 @@ interface TournamentContextType {
   isLoading: boolean;
   error: string | null;
   refreshTournaments: () => Promise<void>;
-  // Новые методы для детального просмотра
   getTournamentData: (id: string) => Tournament | null;
   loadTournament: (id: string, initData: string) => Promise<Tournament | null>;
 }
@@ -31,33 +30,40 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // КЭШ ДЕТАЛЕЙ ТУРНИРОВ: { "1": { ...данные... }, "5": { ... } }
+  // Кэш детальных данных турниров
   const [tournamentDetails, setTournamentDetails] = useState<Record<string, Tournament>>({});
 
-  // 1. Загрузка списка (как и было)
+  // 1. Загрузка списка турниров
   const fetchTournaments = useCallback(async () => {
-    setIsLoading((prev) => !isLoaded ? true : prev);
+    // Показываем лоадер только при первой загрузке
+    if (!isLoaded) setIsLoading(true);
+
     try {
+      // Ждём инициализации Telegram WebApp (если запущено внутри него)
       let attempts = 0;
-      if (typeof window !== 'undefined') {
-         while (!window.Telegram?.WebApp?.initData && attempts < 10) {
-             await new Promise(r => setTimeout(r, 100));
-             attempts++;
-         }
+      while (typeof window !== 'undefined' && !window.Telegram?.WebApp?.initData && attempts < 20) {
+        await new Promise(r => setTimeout(r, 100));
+        attempts++;
       }
+
       const initData = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initData : '';
       const headers: HeadersInit = {};
       if (initData) headers['Authorization'] = initData;
 
-      const response = await fetch('/api/tournaments/', { headers });
-      if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
-      
-      const data = await response.json();
-      const mappedData: Tournament[] = data.map((item: ApiTournament) => ({
+      // ИСПРАВЛЕНО: убрали слеш в конце → /api/tournaments
+      const response = await fetch('/api/tournaments', { headers });
+
+      if (!response.ok) {
+        throw new Error(`Ошибка загрузки турниров: ${response.status} ${response.statusText}`);
+      }
+
+      const data: ApiTournament[] = await response.json();
+
+      const mappedData: Tournament[] = data.map((item) => ({
         id: item.id,
         name: item.name,
         dates: item.dates,
-        status: item.status as 'ACTIVE' | 'CLOSED' | 'COMPLETED',
+        status: item.status.toUpperCase() as 'ACTIVE' | 'CLOSED' | 'COMPLETED',
         start: item.start,
         close: item.close,
         tag: item.tag,
@@ -70,59 +76,68 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
       setTournaments(mappedData);
       setIsLoaded(true);
     } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : 'Ошибка');
+      console.error('Failed to fetch tournaments:', err);
+      setError(err instanceof Error ? err.message : 'Неизвестная ошибка');
     } finally {
       setIsLoading(false);
     }
   }, [isLoaded]);
 
-  // 2. Получение данных из кэша (синхронно)
-  const getTournamentData = useCallback((id: string) => {
-    return tournamentDetails[id] || null;
+  // 2. Получение турнира из кэша (синхронно)
+  const getTournamentData = useCallback((id: string): Tournament | null => {
+    return tournamentDetails[id] ?? null;
   }, [tournamentDetails]);
 
-  // 3. Загрузка данных турнира (с обновлением кэша)
-  const loadTournament = useCallback(async (id: string, initData: string) => {
+  // 3. Загрузка детальных данных турнира
+  const loadTournament = useCallback(async (id: string, initData: string): Promise<Tournament | null> => {
     try {
       const response = await fetch(`/api/tournament/${id}`, {
-        headers: { Authorization: initData || '' },
+        headers: {
+          Authorization: initData || '',
+        },
         cache: 'no-store',
-        next: { revalidate: 0 }
       });
 
-      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`Ошибка загрузки турнира: ${response.status}`);
+      }
+
       const data = await response.json();
 
-      if (data.status) data.status = data.status.toString().trim().toUpperCase();
+      // Нормализуем статус
+      if (data.status) {
+        data.status = data.status.toString().trim().toUpperCase();
+      }
 
       // Сохраняем в кэш
       setTournamentDetails(prev => ({
         ...prev,
-        [id]: data
+        [id]: data as Tournament
       }));
 
-      return data;
+      return data as Tournament;
     } catch (e) {
-      console.error("Error loading tournament details:", e);
+      console.error('Error loading tournament details:', e);
       return null;
     }
   }, []);
 
+  // Загружаем список турниров при монтировании
   useEffect(() => {
     fetchTournaments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <TournamentContext.Provider value={{ 
-        tournaments, 
-        isLoading, 
-        error, 
+    <TournamentContext.Provider
+      value={{
+        tournaments,
+        isLoading,
+        error,
         refreshTournaments: fetchTournaments,
-        getTournamentData, // Экспортируем новые методы
-        loadTournament 
-    }}>
+        getTournamentData,
+        loadTournament,
+      }}
+    >
       {children}
     </TournamentContext.Provider>
   );
