@@ -49,9 +49,6 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
   };
 
   const displayBracket = hasPicks ? userBracket : trueBracket;
-  
-  // Определяем, является ли текущий раунд первым (Start Round)
-  // В твоем случае rounds[0] это 'R32'
   const isFirstRound = selectedRound === rounds[0];
 
   return (
@@ -95,19 +92,24 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                       const safeName = playerName || 'TBD';
                       const cleanName = clean(safeName);
                       
-                      // 1. ЗРИТЕЛИ (не играли): ВСЕГДА СЕРОЕ
+                      // 1. ПРИОРИТЕТ: ЗРИТЕЛИ (не играли) -> ВСЕГДА СЕРОЕ
                       if (!hasPicks) {
+                          if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
+                          if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
                           return { className: cls, display: safeName, hint: null };
                       }
 
-                      // 2. ПЕРВЫЙ РАУНД: ВСЕГДА СЕРОЕ (но показываем BYE/TBD корректно)
+                      // 2. ПРИОРИТЕТ: ПЕРВЫЙ РАУНД -> ВСЕГДА СЕРОЕ
                       if (isFirstRound) {
                            if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
-                           // Просто серый для всех остальных
+                           if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
+                           // Если это был наш выбор - можно чуть подсветить, но без цвета Correct/Incorrect
+                           // Или просто серый, как ты просила. Сделаем просто серым, но жирным если выбран.
+                           if (isUserPick) return { className: `${cls}`, display: safeName, hint: null, style: { fontWeight: 'bold' } };
                            return { className: cls, display: safeName, hint: null };
                       }
 
-                      // 3. ПРОВЕРКИ СТАТУСОВ (для R16+)
+                      // 3. ОБЫЧНАЯ ЛОГИКА (ЦВЕТА)
                       if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
                       if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
 
@@ -130,6 +132,7 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                           };
                       }
                       
+                      // PENDING
                       return { className: `${cls} ${styles.selected}`, display: safeName, hint: null };
                   };
 
@@ -138,7 +141,7 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                      const state = getStyle(match.player1?.name, isPick);
                      
                      let bgStyle = '#1E1E1E';
-                     // Фон подсвечиваем только если есть пики и раунд не первый (хотя чемпион не первый)
+                     // Фон подсвечиваем только если есть пики и раунд не первый
                      if (hasPicks && !isFirstRound) {
                         if (state.className.includes(styles.correct)) bgStyle = 'rgba(48, 209, 88, 0.15)';
                         else if (state.className.includes(styles.incorrect)) bgStyle = 'rgba(255, 69, 58, 0.15)';
@@ -167,18 +170,13 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                   }
 
                   const myPick = match.predicted_winner;
-                  // Проверяем, совпадает ли имя, чтобы показать галочку
                   const p1IsPick = clean(myPick) === clean(uP1.name);
                   const p2IsPick = clean(myPick) === clean(uP2.name);
 
                   const p1S = getStyle(uP1.name, p1IsPick);
                   const p2S = getStyle(uP2.name, p2IsPick);
 
-                  // Галочки показываем ТОЛЬКО если hasPicks=true И это не первый раунд
-                  // (в первом раунде всё серое, никаких галочек быть не должно по логике "нейтральности")
-                  // Или хочешь оставить галочки в R32, но без цвета? 
-                  // "а первый круг ... показывается СЕРЫМ. ТОЧКА." -> подразумевает без галочек цветов.
-                  // Если нужны галочки (чтобы видеть свой выбор), убери !isFirstRound
+                  // Галочки: есть пики И не первый раунд
                   const showCheck = hasPicks && !isFirstRound;
 
                   return (
