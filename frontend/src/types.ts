@@ -1,3 +1,5 @@
+// frontend/src/types.ts
+
 export interface User {
   id: number;
   firstName: string;
@@ -12,19 +14,21 @@ export interface Player {
 
 export interface BracketMatch {
   id: string;
-  match_number: number;
   round: string;
+  match_number: number;
   player1: Player;
   player2: Player;
   predicted_winner?: string | null;
-  
-  // --- ДОБАВИТЬ ТОЛЬКО ЭТУ СТРОКУ ---
-  actual_winner?: string | null; 
-  // ----------------------------------
+  actual_winner?: string | null;
+  scores?: string[]; // например ["6-4", "7-5", "10-8"]
+
+  // --- НОВЫЕ ПОЛЯ ---
+  status?: 'CORRECT' | 'INCORRECT' | 'PENDING' | 'NO_PICK';
+  is_eliminated?: boolean;
+  // ------------------
 
   source_matches: Array<{ round: string; match_number: number }>;
 }
-
 
 export interface Tournament {
   id: number;
@@ -41,7 +45,7 @@ export interface Tournament {
   user_picks?: UserPick[];
   scores?: UserScore[];
   rounds?: string[];
-  bracket?: { [round: string]: BracketMatch[] }; // Обновлено
+  bracket?: { [round: string]: BracketMatch[] };
   has_picks?: boolean;
   comparison?: ComparisonResult[];
   score?: number;
@@ -127,6 +131,7 @@ export interface TournamentHistoryRow {
   correct_picks: number;
   incorrect_picks: number;
   percent_correct: string;
+  tag: string;
 }
 
 export interface ProfileStats {
@@ -134,28 +139,4 @@ export interface ProfileStats {
   name: string;
   cumulative: StatRow[];
   history: TournamentHistoryRow[];
-}
-
-export interface TournamentHistoryRow {
-  tournament_id: number;
-  name: string;
-  rank: number;
-  total_participants: number;
-  points: number;
-  correct_picks: number;
-  incorrect_picks: number;
-  percent_correct: string;
-  tag: string; // <--- НОВОЕ ПОЛЕ
-}
-
-export interface BracketMatch {
-  id: string;
-  match_number: number;
-  round: string;
-  player1: Player;
-  player2: Player;
-  predicted_winner?: string | null;
-  actual_winner?: string | null;
-  scores?: string[]; // <--- МАССИВ СТРОК "6-4"
-  source_matches: Array<{ round: string; match_number: number }>;
 }

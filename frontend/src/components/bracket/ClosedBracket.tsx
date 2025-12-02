@@ -7,20 +7,17 @@ import { BracketMatch } from '@/types';
 import { useClosedTournament } from '@/hooks/useClosedTournament';
 import { useRouter } from 'next/navigation';
 
-// --- ИКОНКИ ---
+// ИКОНКИ
 const BackIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M15 18l-6-6 6-6"/>
   </svg>
 );
-
-// Добавил CheckIcon, которого не хватало
 const CheckIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
-
 const TrophyIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2">
     <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
@@ -38,6 +35,7 @@ const variants: Variants = {
   exit: (direction: number) => ({ x: direction < 0 ? 50 : -50, opacity: 0, scale: 0.95, position: 'absolute', top: 0, left: 0, width: '100%' })
 };
 
+// Функция очистки (только для визуальной проверки на TBD/Bye)
 const clean = (name: string | undefined | null) => {
     if (!name || name === 'TBD' || name.toLowerCase() === 'bye') return "tbd";
     let n = name.replace(/\s*\(.*?\)/g, '');
@@ -45,7 +43,6 @@ const clean = (name: string | undefined | null) => {
     return n || "tbd";
 };
 
-// Единственный export default
 export default function ClosedBracket({ id, tournamentName }: { id: string, tournamentName: string }) {
   const router = useRouter();
   const { userBracket, trueBracket, hasPicks, isLoading, selectedRound, setSelectedRound, rounds } = useClosedTournament(id);
@@ -53,8 +50,6 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
 
   if (isLoading) return <div className="flex justify-center pt-20 text-[#5F6067]">Загрузка...</div>;
   if (!selectedRound) return null;
-
-  const isFirstRound = selectedRound === rounds[0];
 
   const changeRound = (newRound: string) => {
     const idx = rounds.indexOf(selectedRound);
@@ -71,6 +66,8 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
     else if (info.offset.x > 50 && idx > 0) changeRound(rounds[idx - 1]);
   };
 
+  // Если пиков нет, мы используем trueBracket (или userBracket, который будет идентичен trueBracket без пиков)
+  // hasPicks - ключевой флаг здесь
   const displayBracket = hasPicks ? userBracket : trueBracket;
 
   return (
@@ -99,110 +96,126 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
               {displayBracket[selectedRound]?.length > 0 ? (
                 displayBracket[selectedRound].map((match: BracketMatch, index: number) => {
                   
+                  // Данные из реальной сетки (для счета и подсказок)
                   const trueMatch = trueBracket[selectedRound]?.[index];
-                  const trueWinner = trueMatch?.actual_winner; 
+                  const trueWinnerName = trueMatch?.actual_winner; 
                   
                   const uP1 = match.player1;
                   const uP2 = match.player2;
-                  const myPick = match.predicted_winner;
                   const scores = trueMatch?.scores || []; 
+                  
+                  // Статусы от Бэкенда
+                  const status = match.status || 'PENDING';
+                  const isEliminated = match.is_eliminated || false;
 
-                  const getStyle = (userP: string | null | undefined, realP: string | null | undefined, isPick: boolean) => {
+                  // --- ГЛАВНАЯ ФУНКЦИЯ СТИЛЕЙ ---
+                  const getStyle = (playerName: string | null | undefined, isUserPick: boolean) => {
                       const cls = styles.playerRow;
-                      const safeUser = userP || 'TBD';
-                      const safeReal = realP || 'TBD';
+                      const safeName = playerName || 'TBD';
                       
-                      const cUser = clean(safeUser);
-                      const cReal = clean(safeReal);
-                      const cTrueWinner = clean(trueWinner);
-
-                      // Если не играл
-                      if (!hasPicks) return { className: cls, display: safeReal, hint: null };
-
-                      // База
-                      if (cUser === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
-                      if (cUser === 'bye') return { className: `${cls} ${styles.tbd}`, display: safeUser, hint: null };
-
-                      // 1. R32
-                      if (isFirstRound) {
-                         if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
-                         return { className: cls, display: safeUser, hint: null };
+                      // 1. ЕСЛИ ПОЛЬЗОВАТЕЛЬ НЕ ИГРАЛ -> ВСЕГДА НЕЙТРАЛЬНЫЙ СЕРЫЙ
+                      if (!hasPicks) {
+                          return { className: cls, display: safeName, hint: null };
                       }
 
-                      // 2. R16+
-                      if (cReal === 'tbd') {
-                          if (isPick) return { className: `${cls} ${styles.selected}`, display: safeUser, hint: null };
-                          return { className: cls, display: safeUser, hint: null };
-                      }
+                      // 2. Базовые проверки на пустоту
+                      if (clean(safeName) === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
+                      if (clean(safeName) === 'bye') return { className: `${cls} ${styles.tbd}`, display: safeName, hint: null };
 
-                      // Mismatch
-                      if (cUser !== cReal) {
+                      // 3. Если это не выбор юзера -> Нейтральный
+                      if (!isUserPick) return { className: cls, display: safeName, hint: null };
+
+                      // 4. ЛОГИКА СТАТУСОВ (Только для choice юзера)
+                      if (status === 'CORRECT') {
+                          return { className: `${cls} ${styles.correct}`, display: safeName, hint: null };
+                      }
+                      
+                      if (status === 'INCORRECT') {
+                          // Подсказка: кто на самом деле выиграл этот слот?
+                          let hint = null;
+                          if (clean(trueWinnerName) !== 'tbd' && clean(trueWinnerName) !== clean(safeName)) {
+                             hint = trueWinnerName;
+                          }
+                          
+                          // ЕСЛИ ИГРОК ВЫЛЕТЕЛ РАНЕЕ (фантом) -> isEliminated=True
+                          // Добавляем прозрачность через inline style (style={{ opacity: 0.5 }})
                           return { 
                               className: `${cls} ${styles.incorrect}`, 
-                              display: safeUser, 
-                              hint: safeReal 
+                              display: safeName, 
+                              hint: hint,
+                              style: isEliminated ? { opacity: 0.5, textDecoration: 'line-through' } : {} 
                           };
                       }
-
-                      // Match
-                      if (cUser === cReal) {
-                          if (cTrueWinner !== 'tbd' && cTrueWinner !== cUser) {
-                              // Проиграл, но дошел сюда = Зеленый (как участник раунда)
-                              // Но если хотите показать поражение в этом раунде, можно менять логику.
-                              // Пока оставляем зеленым за то, что угадали проход в этот раунд.
-                              return { className: `${cls} ${styles.correct}`, display: safeUser, hint: null };
-                          }
-                          return { className: `${cls} ${styles.correct}`, display: safeUser, hint: null };
-                      }
                       
-                      return { className: cls, display: safeUser, hint: null };
+                      // PENDING (Выбрано, но еще не сыграно)
+                      return { className: `${cls} ${styles.selected}`, display: safeName, hint: null };
                   };
 
+                  // --- ОТРИСОВКА ЧЕМПИОНА ---
                   if (selectedRound === 'Champion') {
-                     const state = getStyle(match.player1?.name, trueMatch?.player1?.name, !!myPick);
+                     const isPick = match.predicted_winner === match.player1?.name;
+                     const state = getStyle(match.player1?.name, isPick);
+                     
                      let bgStyle = '#1E1E1E';
-                     if (state.className.includes('correct')) bgStyle = 'rgba(48, 209, 88, 0.15)';
-                     else if (state.className.includes('incorrect')) bgStyle = 'rgba(255, 69, 58, 0.15)';
-                     else if (state.className.includes('selected')) bgStyle = '#152230';
+                     if (state.className.includes(styles.correct)) bgStyle = 'rgba(48, 209, 88, 0.15)';
+                     else if (state.className.includes(styles.incorrect)) bgStyle = 'rgba(255, 69, 58, 0.15)';
+                     else if (state.className.includes(styles.selected)) bgStyle = '#152230';
+                     
+                     // Если юзер не играл - фон стандартный
+                     if (!hasPicks) bgStyle = '#1E1E1E';
 
                      return (
                         <div key={match.id} className={styles.championWrapper}>
                             <div className={styles.championContainer} style={{ border: 'none', background: bgStyle }}>
-                                <div className={state.className} style={{ height: '60px', cursor: 'default', borderRadius: '12px', background: 'transparent', border: 'none' }}>
+                                <div 
+                                    className={state.className} 
+                                    style={{ 
+                                        height: '60px', cursor: 'default', borderRadius: '12px', background: 'transparent', border: 'none',
+                                        ...state.style
+                                    }}
+                                >
                                     <div className={styles.playerInfo} style={{ justifyContent: 'center' }}>
                                         <span className={styles.playerName} style={{ fontSize: '16px' }}>{state.display}</span>
                                         {state.hint && (<div className={styles.correctionText}><span className={styles.correctionArrow}>→</span> {state.hint}</div>)}
                                     </div>
-                                    {(state.className.includes('correct')) && <div className={styles.checkIcon}><TrophyIcon /></div>}
+                                    {(state.className.includes(styles.correct)) && <div className={styles.checkIcon}><TrophyIcon /></div>}
                                 </div>
                             </div>
                         </div>
                      );
                   }
 
-                  const p1S = getStyle(uP1.name, trueMatch?.player1?.name, clean(myPick) === clean(uP1.name));
-                  const p2S = getStyle(uP2.name, trueMatch?.player2?.name, clean(myPick) === clean(uP2.name));
+                  // --- ОТРИСОВКА ОБЫЧНОГО МАТЧА ---
+                  const myPick = match.predicted_winner;
+                  const p1IsPick = clean(myPick) === clean(uP1.name);
+                  const p2IsPick = clean(myPick) === clean(uP2.name);
+
+                  const p1S = getStyle(uP1.name, p1IsPick);
+                  const p2S = getStyle(uP2.name, p2IsPick);
 
                   return (
                     <div key={match.id} className={styles.matchWrapper}>
                       <div className={styles.matchContainer}>
-                        <div className={p1S.className}>
+                        {/* PLAYER 1 */}
+                        <div className={p1S.className} style={p1S.style}>
                           <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p1S.display}</span>
                               {p1S.display !== 'TBD' && !p1S.className.includes('incorrect') && <span className={styles.playerSeed}>{uP1.seed ? `[${uP1.seed}]` : ''}</span>}
                               {p1S.hint && (<div className={styles.correctionText}><span className={styles.correctionArrow}>→</span> {p1S.hint}</div>)}
                           </div>
                           <div className="flex gap-2 mr-2">{scores.map((s: string, i: number) => <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{s.split('-')[0]}</span>)}</div>
-                          {hasPicks && clean(myPick) === clean(p1S.display) && !p1S.className.includes('incorrect') && <div className={styles.checkIcon}><CheckIcon/></div>}
+                          {hasPicks && p1IsPick && !p1S.className.includes('incorrect') && <div className={styles.checkIcon}><CheckIcon/></div>}
                         </div>
-                        <div className={p2S.className}>
+                        
+                        {/* PLAYER 2 */}
+                        <div className={p2S.className} style={p2S.style}>
                            <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p2S.display}</span>
                               <span className={styles.playerSeed}>{uP2.seed ? `[${uP2.seed}]` : ''}</span>
                               {p2S.hint && (<div className={styles.correctionText}><span className={styles.correctionArrow}>→</span> {p2S.hint}</div>)}
                            </div>
                            <div className="flex gap-2 mr-2">{scores.map((s: string, i: number) => <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{s.split('-')[1]}</span>)}</div>
-                           {hasPicks && clean(myPick) === clean(p2S.display) && !p2S.className.includes('incorrect') && <div className={styles.checkIcon}><CheckIcon/></div>}
+                           {hasPicks && p2IsPick && !p2S.className.includes('incorrect') && <div className={styles.checkIcon}><CheckIcon/></div>}
                         </div>
                       </div>
                       {selectedRound !== 'F' && <div className={styles.bracketConnector} />}
