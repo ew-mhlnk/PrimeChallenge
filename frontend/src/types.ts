@@ -1,5 +1,3 @@
-// frontend/src/types.ts
-
 export interface User {
   id: number;
   firstName: string;
@@ -14,42 +12,24 @@ export interface Player {
 
 export interface BracketMatch {
   id: string;
-  round: string;
   match_number: number;
+  round: string;
   player1: Player;
   player2: Player;
   predicted_winner?: string | null;
   actual_winner?: string | null;
-  scores?: string[]; // например ["6-4", "7-5", "10-8"]
+  scores?: string[];
 
-  // --- НОВЫЕ ПОЛЯ ---
-  status?: 'CORRECT' | 'INCORRECT' | 'PENDING' | 'NO_PICK';
+  // --- НОВЫЕ ПОЛЯ ДЛЯ СТАТУСОВ (Fix для ошибок TS) ---
+  status?: string;                                   // 'CORRECT' | 'INCORRECT' | 'PENDING' | 'NO_PICK'
+  player1_status?: string;                           // 'CORRECT' | 'INCORRECT' | 'PENDING'
+  player2_status?: string;                           // 'CORRECT' | 'INCORRECT' | 'PENDING'
+  real_player1?: string;                             // Имя реального игрока в слоте 1
+  real_player2?: string;                             // Имя реального игрока в слоте 2
   is_eliminated?: boolean;
-  // ------------------
+  // ---------------------------------------------------
 
   source_matches: Array<{ round: string; match_number: number }>;
-}
-
-export interface Tournament {
-  id: number;
-  name: string;
-  dates?: string;
-  status: 'ACTIVE' | 'CLOSED' | 'COMPLETED';
-  sheet_name?: string;
-  starting_round?: string;
-  type?: string;
-  start?: string;
-  close?: string;
-  tag?: string;
-  true_draws?: Match[];
-  user_picks?: UserPick[];
-  scores?: UserScore[];
-  rounds?: string[];
-  bracket?: { [round: string]: BracketMatch[] };
-  has_picks?: boolean;
-  comparison?: ComparisonResult[];
-  score?: number;
-  correct_picks?: number;
 }
 
 export interface Match {
@@ -101,6 +81,28 @@ export interface ComparisonResult {
   predicted_winner: string;
   actual_winner: string;
   correct: boolean;
+}
+
+export interface Tournament {
+  id: number;
+  name: string;
+  dates?: string;
+  status: 'ACTIVE' | 'CLOSED' | 'COMPLETED';
+  sheet_name?: string;
+  starting_round?: string;
+  type?: string;
+  start?: string;
+  close?: string;
+  tag?: string;
+  true_draws?: Match[];
+  user_picks?: UserPick[];
+  scores?: UserScore[];
+  rounds?: string[];
+  bracket?: { [round: string]: BracketMatch[] };
+  has_picks?: boolean;
+  comparison?: ComparisonResult[];
+  score?: number;
+  correct_picks?: number;
 }
 
 export interface LeaderboardEntry {

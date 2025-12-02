@@ -78,70 +78,70 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                 displayBracket[selectedRound].map((match: BracketMatch, index: number) => {
                   
                   const trueMatch = trueBracket[selectedRound]?.[index];
-                  const trueWinnerName = trueMatch?.actual_winner; 
-                  
                   const uP1 = match.player1;
                   const uP2 = match.player2;
                   const scores = trueMatch?.scores || []; 
-                  
-                  const status = match.status || 'PENDING';
-                  const isEliminated = match.is_eliminated || false;
 
-                  const getStyle = (playerName: string | null | undefined, isUserPick: boolean) => {
+                  // --- ФУНКЦИЯ СТИЛИЗАЦИИ ---
+                  const getStyle = (
+                      playerName: string | null | undefined, 
+                      slotStatus: string | undefined, 
+                      realPlayerName: string | undefined,
+                      isUserPick: boolean
+                  ) => {
                       const cls = styles.playerRow;
                       const safeName = playerName || 'TBD';
                       const cleanName = clean(safeName);
                       
-                      // 1. ПРИОРИТЕТ: ЗРИТЕЛИ (не играли) -> ВСЕГДА СЕРОЕ
+                      // 1. ЗРИТЕЛИ (не играли) -> ВСЕГДА СЕРОЕ
                       if (!hasPicks) {
                           if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
                           if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
                           return { className: cls, display: safeName, hint: null };
                       }
 
-                      // 2. ПРИОРИТЕТ: ПЕРВЫЙ РАУНД -> ВСЕГДА СЕРОЕ
+                      // 2. ПЕРВЫЙ РАУНД -> ВСЕГДА СЕРОЕ (без проверок верно/неверно)
                       if (isFirstRound) {
                            if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
                            if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
-                           // Если это был наш выбор - можно чуть подсветить, но без цвета Correct/Incorrect
-                           // Или просто серый, как ты просила. Сделаем просто серым, но жирным если выбран.
+                           
+                           // Просто выделяем жирным, если это был выбор пользователя
                            if (isUserPick) return { className: `${cls}`, display: safeName, hint: null, style: { fontWeight: 'bold' } };
+                           
                            return { className: cls, display: safeName, hint: null };
                       }
 
-                      // 3. ОБЫЧНАЯ ЛОГИКА (ЦВЕТА)
+                      // 3. R16+ (КРАСИМ)
                       if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
                       if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
 
-                      if (!isUserPick) return { className: cls, display: safeName, hint: null };
-
-                      if (status === 'CORRECT') {
+                      // Зеленый: Игрок прошел в этот круг
+                      if (slotStatus === 'CORRECT') {
                           return { className: `${cls} ${styles.correct}`, display: safeName, hint: null };
                       }
                       
-                      if (status === 'INCORRECT') {
-                          let hint = null;
-                          if (clean(trueWinnerName) !== 'tbd' && clean(trueWinnerName) !== cleanName) {
-                             hint = trueWinnerName;
-                          }
+                      // Красный: Игрок должен быть здесь, но в реальности здесь другой
+                      if (slotStatus === 'INCORRECT') {
                           return { 
                               className: `${cls} ${styles.incorrect}`, 
                               display: safeName, 
-                              hint: hint,
-                              style: isEliminated ? { opacity: 0.5, textDecoration: 'line-through' } : {} 
+                              hint: realPlayerName, // Подсказка: кто тут на самом деле
+                              style: { opacity: 0.5, textDecoration: 'line-through' } 
                           };
                       }
                       
-                      // PENDING
-                      return { className: `${cls} ${styles.selected}`, display: safeName, hint: null };
+                      // Синий: Мы выбрали его, но пока неизвестно (PENDING)
+                      if (isUserPick) return { className: `${cls} ${styles.selected}`, display: safeName, hint: null };
+                      
+                      return { className: cls, display: safeName, hint: null };
                   };
 
                   if (selectedRound === 'Champion') {
                      const isPick = match.predicted_winner === match.player1?.name;
-                     const state = getStyle(match.player1?.name, isPick);
+                     // Для чемпиона статус берем из player1 (он единственный)
+                     const state = getStyle(match.player1?.name, match.player1_status, match.real_player1, isPick);
                      
                      let bgStyle = '#1E1E1E';
-                     // Фон подсвечиваем только если есть пики и раунд не первый
                      if (hasPicks && !isFirstRound) {
                         if (state.className.includes(styles.correct)) bgStyle = 'rgba(48, 209, 88, 0.15)';
                         else if (state.className.includes(styles.incorrect)) bgStyle = 'rgba(255, 69, 58, 0.15)';
@@ -151,13 +151,7 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                      return (
                         <div key={match.id} className={styles.championWrapper}>
                             <div className={styles.championContainer} style={{ border: 'none', background: bgStyle }}>
-                                <div 
-                                    className={state.className} 
-                                    style={{ 
-                                        height: '60px', cursor: 'default', borderRadius: '12px', background: 'transparent', border: 'none',
-                                        ...state.style
-                                    }}
-                                >
+                                <div className={state.className} style={{ height: '60px', borderRadius: '12px', background: 'transparent', border: 'none', ...state.style }}>
                                     <div className={styles.playerInfo} style={{ justifyContent: 'center' }}>
                                         <span className={styles.playerName} style={{ fontSize: '16px' }}>{state.display}</span>
                                         {state.hint && (<div className={styles.correctionText}><span className={styles.correctionArrow}>→</span> {state.hint}</div>)}
@@ -173,10 +167,10 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                   const p1IsPick = clean(myPick) === clean(uP1.name);
                   const p2IsPick = clean(myPick) === clean(uP2.name);
 
-                  const p1S = getStyle(uP1.name, p1IsPick);
-                  const p2S = getStyle(uP2.name, p2IsPick);
+                  // ПЕРЕДАЕМ: Имя, Статус_слота, Реальное_имя, Это_ли_выбор
+                  const p1S = getStyle(uP1.name, match.player1_status, match.real_player1, p1IsPick);
+                  const p2S = getStyle(uP2.name, match.player2_status, match.real_player2, p2IsPick);
 
-                  // Галочки: есть пики И не первый раунд
                   const showCheck = hasPicks && !isFirstRound;
 
                   return (
