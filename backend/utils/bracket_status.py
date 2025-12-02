@@ -1,16 +1,23 @@
+# backend/utils/bracket_status.py
+
 import re
 from typing import Dict, Set, List, Any
 
 def normalize_name(name: str) -> str:
     """
-    Приводит имя к единому виду для сравнения:
-    "Daniil Medvedev (3)" -> "daniilmedvedev"
+    Приводит имя к единому виду для сравнения.
+    ВАЖНО: "Bye" остается "bye", чтобы его можно было отличить от "tbd" (отсутствия).
     """
-    if not name or name.lower() in ["bye", "tbd"]: return "tbd"
+    if not name: return "tbd"
+    lower_name = name.lower().strip()
+    
+    if lower_name == "tbd": return "tbd"
+    if lower_name == "bye": return "bye"
+
     # Убираем содержимое скобок (сеяные номера) и всё кроме букв
-    n = re.sub(r'\s*\(.*?\)', '', name)
-    n = re.sub(r'[^a-zA-Z]', '', n).lower()
-    return n
+    n = re.sub(r'\s*\(.*?\)', '', lower_name)
+    n = re.sub(r'[^a-z]', '', n)
+    return n if n else "tbd"
 
 def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List) -> Dict[str, List[Dict]]:
     """
@@ -20,12 +27,9 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
     """
     
     # 1. Собираем базу знаний о реальности
-    # Кто вылетел (проиграл любой матч)
     eliminated_players: Set[str] = set()
-    # Кто реально выиграл конкретный матч: "R16_1" -> "rublev"
-    real_winners_map: Dict[str, str] = {}
-    # Кто реально играл в конкретном матче: "R16_1" -> ["rublev", "draper"]
-    real_match_players: Dict[str, List[str]] = {}
+    real_winners_map: Dict[str, str] = {}     # "R16_1" -> "rublev"
+    real_match_players: Dict[str, List[str]] = {} # "R16_1" -> ["rublev", "draper"]
 
     for td in true_draws:
         key = f"{td.round}_{td.match_number}"
@@ -33,15 +37,15 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
         p1_norm = normalize_name(td.player1)
         p2_norm = normalize_name(td.player2)
 
-        if w_norm != "tbd":
+        if w_norm not in ["tbd", "bye"]:
             real_winners_map[key] = w_norm
-            # Логика выбывания: Если игрок был в матче (p1/p2), но winner != player, значит он проиграл.
-            if p1_norm != "tbd" and p1_norm != w_norm: eliminated_players.add(p1_norm)
-            if p2_norm != "tbd" and p2_norm != w_norm: eliminated_players.add(p2_norm)
+            # Кто был в матче, но не выиграл -> вылетел
+            if p1_norm not in ["tbd", "bye"] and p1_norm != w_norm: eliminated_players.add(p1_norm)
+            if p2_norm not in ["tbd", "bye"] and p2_norm != w_norm: eliminated_players.add(p2_norm)
         
         real_match_players[key] = [p1_norm, p2_norm]
 
-    # 2. Проходим по сетке пользователя и проставляем статусы
+    # 2. Проходим по сетке пользователя
     rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F", "Champion"]
     
     for r_name in rounds_order:
@@ -51,42 +55,39 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
         for match in matches:
             match_key = f"{r_name}_{match['match_number']}"
             
-            # То, что выбрал юзер (или TBD, если не выбрал)
             pick_raw = match.get("predicted_winner")
             pick_norm = normalize_name(pick_raw)
             
-            # Кто выиграл в реальности
             real_winner_norm = real_winners_map.get(match_key, "tbd")
             
-            # Значения по умолчанию
             status = "PENDING"
             is_eliminated = False
             
-            # --- СЦЕНАРИЙ 1: Нет прогноза (или юзер не участвовал) ---
+            # 1. Если нет прогноза
             if pick_norm == "tbd":
                 match["status"] = "NO_PICK"
                 match["is_eliminated"] = False
                 continue
+            
+            # 2. Если прогноз BYE (автоматически верно, если в реальности тоже BYE проходит)
+            if pick_norm == "bye":
+                 match["status"] = "CORRECT" # Bye всегда выигрывает сам у себя
+                 match["is_eliminated"] = False
+                 continue
 
-            # --- СЦЕНАРИЙ 2: Матч завершен (есть победитель) ---
+            # 3. Матч завершен
             if real_winner_norm != "tbd":
                 if pick_norm == real_winner_norm:
                     status = "CORRECT"
                 else:
                     status = "INCORRECT"
-                    # Проверяем, "жив" ли еще игрок в этом слоте или вылетел раньше?
-                    # Список реальных участников этого матча
+                    # Если нашего игрока не было в этом матче (вылетел раньше)
                     real_participants = real_match_players.get(match_key, [])
-                    
-                    # Если нашего игрока ВООБЩЕ не было в этом матче (он вылетел раньше)
                     if pick_norm not in real_participants:
                         is_eliminated = True
-                    # Если он был, но проиграл - он вылетел ИМЕННО СЕЙЧАС (не делаем его полупрозрачным, просто красным)
-                    # Логика: is_eliminated = True делаем только для "мертвых душ" (фантомов)
-
-            # --- СЦЕНАРИЙ 3: Матч еще не сыгран / не завершен ---
+            
+            # 4. Матч не завершен, но игрок мог уже вылететь
             else:
-                # Но игрок мог уже вылететь в предыдущих раундах!
                 if pick_norm in eliminated_players:
                     status = "INCORRECT"
                     is_eliminated = True

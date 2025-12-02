@@ -7,27 +7,9 @@ import { BracketMatch } from '@/types';
 import { useClosedTournament } from '@/hooks/useClosedTournament';
 import { useRouter } from 'next/navigation';
 
-// ИКОНКИ
-const BackIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M15 18l-6-6 6-6"/>
-  </svg>
-);
-const CheckIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-const TrophyIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2">
-    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-    <path d="M4 22h16" />
-    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
-    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
-    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
-  </svg>
-);
+const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>);
+const CheckIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>);
+const TrophyIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>);
 
 const variants: Variants = {
   enter: (direction: number) => ({ x: direction > 0 ? 50 : -50, opacity: 0, scale: 0.95 }),
@@ -35,9 +17,12 @@ const variants: Variants = {
   exit: (direction: number) => ({ x: direction < 0 ? 50 : -50, opacity: 0, scale: 0.95, position: 'absolute', top: 0, left: 0, width: '100%' })
 };
 
-// Функция очистки (только для визуальной проверки на TBD/Bye)
+// ИСПРАВЛЕНИЕ 1: Не превращаем Bye в tbd
 const clean = (name: string | undefined | null) => {
-    if (!name || name === 'TBD' || name.toLowerCase() === 'bye') return "tbd";
+    if (!name || name === 'TBD') return "tbd";
+    // Оставляем Bye как есть
+    if (name.toLowerCase() === 'bye') return "bye";
+    
     let n = name.replace(/\s*\(.*?\)/g, '');
     n = n.replace(/[^a-zA-Z]/g, '').toLowerCase();
     return n || "tbd";
@@ -66,8 +51,7 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
     else if (info.offset.x > 50 && idx > 0) changeRound(rounds[idx - 1]);
   };
 
-  // Если пиков нет, мы используем trueBracket (или userBracket, который будет идентичен trueBracket без пиков)
-  // hasPicks - ключевой флаг здесь
+  // ИСПРАВЛЕНИЕ 2: Если пиков нет, используем TrueBracket
   const displayBracket = hasPicks ? userBracket : trueBracket;
 
   return (
@@ -96,7 +80,6 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
               {displayBracket[selectedRound]?.length > 0 ? (
                 displayBracket[selectedRound].map((match: BracketMatch, index: number) => {
                   
-                  // Данные из реальной сетки (для счета и подсказок)
                   const trueMatch = trueBracket[selectedRound]?.[index];
                   const trueWinnerName = trueMatch?.actual_winner; 
                   
@@ -104,65 +87,65 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                   const uP2 = match.player2;
                   const scores = trueMatch?.scores || []; 
                   
-                  // Статусы от Бэкенда
                   const status = match.status || 'PENDING';
                   const isEliminated = match.is_eliminated || false;
 
-                  // --- ГЛАВНАЯ ФУНКЦИЯ СТИЛЕЙ ---
                   const getStyle = (playerName: string | null | undefined, isUserPick: boolean) => {
                       const cls = styles.playerRow;
                       const safeName = playerName || 'TBD';
+                      const cleanName = clean(safeName);
                       
-                      // 1. ЕСЛИ ПОЛЬЗОВАТЕЛЬ НЕ ИГРАЛ -> ВСЕГДА НЕЙТРАЛЬНЫЙ СЕРЫЙ
+                      // ИСПРАВЛЕНИЕ 3: ЖЕСТКАЯ ПРОВЕРКА ДЛЯ ЗРИТЕЛЕЙ
                       if (!hasPicks) {
+                          // Если это Bye, показываем его нормально
+                          if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
+                          if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
+                          // Просто серый стиль
                           return { className: cls, display: safeName, hint: null };
                       }
 
-                      // 2. Базовые проверки на пустоту
-                      if (clean(safeName) === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
-                      if (clean(safeName) === 'bye') return { className: `${cls} ${styles.tbd}`, display: safeName, hint: null };
+                      // Логика для УЧАСТНИКОВ
+                      if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
+                      if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
 
-                      // 3. Если это не выбор юзера -> Нейтральный
                       if (!isUserPick) return { className: cls, display: safeName, hint: null };
 
-                      // 4. ЛОГИКА СТАТУСОВ (Только для choice юзера)
+                      // Зеленый
                       if (status === 'CORRECT') {
                           return { className: `${cls} ${styles.correct}`, display: safeName, hint: null };
                       }
                       
+                      // Красный
                       if (status === 'INCORRECT') {
-                          // Подсказка: кто на самом деле выиграл этот слот?
                           let hint = null;
-                          if (clean(trueWinnerName) !== 'tbd' && clean(trueWinnerName) !== clean(safeName)) {
+                          // Подсказка только если имя реально отличается и не TBD
+                          if (clean(trueWinnerName) !== 'tbd' && clean(trueWinnerName) !== cleanName) {
                              hint = trueWinnerName;
                           }
                           
-                          // ЕСЛИ ИГРОК ВЫЛЕТЕЛ РАНЕЕ (фантом) -> isEliminated=True
-                          // Добавляем прозрачность через inline style (style={{ opacity: 0.5 }})
                           return { 
                               className: `${cls} ${styles.incorrect}`, 
                               display: safeName, 
                               hint: hint,
+                              // Если isEliminated = true (игрок вылетел ранее), делаем текст прозрачнее
                               style: isEliminated ? { opacity: 0.5, textDecoration: 'line-through' } : {} 
                           };
                       }
                       
-                      // PENDING (Выбрано, но еще не сыграно)
+                      // Выбрано, но не сыграно
                       return { className: `${cls} ${styles.selected}`, display: safeName, hint: null };
                   };
 
-                  // --- ОТРИСОВКА ЧЕМПИОНА ---
                   if (selectedRound === 'Champion') {
                      const isPick = match.predicted_winner === match.player1?.name;
                      const state = getStyle(match.player1?.name, isPick);
                      
                      let bgStyle = '#1E1E1E';
-                     if (state.className.includes(styles.correct)) bgStyle = 'rgba(48, 209, 88, 0.15)';
-                     else if (state.className.includes(styles.incorrect)) bgStyle = 'rgba(255, 69, 58, 0.15)';
-                     else if (state.className.includes(styles.selected)) bgStyle = '#152230';
-                     
-                     // Если юзер не играл - фон стандартный
-                     if (!hasPicks) bgStyle = '#1E1E1E';
+                     if (hasPicks) {
+                        if (state.className.includes(styles.correct)) bgStyle = 'rgba(48, 209, 88, 0.15)';
+                        else if (state.className.includes(styles.incorrect)) bgStyle = 'rgba(255, 69, 58, 0.15)';
+                        else if (state.className.includes(styles.selected)) bgStyle = '#152230';
+                     }
 
                      return (
                         <div key={match.id} className={styles.championWrapper}>
@@ -178,15 +161,15 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                                         <span className={styles.playerName} style={{ fontSize: '16px' }}>{state.display}</span>
                                         {state.hint && (<div className={styles.correctionText}><span className={styles.correctionArrow}>→</span> {state.hint}</div>)}
                                     </div>
-                                    {(state.className.includes(styles.correct)) && <div className={styles.checkIcon}><TrophyIcon /></div>}
+                                    {(hasPicks && state.className.includes(styles.correct)) && <div className={styles.checkIcon}><TrophyIcon /></div>}
                                 </div>
                             </div>
                         </div>
                      );
                   }
 
-                  // --- ОТРИСОВКА ОБЫЧНОГО МАТЧА ---
                   const myPick = match.predicted_winner;
+                  // Подсвечиваем выбор только если он совпадает с именем в слоте
                   const p1IsPick = clean(myPick) === clean(uP1.name);
                   const p2IsPick = clean(myPick) === clean(uP2.name);
 
