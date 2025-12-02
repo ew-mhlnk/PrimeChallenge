@@ -17,12 +17,9 @@ const variants: Variants = {
   exit: (direction: number) => ({ x: direction < 0 ? 50 : -50, opacity: 0, scale: 0.95, position: 'absolute', top: 0, left: 0, width: '100%' })
 };
 
-// ИСПРАВЛЕНИЕ 1: Не превращаем Bye в tbd
 const clean = (name: string | undefined | null) => {
     if (!name || name === 'TBD') return "tbd";
-    // Оставляем Bye как есть
     if (name.toLowerCase() === 'bye') return "bye";
-    
     let n = name.replace(/\s*\(.*?\)/g, '');
     n = n.replace(/[^a-zA-Z]/g, '').toLowerCase();
     return n || "tbd";
@@ -51,8 +48,11 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
     else if (info.offset.x > 50 && idx > 0) changeRound(rounds[idx - 1]);
   };
 
-  // ИСПРАВЛЕНИЕ 2: Если пиков нет, используем TrueBracket
   const displayBracket = hasPicks ? userBracket : trueBracket;
+  
+  // Определяем, является ли текущий раунд первым (Start Round)
+  // В твоем случае rounds[0] это 'R32'
+  const isFirstRound = selectedRound === rounds[0];
 
   return (
     <div className={styles.container}>
@@ -95,44 +95,41 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                       const safeName = playerName || 'TBD';
                       const cleanName = clean(safeName);
                       
-                      // ИСПРАВЛЕНИЕ 3: ЖЕСТКАЯ ПРОВЕРКА ДЛЯ ЗРИТЕЛЕЙ
+                      // 1. ЗРИТЕЛИ (не играли): ВСЕГДА СЕРОЕ
                       if (!hasPicks) {
-                          // Если это Bye, показываем его нормально
-                          if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
-                          if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
-                          // Просто серый стиль
                           return { className: cls, display: safeName, hint: null };
                       }
 
-                      // Логика для УЧАСТНИКОВ
+                      // 2. ПЕРВЫЙ РАУНД: ВСЕГДА СЕРОЕ (но показываем BYE/TBD корректно)
+                      if (isFirstRound) {
+                           if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
+                           // Просто серый для всех остальных
+                           return { className: cls, display: safeName, hint: null };
+                      }
+
+                      // 3. ПРОВЕРКИ СТАТУСОВ (для R16+)
                       if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
                       if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
 
                       if (!isUserPick) return { className: cls, display: safeName, hint: null };
 
-                      // Зеленый
                       if (status === 'CORRECT') {
                           return { className: `${cls} ${styles.correct}`, display: safeName, hint: null };
                       }
                       
-                      // Красный
                       if (status === 'INCORRECT') {
                           let hint = null;
-                          // Подсказка только если имя реально отличается и не TBD
                           if (clean(trueWinnerName) !== 'tbd' && clean(trueWinnerName) !== cleanName) {
                              hint = trueWinnerName;
                           }
-                          
                           return { 
                               className: `${cls} ${styles.incorrect}`, 
                               display: safeName, 
                               hint: hint,
-                              // Если isEliminated = true (игрок вылетел ранее), делаем текст прозрачнее
                               style: isEliminated ? { opacity: 0.5, textDecoration: 'line-through' } : {} 
                           };
                       }
                       
-                      // Выбрано, но не сыграно
                       return { className: `${cls} ${styles.selected}`, display: safeName, hint: null };
                   };
 
@@ -141,7 +138,8 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                      const state = getStyle(match.player1?.name, isPick);
                      
                      let bgStyle = '#1E1E1E';
-                     if (hasPicks) {
+                     // Фон подсвечиваем только если есть пики и раунд не первый (хотя чемпион не первый)
+                     if (hasPicks && !isFirstRound) {
                         if (state.className.includes(styles.correct)) bgStyle = 'rgba(48, 209, 88, 0.15)';
                         else if (state.className.includes(styles.incorrect)) bgStyle = 'rgba(255, 69, 58, 0.15)';
                         else if (state.className.includes(styles.selected)) bgStyle = '#152230';
@@ -169,17 +167,23 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                   }
 
                   const myPick = match.predicted_winner;
-                  // Подсвечиваем выбор только если он совпадает с именем в слоте
+                  // Проверяем, совпадает ли имя, чтобы показать галочку
                   const p1IsPick = clean(myPick) === clean(uP1.name);
                   const p2IsPick = clean(myPick) === clean(uP2.name);
 
                   const p1S = getStyle(uP1.name, p1IsPick);
                   const p2S = getStyle(uP2.name, p2IsPick);
 
+                  // Галочки показываем ТОЛЬКО если hasPicks=true И это не первый раунд
+                  // (в первом раунде всё серое, никаких галочек быть не должно по логике "нейтральности")
+                  // Или хочешь оставить галочки в R32, но без цвета? 
+                  // "а первый круг ... показывается СЕРЫМ. ТОЧКА." -> подразумевает без галочек цветов.
+                  // Если нужны галочки (чтобы видеть свой выбор), убери !isFirstRound
+                  const showCheck = hasPicks && !isFirstRound;
+
                   return (
                     <div key={match.id} className={styles.matchWrapper}>
                       <div className={styles.matchContainer}>
-                        {/* PLAYER 1 */}
                         <div className={p1S.className} style={p1S.style}>
                           <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p1S.display}</span>
@@ -187,10 +191,9 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                               {p1S.hint && (<div className={styles.correctionText}><span className={styles.correctionArrow}>→</span> {p1S.hint}</div>)}
                           </div>
                           <div className="flex gap-2 mr-2">{scores.map((s: string, i: number) => <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{s.split('-')[0]}</span>)}</div>
-                          {hasPicks && p1IsPick && !p1S.className.includes('incorrect') && <div className={styles.checkIcon}><CheckIcon/></div>}
+                          {showCheck && p1IsPick && !p1S.className.includes('incorrect') && <div className={styles.checkIcon}><CheckIcon/></div>}
                         </div>
                         
-                        {/* PLAYER 2 */}
                         <div className={p2S.className} style={p2S.style}>
                            <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p2S.display}</span>
@@ -198,7 +201,7 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                               {p2S.hint && (<div className={styles.correctionText}><span className={styles.correctionArrow}>→</span> {p2S.hint}</div>)}
                            </div>
                            <div className="flex gap-2 mr-2">{scores.map((s: string, i: number) => <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{s.split('-')[1]}</span>)}</div>
-                           {hasPicks && p2IsPick && !p2S.className.includes('incorrect') && <div className={styles.checkIcon}><CheckIcon/></div>}
+                           {showCheck && p2IsPick && !p2S.className.includes('incorrect') && <div className={styles.checkIcon}><CheckIcon/></div>}
                         </div>
                       </div>
                       {selectedRound !== 'F' && <div className={styles.bracketConnector} />}

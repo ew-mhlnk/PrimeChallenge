@@ -21,7 +21,10 @@ export function useClosedTournament(id: string) {
   const [tournament, setTournament] = useState<Tournament | null>(cached);
   const [userBracket, setUserBracket] = useState<BracketRoundMap>({});
   const [trueBracket, setTrueBracket] = useState<BracketRoundMap>({});
+  
+  // ИСПРАВЛЕНИЕ: hasPicks по умолчанию false и меняется ТОЛЬКО если API скажет
   const [hasPicks, setHasPicks] = useState(false);
+  
   const [isLoading, setIsLoading] = useState(!cached);
   const [selectedRound, setSelectedRound] = useState(cached?.starting_round || cached?.rounds?.[0] || null);
   const [rounds, setRounds] = useState(cached?.rounds || []);
@@ -49,7 +52,7 @@ export function useClosedTournament(id: string) {
     return newB;
   }, []);
 
-  // 2. Симуляция (Только для UserBracket)
+  // 2. Симуляция
   const propagate = useCallback((bState: BracketRoundMap, rList: string[], cRound: string, mNum: number, wName: string | null) => {
     const idx = rList.indexOf(cRound);
     if (idx === -1 || idx === rList.length - 1) return;
@@ -68,7 +71,6 @@ export function useClosedTournament(id: string) {
     if (nm) {
       const target = isP1 ? 'player1' : 'player2';
       nm[target] = { name: wName || 'TBD' };
-      // Тут можно рекурсивно двигать дальше, если есть предикты
       if (nm.predicted_winner) {
           propagate(bState, rList, nRound, nNum, nm.predicted_winner);
       }
@@ -82,13 +84,14 @@ export function useClosedTournament(id: string) {
       setRounds(rList);
       setSelectedRound(prev => prev || data.starting_round || rList[0]);
 
-      // 1. База
+      // ВАЖНО: Устанавливаем флаг участия строго из данных API
+      // Если юзер не играл, data.has_picks будет false
+      const apiHasPicks = !!data.has_picks; 
+      setHasPicks(apiHasPicks);
+
       const base = ensureStructure(data.bracket || {}, rList, data.id);
-      
-      // 2. TRUE BRACKET (Реальность) — Берем как есть из БД
       setTrueBracket(JSON.parse(JSON.stringify(base)));
 
-      // 3. USER BRACKET (Фантазия) — Строим симуляцией
       const userB: BracketRoundMap = JSON.parse(JSON.stringify(base));
       
       // Очищаем будущее в UserB
@@ -101,8 +104,6 @@ export function useClosedTournament(id: string) {
               });
           }
       }
-
-      let foundPicks = false;
 
       // Симулируем UserB
       for (let i = 0; i < rList.length; i++) {
@@ -122,14 +123,12 @@ export function useClosedTournament(id: string) {
             }
             // Picks logic
             if (m.predicted_winner) {
-                foundPicks = true;
                 propagate(userB, rList, rName, m.match_number, m.predicted_winner);
             }
         });
       }
       
       setUserBracket(userB);
-      if (data.has_picks || foundPicks) setHasPicks(true);
   }, [ensureStructure, propagate]);
 
   useEffect(() => {
@@ -161,6 +160,5 @@ export function useClosedTournament(id: string) {
     return () => { mounted = false; };
   }, [id, loadTournament, cached, processData]);
 
-  // Добавил 'tournament' в return, чтобы линтер не ругался
   return { tournament, userBracket, trueBracket, hasPicks, isLoading, selectedRound, setSelectedRound, rounds };
 }
