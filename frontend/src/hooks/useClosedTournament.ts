@@ -28,33 +28,52 @@ export function useClosedTournament(id: string) {
 
   const isProcessed = useRef(false);
 
-  // Функция для создания Реальной Сетки (чисто для отображения реальности, если нужно)
+  // --- ИСПРАВЛЕННАЯ ФУНКЦИЯ ---
+  // Строит полную структуру сетки для зрителей
   const buildTrueBracket = useCallback((data: Tournament): BracketRoundMap => {
       const tb: BracketRoundMap = {};
       const rList = data.rounds || [];
       const draws = data.true_draws || [];
       
-      rList.forEach(r => tb[r] = []);
+      // Конфигурация размеров сетки
+      const matchCounts: Record<string, number> = {
+          "R128": 64, "R64": 32, "R32": 16, "R16": 8, 
+          "QF": 4, "SF": 2, "F": 1, "Champion": 1
+      };
 
-      draws.forEach(d => {
-          if (!tb[d.round]) tb[d.round] = [];
-          const existing = tb[d.round].find(m => m.match_number === d.match_number);
-          if (!existing) {
-             tb[d.round].push({
-                 id: `${data.id}_${d.round}_${d.match_number}`,
-                 match_number: d.match_number,
-                 round: d.round,
-                 player1: { name: d.player1 || 'TBD' },
-                 player2: { name: d.player2 || 'TBD' },
-                 actual_winner: d.winner,
+      // 1. Создаем пустой скелет
+      rList.forEach(r => {
+          tb[r] = [];
+          const count = matchCounts[r] || 0;
+          for (let i = 1; i <= count; i++) {
+              tb[r].push({
+                 id: `placeholder_${r}_${i}`,
+                 match_number: i,
+                 round: r,
+                 player1: { name: 'TBD' },
+                 player2: { name: 'TBD' },
+                 actual_winner: null,
                  predicted_winner: null,
-                 scores: [d.set1, d.set2, d.set3, d.set4, d.set5].filter(s => s) as string[],
+                 scores: [],
                  source_matches: []
-             });
+              });
+          }
+      });
+
+      // 2. Заполняем данными из БД
+      draws.forEach(d => {
+          if (tb[d.round]) {
+              const match = tb[d.round].find(m => m.match_number === d.match_number);
+              if (match) {
+                  match.id = `${data.id}_${d.round}_${d.match_number}`;
+                  match.player1 = { name: d.player1 || 'TBD' };
+                  match.player2 = { name: d.player2 || 'TBD' };
+                  match.actual_winner = d.winner;
+                  match.scores = [d.set1, d.set2, d.set3, d.set4, d.set5].filter(s => s) as string[];
+              }
           }
       });
       
-      Object.keys(tb).forEach(r => tb[r].sort((a, b) => a.match_number - b.match_number));
       return tb;
   }, []);
 
@@ -63,18 +82,17 @@ export function useClosedTournament(id: string) {
       
       setTournament(data);
       setRounds(data.rounds || []);
-      
-      // ИСПРАВЛЕНИЕ ОШИБКИ TS: Добавили || null в конце
       setSelectedRound(prev => prev || data.starting_round || data.rounds?.[0] || null);
       
-      setHasPicks(!!data.has_picks);
+      const userHasPicks = !!data.has_picks;
+      setHasPicks(userHasPicks);
 
-      // 1. Берем ГОТОВУЮ раскрашенную сетку с бэкенда
+      // 1. User Bracket (Фантазия) - берем готовую с бэкенда
       if (data.bracket) {
           setUserBracket(data.bracket);
       }
 
-      // 2. Строим True Bracket (резерв)
+      // 2. True Bracket (Реальность) - строим полный скелет
       const tb = buildTrueBracket(data);
       setTrueBracket(tb);
 
