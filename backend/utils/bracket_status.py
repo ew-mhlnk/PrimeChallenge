@@ -2,31 +2,22 @@ import re
 import logging
 from typing import Dict, Set, List, Any
 
-# Используем print, так как logging иногда глушится настройками
+# Используем print для гарантированного вывода в логи Render
 def debug_log(msg):
     print(f"[DEBUG_BRACKET] {msg}", flush=True)
 
 def normalize_name(name: str) -> str:
-    """
-    Очень агрессивная нормализация для сравнения.
-    Убираем пробелы, точки, скобки.
-    """
     if not name: return "tbd"
     lower_name = name.lower().strip()
     if lower_name == "tbd": return "tbd"
     if lower_name == "bye": return "bye"
     
-    # 1. Убираем (1), (WC), (Q)
+    # Убираем всё содержимое скобок и всё кроме букв
     n = re.sub(r'\s*\(.*?\)', '', lower_name)
-    # 2. Убираем ВСЁ кроме букв. 'A. Zverev' -> 'azverev'
     n = re.sub(r'[^a-z]', '', n)
-    
     return n if n else "tbd"
 
 def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List) -> Dict[str, List[Dict]]:
-    """
-    Заменяет имена в сетке на выбор пользователя.
-    """
     picks_map = {(p.round, p.match_number): p.predicted_winner for p in user_picks}
     fantasy_winners = {}
     rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F", "Champion"]
@@ -38,7 +29,7 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
         for match in matches:
             m_num = match['match_number']
             
-            # Протаскиваем победителей из прошлого раунда
+            # 1. Протаскивание
             if r_idx > 0:
                 prev_round = rounds_order[r_idx - 1]
                 source_1 = (m_num * 2) - 1
@@ -50,7 +41,7 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
                 if fp1: match['player1']['name'] = fp1
                 if fp2: match['player2']['name'] = fp2
 
-            # Определяем победителя матча в фантазии
+            # 2. Определение победителя
             predicted = picks_map.get((r_name, m_num))
             
             # Авто-проход BYE
@@ -63,6 +54,7 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
             if predicted:
                 fantasy_winners[(r_name, m_num)] = predicted
             
+            # Champion logic
             if r_name == "Champion":
                  w_f = fantasy_winners.get(("F", 1))
                  if w_f:
@@ -72,13 +64,9 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
     return bracket
 
 def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List) -> Dict[str, List[Dict]]:
-    """
-    Сравнивает фантазию с реальностью.
-    """
     real_winners_map = {}
     real_match_players = {}
 
-    # 1. Собираем реальность
     for td in true_draws:
         key = f"{td.round}_{td.match_number}"
         w_norm = normalize_name(td.winner)
@@ -98,7 +86,6 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
         for match in bracket[r_name]:
             match_key = f"{r_name}_{match['match_number']}"
             
-            # Имена из ФАНТАЗИИ (уже переписанные reconstruct_fantasy_bracket)
             up1_raw = match['player1']['name']
             up2_raw = match['player2']['name']
             pick_raw = match.get("predicted_winner")
@@ -107,26 +94,19 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
             up2_norm = normalize_name(up2_raw)
             pick_norm = normalize_name(pick_raw)
             
-            # Реальность
             real_data = real_match_players.get(match_key, ["tbd", "tbd", "TBD", "TBD"])
             rp1_norm, rp2_norm = real_data[0], real_data[1]
             real_winner_norm = real_winners_map.get(match_key, "tbd")
 
-            # --- ЛОГИРОВАНИЕ R16 ДЛЯ ОТЛАДКИ ---
+            # ЛОГИРОВАНИЕ: Видим ли мы совпадения?
             if r_name == "R16" and match['match_number'] <= 2:
-                debug_log(f"R16 Match {match['match_number']}:")
-                debug_log(f"  User P1: '{up1_raw}' -> '{up1_norm}'")
-                debug_log(f"  Real P1 (DB): '{real_data[2]}' -> '{rp1_norm}'")
-                debug_log(f"  Match? {up1_norm} == {rp1_norm}")
+                debug_log(f"CHECK R16_{match['match_number']}: UP1={up1_norm} vs RP1={rp1_norm}")
 
             # --- СТАТУС СЛОТОВ ---
             def get_status(u_norm, r_norm):
                 if u_norm == "tbd": return "PENDING"
                 if u_norm == "bye": return "CORRECT"
-                
-                if r_norm == "tbd": 
-                    # Если в реальности пусто, значит PENDING
-                    return "PENDING"
+                if r_norm == "tbd": return "PENDING"
                 
                 if u_norm == r_norm: return "CORRECT"
                 return "INCORRECT"
@@ -142,7 +122,6 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
                 if pick_norm == real_winner_norm: m_stat = "CORRECT"
                 else: m_stat = "INCORRECT"
             else:
-                # Матч не завершен. Проверяем, жив ли наш пик.
                 target_stat = "PENDING"
                 if pick_norm == up1_norm: target_stat = p1_stat
                 elif pick_norm == up2_norm: target_stat = p2_stat
@@ -155,5 +134,6 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
             match["real_player1"] = real_data[2]
             match["real_player2"] = real_data[3]
             match["status"] = m_stat
+            match["is_eliminated"] = (m_stat == "INCORRECT")
 
     return bracket

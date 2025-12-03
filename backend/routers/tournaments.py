@@ -8,7 +8,6 @@ from database import models
 from schemas import Tournament, TrueDraw, UserPick
 from utils.auth import get_current_user
 from utils.bracket import generate_bracket
-# ВАЖНО: Импортируем обе функции для обработки CLOSED статуса
 from utils.bracket_status import enrich_bracket_with_status, reconstruct_fantasy_bracket
 
 router = APIRouter()
@@ -40,6 +39,16 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     
     user_id = user["id"]
     
+    # --- ВАЖНОЕ ИСПРАВЛЕНИЕ: ПРЕОБРАЗОВАНИЕ ENUM В СТРОКУ ---
+    # SQLAlchemy может возвращать Enum объект, который не равен строке "CLOSED"
+    status_val = tournament.status
+    status_str = status_val.value if hasattr(status_val, 'value') else str(status_val)
+    # Приводим к верхнему регистру на всякий случай
+    status_str = status_str.upper()
+    
+    logger.info(f"Tournament Status Check: DB='{status_val}' -> Str='{status_str}'")
+    # --------------------------------------------------------
+
     true_draws = db.query(models.TrueDraw).filter(models.TrueDraw.tournament_id == id).all()
     
     user_picks = db.query(models.UserPick).filter(
@@ -47,39 +56,38 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
         models.UserPick.user_id == user_id
     ).all()
     
-    # Определение раундов
     all_rounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'Champion']
     start_round_clean = tournament.starting_round.strip() if tournament.starting_round else "R32"
     
     try:
         starting_index = all_rounds.index(start_round_clean)
     except ValueError:
-        starting_index = 2 # Default R32
-        
+        starting_index = 2 
     rounds = all_rounds[starting_index:]
     
-    # 1. Генерируем БАЗОВУЮ структуру (как в Active режиме)
-    # Это создает скелет сетки с реальными игроками в первом круге
+    # 1. Генерируем БАЗОВУЮ структуру
     bracket = generate_bracket(tournament, true_draws, user_picks, rounds)
     
     # 2. ЕСЛИ ТУРНИР ЗАКРЫТ: Включаем режим Фэнтези
-    if tournament.status in ["CLOSED", "COMPLETED"]:
-        # А. "Протаскиваем" выбор пользователя вперед (симуляция)
-        # Это заменит "TBD" или реальных игроков в будущих раундах на тех, кого выбрал юзер
-        bracket = reconstruct_fantasy_bracket(bracket, user_picks)
-        
-        # Б. Сравниваем получившуюся Фэнтези-сетку с Реальностью
-        # Это проставит статусы CORRECT/INCORRECT и цвета
-        bracket = enrich_bracket_with_status(bracket, true_draws)
+    # Используем нашу надежную строку status_str
+    if status_str in ["CLOSED", "COMPLETED"]:
+        logger.info("Applying Fantasy Logic (Reconstruct + Enrich)...")
+        try:
+            bracket = reconstruct_fantasy_bracket(bracket, user_picks)
+            bracket = enrich_bracket_with_status(bracket, true_draws)
+            logger.info("Fantasy Logic applied successfully.")
+        except Exception as e:
+            logger.error(f"Error applying fantasy logic: {e}")
+            # Не падаем, отдаем базовую сетку, но пишем ошибку
+    else:
+        logger.info("Skipping Fantasy Logic (Tournament is ACTIVE)")
 
     has_picks = any(p.predicted_winner for p in user_picks)
     
-    # Счет берем из БД (он там уже посчитан)
     user_score_obj = db.query(models.UserScore).filter_by(user_id=user_id, tournament_id=tournament.id).first()
     current_score = user_score_obj.score if user_score_obj else 0
     current_correct = user_score_obj.correct_picks if user_score_obj else 0
 
-    # Валидация Pydantic
     true_draws_data = [TrueDraw.model_validate(draw) for draw in true_draws]
     user_picks_data = [UserPick.model_validate(pick) for pick in user_picks]
 
