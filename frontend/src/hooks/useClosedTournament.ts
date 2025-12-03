@@ -21,115 +21,64 @@ export function useClosedTournament(id: string) {
   const [tournament, setTournament] = useState<Tournament | null>(cached);
   const [userBracket, setUserBracket] = useState<BracketRoundMap>({});
   const [trueBracket, setTrueBracket] = useState<BracketRoundMap>({});
-  
-  // ИСПРАВЛЕНИЕ: hasPicks по умолчанию false и меняется ТОЛЬКО если API скажет
   const [hasPicks, setHasPicks] = useState(false);
-  
   const [isLoading, setIsLoading] = useState(!cached);
-  const [selectedRound, setSelectedRound] = useState(cached?.starting_round || cached?.rounds?.[0] || null);
-  const [rounds, setRounds] = useState(cached?.rounds || []);
+  const [selectedRound, setSelectedRound] = useState<string | null>(cached?.starting_round || cached?.rounds?.[0] || null);
+  const [rounds, setRounds] = useState<string[]>(cached?.rounds || []);
 
   const isProcessed = useRef(false);
 
-  // 1. Создание структуры
-  const ensureStructure = useCallback((base: BracketRoundMap, rList: string[], tId: number): BracketRoundMap => {
-    const newB: BracketRoundMap = JSON.parse(JSON.stringify(base));
-    for (let i = 0; i < rList.length; i++) {
-      const rName = rList[i];
-      if (!newB[rName]) newB[rName] = [];
-      const count = rName === 'Champion' ? 1 : (i === 0 ? newB[rName].length : Math.ceil(newB[rList[i-1]].length / 2));
-      for (let m = 1; m <= count; m++) {
-          if (!newB[rName].find((x) => x.match_number === m)) {
-              newB[rName].push({
-                  id: `${tId}_${rName}_${m}`, match_number: m, round: rName,
-                  player1: { name: 'TBD' }, player2: { name: 'TBD' },
-                  predicted_winner: null, actual_winner: null, source_matches: []
-              });
+  // Функция для создания Реальной Сетки (чисто для отображения реальности, если нужно)
+  const buildTrueBracket = useCallback((data: Tournament): BracketRoundMap => {
+      const tb: BracketRoundMap = {};
+      const rList = data.rounds || [];
+      const draws = data.true_draws || [];
+      
+      rList.forEach(r => tb[r] = []);
+
+      draws.forEach(d => {
+          if (!tb[d.round]) tb[d.round] = [];
+          const existing = tb[d.round].find(m => m.match_number === d.match_number);
+          if (!existing) {
+             tb[d.round].push({
+                 id: `${data.id}_${d.round}_${d.match_number}`,
+                 match_number: d.match_number,
+                 round: d.round,
+                 player1: { name: d.player1 || 'TBD' },
+                 player2: { name: d.player2 || 'TBD' },
+                 actual_winner: d.winner,
+                 predicted_winner: null,
+                 scores: [d.set1, d.set2, d.set3, d.set4, d.set5].filter(s => s) as string[],
+                 source_matches: []
+             });
           }
-      }
-      newB[rName].sort((a, b) => a.match_number - b.match_number);
-    }
-    return newB;
-  }, []);
-
-  // 2. Симуляция
-  const propagate = useCallback((bState: BracketRoundMap, rList: string[], cRound: string, mNum: number, wName: string | null) => {
-    const idx = rList.indexOf(cRound);
-    if (idx === -1 || idx === rList.length - 1) return;
-    const nRound = rList[idx + 1];
-
-    if (nRound === 'Champion') {
-        const cm = bState['Champion']?.find((m) => m.match_number === 1);
-        if (cm) { cm.player1 = { name: wName || 'TBD' }; cm.predicted_winner = wName; }
-        return;
-    }
-
-    const nNum = Math.ceil(mNum / 2);
-    const isP1 = mNum % 2 !== 0; 
-    const nm = bState[nRound]?.find((m) => m.match_number === nNum);
-
-    if (nm) {
-      const target = isP1 ? 'player1' : 'player2';
-      nm[target] = { name: wName || 'TBD' };
-      if (nm.predicted_winner) {
-          propagate(bState, rList, nRound, nNum, nm.predicted_winner);
-      }
-    }
+      });
+      
+      Object.keys(tb).forEach(r => tb[r].sort((a, b) => a.match_number - b.match_number));
+      return tb;
   }, []);
 
   const processData = useCallback((data: Tournament) => {
-      console.log("[CLOSED] Calculating Brackets...");
+      console.log("[CLOSED] Loading Backend Bracket...");
+      
       setTournament(data);
-      const rList = data.rounds || [];
-      setRounds(rList);
-      setSelectedRound(prev => prev || data.starting_round || rList[0]);
-
-      // ВАЖНО: Устанавливаем флаг участия строго из данных API
-      // Если юзер не играл, data.has_picks будет false
-      const apiHasPicks = !!data.has_picks; 
-      setHasPicks(apiHasPicks);
-
-      const base = ensureStructure(data.bracket || {}, rList, data.id);
-      setTrueBracket(JSON.parse(JSON.stringify(base)));
-
-      const userB: BracketRoundMap = JSON.parse(JSON.stringify(base));
+      setRounds(data.rounds || []);
       
-      // Очищаем будущее в UserB
-      for (let i = 1; i < rList.length; i++) {
-          const rName = rList[i];
-          if (userB[rName]) {
-              userB[rName].forEach((m) => {
-                  m.player1 = { name: 'TBD' };
-                  m.player2 = { name: 'TBD' };
-              });
-          }
+      // ИСПРАВЛЕНИЕ ОШИБКИ TS: Добавили || null в конце
+      setSelectedRound(prev => prev || data.starting_round || data.rounds?.[0] || null);
+      
+      setHasPicks(!!data.has_picks);
+
+      // 1. Берем ГОТОВУЮ раскрашенную сетку с бэкенда
+      if (data.bracket) {
+          setUserBracket(data.bracket);
       }
 
-      // Симулируем UserB
-      for (let i = 0; i < rList.length; i++) {
-        const rName = rList[i];
-        if (!userB[rName]) continue;
-        
-        userB[rName].forEach((m) => {
-            // BYE logic
-            if (i === 0) {
-                 if (m.player1?.name === 'Bye' && m.player2?.name && m.player2.name !== 'TBD') {
-                     const w = m.player2.name; m.predicted_winner = w;
-                     propagate(userB, rList, rName, m.match_number, w);
-                 } else if (m.player2?.name === 'Bye' && m.player1?.name && m.player1.name !== 'TBD') {
-                     const w = m.player1.name; m.predicted_winner = w;
-                     propagate(userB, rList, rName, m.match_number, w);
-                 }
-            }
-            // Picks logic
-            if (m.predicted_winner) {
-                propagate(userB, rList, rName, m.match_number, m.predicted_winner);
-            }
-        });
-      }
-      
-      setUserBracket(userB);
-  }, [ensureStructure, propagate]);
+      // 2. Строим True Bracket (резерв)
+      const tb = buildTrueBracket(data);
+      setTrueBracket(tb);
+
+  }, [buildTrueBracket]);
 
   useEffect(() => {
     let mounted = true;
