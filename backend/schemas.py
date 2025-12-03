@@ -109,14 +109,12 @@ class BracketMatch(BaseModel):
     scores: Optional[List[str]] = None 
     source_matches: List[Dict[str, Any]] = []
     
-    # --- НОВЫЕ ПОЛЯ ---
+    # --- НОВЫЕ ПОЛЯ (ОБЯЗАТЕЛЬНО) ---
     status: Optional[str] = "PENDING"
     
-    # Статус конкретного слота (игрока)
-    player1_status: Optional[str] = "PENDING"   # CORRECT | INCORRECT | PENDING
+    player1_status: Optional[str] = "PENDING"
     player2_status: Optional[str] = "PENDING"
     
-    # Кто реально находится в этом слоте (для подсказки при ошибке)
     real_player1: Optional[str] = None
     real_player2: Optional[str] = None
     
