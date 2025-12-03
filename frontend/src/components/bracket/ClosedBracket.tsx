@@ -8,7 +8,7 @@ import { useClosedTournament } from '@/hooks/useClosedTournament';
 import { useRouter } from 'next/navigation';
 
 const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>);
-const CheckIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>);
+// CheckIcon удален из использования, но можно оставить в коде или удалить
 const TrophyIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>);
 
 const variants: Variants = {
@@ -57,6 +57,9 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
         <button onClick={() => router.back()} className={styles.backArrow}><BackIcon /></button>
         <h2 className={styles.tournamentTitle}>{tournamentName}</h2>
       </div>
+      <div className={styles.bannerWrapper}>
+         <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[16px] opacity-90"></div>
+      </div>
       <div className={styles.roundsContainer}>
         {rounds.map((round) => (
           <button key={round} onClick={() => changeRound(round)} className={`${styles.roundButton} ${selectedRound === round ? styles.activeRound : ''}`}>{round}</button>
@@ -89,12 +92,14 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                       const safeName = playerName || 'TBD';
                       const cleanName = clean(safeName);
                       
+                      // 1. ЗРИТЕЛИ
                       if (!hasPicks) {
                           if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
                           if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
                           return { className: cls, display: safeName, hint: null };
                       }
 
+                      // 2. ПЕРВЫЙ РАУНД
                       if (isFirstRound) {
                            if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
                            if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
@@ -102,7 +107,7 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                            return { className: cls, display: safeName, hint: null };
                       }
 
-                      // R16+
+                      // 3. СЛЕДУЮЩИЕ РАУНДЫ
                       if (cleanName === 'tbd') return { className: `${cls} ${styles.tbd}`, display: 'TBD', hint: null };
                       if (cleanName === 'bye') return { className: `${cls} ${styles.tbd}`, display: 'Bye', hint: null };
 
@@ -111,15 +116,18 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                       }
                       
                       if (slotStatus === 'INCORRECT') {
+                          // ЛОГИКА ПОДСКАЗКИ: Скрываем TBD
+                          let hintToShow = realPlayerName;
+                          if (clean(hintToShow) === 'tbd') hintToShow = undefined; // Или null
+
                           return { 
                               className: `${cls} ${styles.incorrect}`, 
                               display: safeName, 
-                              hint: realPlayerName,
+                              hint: hintToShow, 
                               style: { opacity: 0.5, textDecoration: 'line-through' } 
                           };
                       }
                       
-                      // Статус PENDING (Синий или Серый)
                       if (isUserPick) return { className: `${cls} ${styles.selected}`, display: safeName, hint: null };
                       return { className: cls, display: safeName, hint: null };
                   };
@@ -143,6 +151,7 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                                         <span className={styles.playerName} style={{ fontSize: '16px' }}>{state.display}</span>
                                         {state.hint && (<div className={styles.correctionText}><span className={styles.correctionArrow}>→</span> {state.hint}</div>)}
                                     </div>
+                                    {/* У чемпиона можно оставить трофей, если это победа */}
                                     {(hasPicks && state.className.includes(styles.correct)) && <div className={styles.checkIcon}><TrophyIcon /></div>}
                                 </div>
                             </div>
@@ -157,11 +166,12 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                   const p1S = getStyle(uP1.name, match.player1_status, match.real_player1, p1IsPick);
                   const p2S = getStyle(uP2.name, match.player2_status, match.real_player2, p2IsPick);
 
-                  const showCheck = hasPicks && !isFirstRound;
-
+                  // ИЗМЕНЕНИЕ: Убрали галочки CheckIcon
+                  
                   return (
                     <div key={match.id} className={styles.matchWrapper}>
                       <div className={styles.matchContainer}>
+                        {/* PLAYER 1 */}
                         <div className={p1S.className} style={p1S.style}>
                           <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p1S.display}</span>
@@ -169,9 +179,10 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                               {p1S.hint && (<div className={styles.correctionText}><span className={styles.correctionArrow}>→</span> {p1S.hint}</div>)}
                           </div>
                           <div className="flex gap-2 mr-2">{scores.map((s: string, i: number) => <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{s.split('-')[0]}</span>)}</div>
-                          {showCheck && p1IsPick && !p1S.className.includes('incorrect') && <div className={styles.checkIcon}><CheckIcon/></div>}
+                          {/* ГАЛОЧКИ УБРАНЫ */}
                         </div>
                         
+                        {/* PLAYER 2 */}
                         <div className={p2S.className} style={p2S.style}>
                            <div className={styles.playerInfo}>
                               <span className={styles.playerName}>{p2S.display}</span>
@@ -179,7 +190,7 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                               {p2S.hint && (<div className={styles.correctionText}><span className={styles.correctionArrow}>→</span> {p2S.hint}</div>)}
                            </div>
                            <div className="flex gap-2 mr-2">{scores.map((s: string, i: number) => <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{s.split('-')[1]}</span>)}</div>
-                           {showCheck && p2IsPick && !p2S.className.includes('incorrect') && <div className={styles.checkIcon}><CheckIcon/></div>}
+                           {/* ГАЛОЧКИ УБРАНЫ */}
                         </div>
                       </div>
                       {selectedRound !== 'F' && <div className={styles.bracketConnector} />}
