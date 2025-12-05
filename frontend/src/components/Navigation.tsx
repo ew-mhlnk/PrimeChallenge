@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useScrollDirection } from '@/hooks/useScrollDirection';
 import { useEffect, useState } from 'react';
+import { useHapticFeedback } from '@/hooks/useHapticFeedback'; // <--- Импорт
 
 const navItems = [
   { label: 'Активные', path: '/' },
@@ -16,8 +17,8 @@ export default function Navigation() {
   const pathname = usePathname();
   const scrollDirection = useScrollDirection();
   const [isVisible, setIsVisible] = useState(true);
+  const { impact } = useHapticFeedback(); // <--- Hook
 
-  // 1. Скрываем навигацию на странице турнира
   const isTournamentPage = pathname.startsWith('/tournament/');
 
   useEffect(() => {
@@ -28,7 +29,6 @@ export default function Navigation() {
     }
   }, [scrollDirection]);
 
-  // Если мы внутри турнира — не показываем меню вообще
   if (isTournamentPage) {
     return null;
   }
@@ -64,6 +64,7 @@ export default function Navigation() {
                 <Link 
                   key={item.path} 
                   href={item.path}
+                  onClick={() => impact('light')} // <--- Вибрация при переключении
                   className="relative"
                 >
                   <button
