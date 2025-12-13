@@ -39,12 +39,10 @@ const FilterPill = ({ label, isActive, onClick, colorClass }: FilterPillProps) =
   );
 };
 
-// 2. Карточка турнира (Обновленная)
+// 2. Карточка турнира
 const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
   const isActive = tournament.status === 'ACTIVE';
   const isClosed = tournament.status === 'CLOSED';
-  const isCompleted = tournament.status === 'COMPLETED';
-  const isPlanned = tournament.status === 'PLANNED';
   
   let statusText = '';
   let statusColor = 'text-[#8E8E93]';
@@ -58,15 +56,7 @@ const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
       statusText = 'Турнир уже начался';
       statusColor = 'text-[#FFD700]';
       dotColor = 'bg-[#FFD700]';
-  } else if (isCompleted) {
-      statusText = 'Турнир завершен';
-      statusColor = 'text-[#8E8E93]';
-      dotColor = 'bg-[#8E8E93]';
-  } else if (isPlanned) {
-      statusText = 'Скоро • Сетка не открыта';
-      statusColor = 'text-[#007AFF]';
-      dotColor = 'bg-[#007AFF]';
-  }
+  } 
 
   return (
     <Link href={`/tournament/${tournament.id}`} className="block w-full">
@@ -123,8 +113,6 @@ const LoadingScreen = () => (
   </div>
 );
 
-// --- MAIN PAGE ---
-
 export default function Home() {
   const { tournaments, error, isLoading } = useTournaments();
   const { user } = useAuth();
@@ -140,11 +128,10 @@ export default function Home() {
   if (isLoading) return <LoadingScreen />;
   if (error) return <p className="text-red-500 px-8 pt-20">Ошибка: {error}</p>;
 
-  // На главной показываем: ACTIVE, CLOSED и PLANNED (новые турниры тоже важны)
-  // COMPLETED убираем в архив (вкладка Турниры)
+  // ИЗМЕНЕНИЕ: Оставляем только ACTIVE и CLOSED.
+  // PLANNED и COMPLETED уходят в календарь.
   const activeTournaments = tournaments ? tournaments.filter((tournament: Tournament) => {
-    // Показываем PLANNED, ACTIVE, CLOSED. Скрываем COMPLETED.
-    if (tournament.status === 'COMPLETED') return false;
+    if (!['ACTIVE', 'CLOSED'].includes(tournament.status)) return false;
     
     if (selectedTag === 'ВСЕ') return true;
     return tournament.tag === selectedTag;
