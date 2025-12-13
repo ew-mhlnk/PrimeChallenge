@@ -20,14 +20,13 @@ export interface BracketMatch {
   actual_winner?: string | null;
   scores?: string[];
 
-  // --- НОВЫЕ ПОЛЯ ДЛЯ СТАТУСОВ (Fix для ошибок TS) ---
-  status?: string;                                   // 'CORRECT' | 'INCORRECT' | 'PENDING' | 'NO_PICK'
-  player1_status?: string;                           // 'CORRECT' | 'INCORRECT' | 'PENDING'
-  player2_status?: string;                           // 'CORRECT' | 'INCORRECT' | 'PENDING'
-  real_player1?: string;                             // Имя реального игрока в слоте 1
-  real_player2?: string;                             // Имя реального игрока в слоте 2
+  // Поля статусов
+  status?: string;                                   
+  player1_status?: string;                           
+  player2_status?: string;                           
+  real_player1?: string;                             
+  real_player2?: string;                             
   is_eliminated?: boolean;
-  // ---------------------------------------------------
 
   source_matches: Array<{ round: string; match_number: number }>;
 }
@@ -87,13 +86,23 @@ export interface Tournament {
   id: number;
   name: string;
   dates?: string;
-  status: 'ACTIVE' | 'CLOSED' | 'COMPLETED';
+  // Добавили PLANNED
+  status: 'PLANNED' | 'ACTIVE' | 'CLOSED' | 'COMPLETED';
   sheet_name?: string;
   starting_round?: string;
   type?: string;
   start?: string;
   close?: string;
   tag?: string;
+  
+  // --- НОВЫЕ ПОЛЯ ---
+  surface?: 'Hard' | 'Clay' | 'Grass' | string;
+  defending_champion?: string;
+  description?: string;
+  matches_count?: string;
+  month?: string; // "01.2025"
+  // ------------------
+
   true_draws?: Match[];
   user_picks?: UserPick[];
   scores?: UserScore[];
@@ -105,6 +114,7 @@ export interface Tournament {
   correct_picks?: number;
 }
 
+// ... Остальные типы (LeaderboardEntry, StatRow...) оставляем без изменений
 export interface LeaderboardEntry {
   rank: number;
   user_id: number;
