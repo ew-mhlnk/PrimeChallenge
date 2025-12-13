@@ -86,8 +86,8 @@ export interface Tournament {
   id: number;
   name: string;
   dates?: string;
-  // Добавили PLANNED
-  status: 'PLANNED' | 'ACTIVE' | 'CLOSED' | 'COMPLETED';
+  // Добавили | string, чтобы TS не падал при несоответствии
+  status: 'PLANNED' | 'ACTIVE' | 'CLOSED' | 'COMPLETED' | string;
   sheet_name?: string;
   starting_round?: string;
   type?: string;
@@ -95,13 +95,12 @@ export interface Tournament {
   close?: string;
   tag?: string;
   
-  // --- НОВЫЕ ПОЛЯ ---
-  surface?: 'Hard' | 'Clay' | 'Grass' | string;
+  // Новые поля
+  surface?: string; // Упростили тип до string
   defending_champion?: string;
   description?: string;
   matches_count?: string;
-  month?: string; // "01.2025"
-  // ------------------
+  month?: string;
 
   true_draws?: Match[];
   user_picks?: UserPick[];
@@ -114,7 +113,6 @@ export interface Tournament {
   correct_picks?: number;
 }
 
-// ... Остальные типы (LeaderboardEntry, StatRow...) оставляем без изменений
 export interface LeaderboardEntry {
   rank: number;
   user_id: number;

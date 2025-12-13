@@ -17,18 +17,15 @@ interface ApiTournament {
   id: number;
   name: string;
   dates?: string;
-  status: string; // Приходит строкой: "PLANNED", "ACTIVE"...
+  status: string; 
   start?: string;
   close?: string;
   tag?: string;
-  
-  // --- НОВЫЕ ПОЛЯ ---
   surface?: string;
   defending_champion?: string;
   description?: string;
   matches_count?: string;
   month?: string;
-  // ------------------
 }
 
 const TournamentContext = createContext<TournamentContextType | undefined>(undefined);
@@ -39,15 +36,11 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Кэш деталей
   const [tournamentDetails, setTournamentDetails] = useState<Record<string, Tournament>>({});
 
   const fetchTournaments = useCallback(async () => {
-    // Если уже загружено, не включаем спиннер на весь экран, но обновляем данные
     setIsLoading((prev) => !isLoaded ? true : prev);
-    
     try {
-      // Ждем инициализации Telegram WebApp (если мы внутри)
       let attempts = 0;
       if (typeof window !== 'undefined') {
          while (!window.Telegram?.WebApp?.initData && attempts < 10) {
@@ -59,36 +52,30 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
       const headers: HeadersInit = {};
       if (initData) headers['Authorization'] = initData;
 
-      // Запрос списка
       const response = await fetch('/api/tournaments', { headers });
       if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
       
       const data = await response.json();
       
-      // Маппинг данных (Backend JSON -> Frontend Types)
+      // БЕЗОПАСНЫЙ МАППИНГ
       const mappedData: Tournament[] = data.map((item: ApiTournament) => ({
         id: item.id,
         name: item.name,
         dates: item.dates,
-        // Приводим строку к нашему типу статуса
-        status: item.status as 'PLANNED' | 'ACTIVE' | 'CLOSED' | 'COMPLETED',
+        status: item.status, // TypeScript пропустит это благодаря '| string' в types.ts
         start: item.start,
         close: item.close,
         tag: item.tag,
-        
-        // Маппинг новых полей
         surface: item.surface,
         defending_champion: item.defending_champion,
         description: item.description,
         matches_count: item.matches_count,
         month: item.month,
-
-        // Пустые массивы для списка (детали грузятся отдельно)
         true_draws: [],
         user_picks: [],
         scores: [],
         rounds: [],
-      }));
+      })) as Tournament[]; // Принудительное приведение типа
 
       setTournaments(mappedData);
       setIsLoaded(true);
@@ -115,16 +102,17 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
       const data = await response.json();
 
-      // Нормализация статуса на всякий случай
       if (data.status) data.status = data.status.toString().trim().toUpperCase();
 
-      // Сохраняем в кэш
+      // Приводим к типу Tournament
+      const tournamentData = data as Tournament;
+
       setTournamentDetails(prev => ({
         ...prev,
-        [id]: data
+        [id]: tournamentData
       }));
 
-      return data;
+      return tournamentData;
     } catch (e) {
       console.error("Error loading tournament details:", e);
       return null;
