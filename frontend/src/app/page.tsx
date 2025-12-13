@@ -7,9 +7,7 @@ import useTournaments from '../hooks/useTournaments';
 import useAuth from '../hooks/useAuth';
 import { Tournament } from '@/types';
 
-// --- КОМПОНЕНТЫ UI ---
-
-// 1. Теги (Фильтры)
+// 1. Теги
 interface FilterPillProps {
   label: string;
   isActive: boolean;
@@ -41,13 +39,14 @@ const FilterPill = ({ label, isActive, onClick, colorClass }: FilterPillProps) =
   );
 };
 
-// 2. Карточка турнира
+// 2. Карточка турнира (Обновленная)
 const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
   const isActive = tournament.status === 'ACTIVE';
   const isClosed = tournament.status === 'CLOSED';
   const isCompleted = tournament.status === 'COMPLETED';
+  const isPlanned = tournament.status === 'PLANNED';
   
-  let statusText = 'Скоро начнется';
+  let statusText = '';
   let statusColor = 'text-[#8E8E93]';
   let dotColor = 'bg-[#8E8E93]';
 
@@ -55,18 +54,18 @@ const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
       statusText = 'Live • Идет сейчас';
       statusColor = 'text-[#32D74B]';
       dotColor = 'bg-[#32D74B] animate-pulse';
-  } 
-  
-  if (isClosed) {
+  } else if (isClosed) {
       statusText = 'Турнир уже начался';
-      statusColor = 'text-[#FFD700]'; // Желтый/Золотой
+      statusColor = 'text-[#FFD700]';
       dotColor = 'bg-[#FFD700]';
-  }
-
-  if (isCompleted) {
+  } else if (isCompleted) {
       statusText = 'Турнир завершен';
       statusColor = 'text-[#8E8E93]';
       dotColor = 'bg-[#8E8E93]';
+  } else if (isPlanned) {
+      statusText = 'Скоро • Сетка не открыта';
+      statusColor = 'text-[#007AFF]';
+      dotColor = 'bg-[#007AFF]';
   }
 
   return (
@@ -141,9 +140,12 @@ export default function Home() {
   if (isLoading) return <LoadingScreen />;
   if (error) return <p className="text-red-500 px-8 pt-20">Ошибка: {error}</p>;
 
-  // Показываем ACTIVE и CLOSED (актуальные)
+  // На главной показываем: ACTIVE, CLOSED и PLANNED (новые турниры тоже важны)
+  // COMPLETED убираем в архив (вкладка Турниры)
   const activeTournaments = tournaments ? tournaments.filter((tournament: Tournament) => {
-    if (!['ACTIVE', 'CLOSED'].includes(tournament.status)) return false;
+    // Показываем PLANNED, ACTIVE, CLOSED. Скрываем COMPLETED.
+    if (tournament.status === 'COMPLETED') return false;
+    
     if (selectedTag === 'ВСЕ') return true;
     return tournament.tag === selectedTag;
   }) : [];
@@ -153,7 +155,6 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col relative overflow-x-hidden pb-32">
       
-      {/* Фоновое пятно */}
       <div 
         className="fixed top-[-100px] left-[-100px] w-[453px] h-[453px] rounded-full pointer-events-none"
         style={{
@@ -167,7 +168,6 @@ export default function Home() {
 
       <main className="relative z-10 px-6 pt-12 flex flex-col gap-8">
         
-        {/* Header - Упрощенный, без аватарки */}
         <header className="flex flex-col justify-center mt-2">
             <span className="text-[14px] text-[#8E8E93] font-medium uppercase tracking-wide mb-1">
               Prime Bracket
@@ -177,7 +177,6 @@ export default function Home() {
             </h1>
         </header>
 
-        {/* Promo Block */}
         <motion.div 
           whileTap={{ scale: 0.98 }}
           className="w-full h-[120px] bg-[#D9D9D9] rounded-[24px] relative overflow-hidden cursor-pointer shadow-lg"
@@ -192,7 +191,6 @@ export default function Home() {
            </div>
         </motion.div>
 
-        {/* Tournaments List */}
         <section>
           <div className="flex justify-between items-end mb-4">
             <h2 className="text-[20px] font-bold text-white tracking-tight">
@@ -200,7 +198,6 @@ export default function Home() {
             </h2>
           </div>
 
-          {/* Фильтры */}
           <div className="flex gap-2 overflow-x-auto pb-4 -mx-6 px-6 scrollbar-hide">
             {filters.map((f) => (
               <FilterPill 
@@ -213,7 +210,6 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Список */}
           <div className="flex flex-col gap-4 mt-1">
             {!tournaments ? (
                [1,2].map(i => (
@@ -222,7 +218,7 @@ export default function Home() {
             ) : activeTournaments.length === 0 ? (
                 <div className="text-center py-10">
                     <p className="text-[#8E8E93] text-sm">Нет активных турниров</p>
-                    <Link href="/archive" className="text-[#007AFF] text-sm mt-2 block">Посмотреть архив</Link>
+                    <Link href="/archive" className="text-[#007AFF] text-sm mt-2 block">Посмотреть календарь</Link>
                 </div>
             ) : (
                 activeTournaments.map((tournament: Tournament) => (
