@@ -4,6 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 class TournamentStatus(str, Enum):
+    PLANNED = "PLANNED"  # <---
     ACTIVE = "ACTIVE"
     CLOSED = "CLOSED"
     COMPLETED = "COMPLETED"
@@ -28,6 +29,14 @@ class TournamentBase(BaseModel):
     start: Optional[str] = None
     close: Optional[str] = None
     tag: Optional[str] = None
+    
+    # --- НОВЫЕ ПОЛЯ ---
+    surface: Optional[str] = None
+    defending_champion: Optional[str] = None
+    description: Optional[str] = None
+    matches_count: Optional[str] = None
+    month: Optional[str] = None
+    # ------------------
 
     class Config:
         from_attributes = True
@@ -40,7 +49,6 @@ class TrueDrawBase(BaseModel):
     player1: Optional[str] = None
     player2: Optional[str] = None
     winner: Optional[str] = None
-    
     set1: Optional[str] = None
     set2: Optional[str] = None
     set3: Optional[str] = None
@@ -109,17 +117,12 @@ class BracketMatch(BaseModel):
     scores: Optional[List[str]] = None 
     source_matches: List[Dict[str, Any]] = []
     
-    # --- НОВЫЕ ПОЛЯ (ОБЯЗАТЕЛЬНО) ---
     status: Optional[str] = "PENDING"
-    
     player1_status: Optional[str] = "PENDING"
     player2_status: Optional[str] = "PENDING"
-    
     real_player1: Optional[str] = None
     real_player2: Optional[str] = None
-    
     is_eliminated: Optional[bool] = False
-    # ------------------
 
 class TrueDraw(TrueDrawBase):
     pass

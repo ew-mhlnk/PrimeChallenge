@@ -6,6 +6,7 @@ from database.db import Base
 import enum
 
 class TournamentStatus(enum.Enum):
+    PLANNED = "PLANNED"  # <--- Новый статус
     ACTIVE = "ACTIVE"
     CLOSED = "CLOSED"
     COMPLETED = "COMPLETED"
@@ -14,18 +15,30 @@ class Tournament(Base):
     __tablename__ = "tournaments"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    dates = Column(String)
-    status = Column(Enum(TournamentStatus), default=TournamentStatus.ACTIVE)
+    dates = Column(String) 
+    status = Column(Enum(TournamentStatus), default=TournamentStatus.PLANNED)
     sheet_name = Column(String, nullable=True)
     starting_round = Column(String)
     type = Column(String)
-    start = Column(String)
-    close = Column(String)
+    
+    # ВРЕМЕННЫЕ МЕТКИ
+    start = Column(String) # Дата ОТКРЫТИЯ прогнозов
+    close = Column(String) # Дата ЗАКРЫТИЯ прогнозов (начало матчей)
+    
     tag = Column(String, nullable=True)
+    
+    # --- НОВЫЕ ПОЛЯ ---
+    surface = Column(String, nullable=True)           # Hard, Clay...
+    defending_champion = Column(String, nullable=True)
+    description = Column(String, nullable=True)       # Info
+    matches_count = Column(String, nullable=True)
+    month = Column(String, nullable=True)             # 01.2025
+    # ------------------
 
     true_draws = relationship("TrueDraw", back_populates="tournament")
     user_picks = relationship("UserPick", back_populates="tournament")
     scores = relationship("UserScore", back_populates="tournament")
+    leaderboard_entries = relationship("Leaderboard", back_populates="tournament")
 
 class TrueDraw(Base):
     __tablename__ = "true_draw"
@@ -37,7 +50,6 @@ class TrueDraw(Base):
     player2 = Column(String)
     winner = Column(String, nullable=True)
     
-    # Сет-скоры (например, "6-4")
     set1 = Column(String, nullable=True)
     set2 = Column(String, nullable=True)
     set3 = Column(String, nullable=True)
@@ -99,4 +111,4 @@ class Leaderboard(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     
     user = relationship("User", back_populates="leaderboard_entries")
-    tournament = relationship("Tournament")
+    tournament = relationship("Tournament", back_populates="leaderboard_entries")
