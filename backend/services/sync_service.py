@@ -270,3 +270,4 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
              except Exception as e: logger.error(f"Sync error T{tid}: {e}")
         conn.commit()
         print("--- SYNC FINISHED ---")
+        
