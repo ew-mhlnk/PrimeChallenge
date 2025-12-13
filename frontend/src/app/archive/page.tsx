@@ -12,7 +12,7 @@ const BackIcon = () => (
 );
 
 const CalendarIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
     <line x1="16" y1="2" x2="16" y2="6"></line>
     <line x1="8" y1="2" x2="8" y2="6"></line>
@@ -20,8 +20,11 @@ const CalendarIcon = () => (
   </svg>
 );
 
+const CloseIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+);
+
 // --- ХЕЛПЕРЫ ---
-// Парсит строку "01.2026" в объект для сортировки и отображения
 const parseMonth = (monthStr: string) => {
     const monthsShort = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН', 'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
     
@@ -34,7 +37,7 @@ const parseMonth = (monthStr: string) => {
         label: monthsShort[mIdx] || '?',
         year: y,
         index: m,
-        sortVal: y * 100 + m // Пример: 202601
+        sortVal: y * 100 + m 
     };
 };
 
@@ -67,7 +70,9 @@ export default function TournamentsPage() {
   
   // --- СОСТОЯНИЯ ---
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedTag, setSelectedTag] = useState<string>('ВСЕ');
+  const [isYearPickerOpen, setIsYearPickerOpen] = useState(false);
 
   const filters = [
     { label: 'ВСЕ', color: 'bg-[#007AFF]' },
@@ -76,50 +81,57 @@ export default function TournamentsPage() {
     { label: 'ТБШ', color: 'bg-gradient-to-r from-[#FDF765] to-[#DAB07F]' },
   ];
 
-  // 1. Получаем список уникальных месяцев из данных
-  const availableMonths = useMemo(() => {
-      if (!tournaments) return [];
-      const months = Array.from(new Set(tournaments.map(t => t.month).filter(Boolean) as string[]));
+  // 1. Получаем уникальные годы и месяцы
+  const { years, months } = useMemo(() => {
+      if (!tournaments) return { years: [], months: [] };
       
-      // Сортируем хронологически (2025 -> 2026)
-      return months.sort((a, b) => {
-          return parseMonth(a).sortVal - parseMonth(b).sortVal;
-      });
+      const uniqueMonths = Array.from(new Set(tournaments.map(t => t.month).filter(Boolean) as string[]));
+      const sortedMonths = uniqueMonths.sort((a, b) => parseMonth(a).sortVal - parseMonth(b).sortVal);
+      
+      const uniqueYears = Array.from(new Set(sortedMonths.map(m => parseMonth(m).year)));
+      
+      return { years: uniqueYears, months: sortedMonths };
   }, [tournaments]);
 
-  // 2. Инициализация месяца (Умный выбор)
+  // 2. Инициализация (При первой загрузке)
   useEffect(() => {
-      // Если месяц еще не выбран и данные загрузились
-      if (!selectedMonth && availableMonths.length > 0) {
-          const now = new Date();
-          // Текущий месяц: "01.2025" (или 12.2025)
-          const currentMonthStr = `${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
-          
-          // Проверяем: есть ли текущий месяц в базе?
-          if (availableMonths.includes(currentMonthStr)) {
-              setSelectedMonth(currentMonthStr);
+      if (!selectedYear && years.length > 0) {
+          // Выбираем текущий год или первый доступный
+          const currentYear = new Date().getFullYear();
+          if (years.includes(currentYear)) {
+              setSelectedYear(currentYear);
           } else {
-              // Если нет (например, сейчас 2025, а данные за 2026),
-              // берем ПЕРВЫЙ доступный месяц из списка
-              setSelectedMonth(availableMonths[0]);
+              setSelectedYear(years[0]); // Например 2026
           }
       }
-  }, [availableMonths, selectedMonth]);
+  }, [years, selectedYear]);
 
-  // 3. Фильтрация списка
+  // 3. Авто-выбор месяца при смене года
+  useEffect(() => {
+      if (selectedYear && months.length > 0) {
+          // Проверяем, принадлежит ли текущий выбранный месяц выбранному году
+          const currentMonthYear = selectedMonth ? parseMonth(selectedMonth).year : -1;
+          
+          if (currentMonthYear !== selectedYear) {
+              // Ищем первый месяц в выбранном году
+              const firstMonthOfYear = months.find(m => parseMonth(m).year === selectedYear);
+              if (firstMonthOfYear) setSelectedMonth(firstMonthOfYear);
+          }
+      }
+  }, [selectedYear, months, selectedMonth]);
+
+  // 4. Фильтрация списка месяцев для ленты (по году)
+  const visibleMonths = months.filter(m => parseMonth(m).year === selectedYear);
+
+  // 5. Фильтрация турниров
   const filteredList = useMemo(() => {
       if (!tournaments) return [];
       return tournaments.filter(t => {
-          // Фильтр по месяцу
           if (selectedMonth && t.month !== selectedMonth) return false;
-          // Фильтр по тегу
           if (selectedTag !== 'ВСЕ' && t.tag !== selectedTag) return false;
           return true;
       });
   }, [tournaments, selectedMonth, selectedTag]);
-
-  // Получаем год для отображения в заголовке
-  const displayYear = selectedMonth ? parseMonth(selectedMonth).year : '';
 
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col pb-32 relative">
@@ -129,28 +141,36 @@ export default function TournamentsPage() {
         <div className="px-6 flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
                 <button 
-                onClick={() => router.back()} 
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/10 active:scale-90 transition-transform"
+                    onClick={() => router.back()} 
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/10 active:scale-90 transition-transform"
                 >
-                <BackIcon />
+                    <BackIcon />
                 </button>
                 <div className="flex flex-col">
                     <h1 className="text-[20px] font-bold text-white leading-none">Календарь</h1>
-                    {/* Показываем год выбранного месяца */}
-                    {displayYear && <span className="text-[12px] text-[#5F6067] font-medium mt-0.5">{displayYear} год</span>}
+                    {/* Кликабельный год */}
+                    <button 
+                        onClick={() => setIsYearPickerOpen(true)}
+                        className="text-[12px] text-[#00B2FF] font-bold mt-0.5 flex items-center gap-1 active:opacity-70"
+                    >
+                        {selectedYear || '...'} год ▼
+                    </button>
                 </div>
             </div>
             
-            {/* Декоративная иконка (можно сделать кнопкой выбора года в будущем) */}
-            <div className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/5 opacity-50">
+            {/* Кнопка календаря (Открывает выбор года) */}
+            <button 
+                onClick={() => setIsYearPickerOpen(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/10 active:scale-90 transition-transform text-[#00B2FF]"
+            >
                 <CalendarIcon />
-            </div>
+            </button>
         </div>
 
-        {/* --- ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ МЕСЯЦЕВ (TENNISBB STYLE) --- */}
+        {/* --- ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ МЕСЯЦЕВ --- */}
         <div className="w-full overflow-x-auto scrollbar-hide px-6 pb-3">
             <div className="flex gap-3 min-w-min">
-                {availableMonths.map((monthStr) => {
+                {visibleMonths.map((monthStr) => {
                     const isActive = selectedMonth === monthStr;
                     const { label } = parseMonth(monthStr);
 
@@ -171,9 +191,8 @@ export default function TournamentsPage() {
                     );
                 })}
                 
-                {/* Если месяцев нет, показываем заглушку */}
-                {availableMonths.length === 0 && !isLoading && (
-                    <span className="text-[#5F6067] text-sm py-2">Нет данных</span>
+                {visibleMonths.length === 0 && !isLoading && (
+                    <span className="text-[#5F6067] text-sm py-2">Нет турниров в {selectedYear}</span>
                 )}
             </div>
         </div>
@@ -224,6 +243,57 @@ export default function TournamentsPage() {
             </div>
         )}
       </main>
+
+      {/* --- МОДАЛКА ВЫБОРА ГОДА --- */}
+      <AnimatePresence>
+        {isYearPickerOpen && (
+            <>
+                {/* Backdrop */}
+                <motion.div 
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    onClick={() => setIsYearPickerOpen(false)}
+                    className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40"
+                />
+                
+                {/* Modal Content */}
+                <motion.div
+                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                    className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[280px] bg-[#1C1C1E] border border-white/10 rounded-[24px] p-5 z-50 shadow-2xl"
+                >
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-white">Выберите год</h3>
+                        <button onClick={() => setIsYearPickerOpen(false)} className="text-[#8E8E93]">
+                            <CloseIcon />
+                        </button>
+                    </div>
+                    
+                    <div className="flex flex-col gap-2">
+                        {years.map(year => (
+                            <button
+                                key={year}
+                                onClick={() => {
+                                    setSelectedYear(year);
+                                    setIsYearPickerOpen(false);
+                                }}
+                                className={`
+                                    py-3 rounded-[16px] font-bold text-[16px] transition-all
+                                    ${selectedYear === year 
+                                        ? 'bg-[#007AFF] text-white' 
+                                        : 'bg-[#2C2C2E] text-[#8E8E93] hover:bg-[#3A3A3C]'
+                                    }
+                                `}
+                            >
+                                {year}
+                            </button>
+                        ))}
+                        {years.length === 0 && <p className="text-center text-[#5F6067]">Нет данных</p>}
+                    </div>
+                </motion.div>
+            </>
+        )}
+      </AnimatePresence>
 
     </div>
   );
