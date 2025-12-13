@@ -1,6 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Оставляем пустым или с базовыми настройками
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'https://primechallenge.onrender.com/:path*', // Прокси на Бэкенд
+      },
+    ];
+  },
 };
 
 export default nextConfig;
