@@ -25,7 +25,7 @@ interface ApiTournament {
   defending_champion?: string;
   description?: string;
   matches_count?: string;
-  month?: string;
+  month?: string; // <--- Это поле должно приходить с бэка
 }
 
 const TournamentContext = createContext<TournamentContextType | undefined>(undefined);
@@ -57,25 +57,32 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
       
       const data = await response.json();
       
+      // Лог для проверки: смотрим, есть ли month в данных от сервера
+      console.log("Raw API Data:", data); 
+
       // БЕЗОПАСНЫЙ МАППИНГ
       const mappedData: Tournament[] = data.map((item: ApiTournament) => ({
         id: item.id,
         name: item.name,
         dates: item.dates,
-        status: item.status, // TypeScript пропустит это благодаря '| string' в types.ts
+        status: item.status, 
         start: item.start,
         close: item.close,
         tag: item.tag,
+        
+        // --- ВАЖНО: Передаем новые поля ---
         surface: item.surface,
         defending_champion: item.defending_champion,
         description: item.description,
         matches_count: item.matches_count,
-        month: item.month,
+        month: item.month, // <--- ВОТ ЗДЕСЬ ТЕРЯЛИСЬ ДАННЫЕ
+        // ---------------------------------
+
         true_draws: [],
         user_picks: [],
         scores: [],
         rounds: [],
-      })) as Tournament[]; // Принудительное приведение типа
+      })) as Tournament[]; 
 
       setTournaments(mappedData);
       setIsLoaded(true);
@@ -104,7 +111,6 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
 
       if (data.status) data.status = data.status.toString().trim().toUpperCase();
 
-      // Приводим к типу Tournament
       const tournamentData = data as Tournament;
 
       setTournamentDetails(prev => ({
