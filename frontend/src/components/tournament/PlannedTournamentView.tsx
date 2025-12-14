@@ -10,15 +10,15 @@ const BackIcon = () => (
 );
 
 const LocationIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
 );
 
 const SurfaceIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20"/><path d="M12 2v20"/><path d="M4.93 4.93l14.14 14.14"/><path d="M19.07 4.93L4.93 19.07"/></svg>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20"/><path d="M12 2v20"/><path d="M4.93 4.93l14.14 14.14"/><path d="M19.07 4.93L4.93 19.07"/></svg>
 );
 
 const MatchesIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
 );
 
 export default function PlannedTournamentView({ tournament }: { tournament: Tournament }) {
@@ -28,7 +28,7 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
     <div className="min-h-screen bg-[#141414] text-white flex flex-col relative overflow-hidden">
       
       {/* --- HERO IMAGE BLOCK --- */}
-      <div className="relative w-full h-[60vh]">
+      <div className="relative w-full h-[65vh]">
           {/* Фото */}
           {tournament.image_url ? (
               <div className="absolute inset-0">
@@ -39,9 +39,9 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
                     className="object-cover"
                     priority
                   />
-                  {/* Градиент затемнения снизу */}
+                  {/* Градиент затемнения снизу (Progressive Blur effect) */}
                   <div 
-                    className="absolute bottom-0 left-0 right-0 h-[300px]"
+                    className="absolute bottom-0 left-0 right-0 h-[400px]"
                     style={{ background: 'linear-gradient(180deg, rgba(20, 20, 20, 0) 0%, #141414 100%)' }}
                   />
               </div>
@@ -58,46 +58,47 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
           </button>
 
           {/* КОНТЕНТ ПОВЕРХ ФОТО */}
-          <div className="absolute bottom-4 left-6 right-6 z-10 flex flex-col gap-4">
+          <div className="absolute bottom-6 left-6 right-6 z-10 flex flex-col gap-5">
               
               {/* Заголовок */}
-              <motion.h1 
+              <motion.div
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
-                className="text-[28px] font-bold leading-tight"
               >
-                  {tournament.name} <span className="text-[#8E8E93] font-normal text-[20px]">| {tournament.type}</span>
-              </motion.h1>
+                  <h1 className="text-[32px] font-bold leading-tight">
+                      {tournament.name} <span className="text-[#8E8E93] font-normal text-[24px]">| {tournament.type}</span>
+                  </h1>
+              </motion.div>
 
               {/* Инфо */}
               {tournament.description && (
                   <motion.p 
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
-                    className="text-[14px] text-[#EBEBF5]/80 leading-relaxed line-clamp-3"
+                    className="text-[15px] text-[#EBEBF5]/90 leading-relaxed font-medium"
                   >
                       {tournament.description}
                   </motion.p>
               )}
 
-              {/* Детали */}
+              {/* Детали: Город, Покрытие, Матчи */}
               <motion.div 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-                className="flex items-center gap-6 text-[13px] text-white font-medium"
+                className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[14px] text-white font-medium"
               >
-                  {/* Город (используем Tag или Name как плейсхолдер) */}
-                  <div className="flex items-center gap-1.5">
+                  {/* Город = Имя турнира (как ты просила) */}
+                  <div className="flex items-center gap-2">
                       <LocationIcon />
-                      <span>{tournament.tag || 'ATP'}</span>
+                      <span>{tournament.name}</span>
                   </div>
                   
                   {tournament.surface && (
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
                           <SurfaceIcon />
                           <span>{tournament.surface}</span>
                       </div>
                   )}
 
                   {tournament.matches_count && (
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
                           <MatchesIcon />
                           <span>{tournament.matches_count} матчей</span>
                       </div>
@@ -108,29 +109,44 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
               {tournament.defending_champion && (
                   <motion.div 
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-                    className="mt-1"
+                    className="pt-2"
                   >
-                      <span className="text-[#8E8E93] text-[13px]">Действующий чемпион: </span>
-                      <span className="text-white font-semibold">{tournament.defending_champion}</span>
+                      <span className="text-[#8E8E93] text-[14px]">Действующий чемпион: </span>
+                      <span className="text-white font-semibold text-[15px]">{tournament.defending_champion}</span>
                   </motion.div>
               )}
           </div>
       </div>
 
       {/* --- НИЖНЯЯ ЧАСТЬ --- */}
-      <div className="flex-1 relative flex flex-col items-center justify-center -mt-10 pb-20 z-0">
+      <div className="flex-1 relative flex flex-col items-center justify-start pt-10 pb-20 z-0 bg-[#141414]">
           
-          {/* Декор */}
-          <div className="absolute left-[-20px] top-10 opacity-50">
-              <Image src="/decoration-left.png" alt="" width={150} height={300} className="object-contain" />
-          </div>
-          <div className="absolute right-[-20px] top-40 opacity-50">
-              <Image src="/decoration-right.png" alt="" width={150} height={300} className="object-contain" />
+          {/* Декор Левый (Огромный, наполовину скрыт) */}
+          <div className="absolute -left-[180px] top-[-50px] opacity-60 pointer-events-none">
+              <Image 
+                src="/decoration-left.png" 
+                alt="" 
+                width={380} 
+                height={600} 
+                className="object-contain" 
+              />
           </div>
 
-          <div className="relative z-10 text-center px-10">
-              <h2 className="text-[18px] font-bold text-white mb-2">Турнир еще не начался</h2>
-              <p className="text-[#8E8E93] text-[14px]">
+          {/* Декор Правый (Огромный, наполовину скрыт) */}
+          <div className="absolute -right-[180px] top-[50px] opacity-60 pointer-events-none">
+              <Image 
+                src="/decoration-right.png" 
+                alt="" 
+                width={380} 
+                height={600} 
+                className="object-contain" 
+              />
+          </div>
+
+          {/* Надпись по центру */}
+          <div className="relative z-10 text-center px-10 mt-10">
+              <h2 className="text-[20px] font-bold text-white mb-2">Турнир еще не начался</h2>
+              <p className="text-[#8E8E93] text-[15px]">
                   и сетка неизвестна =(
               </p>
           </div>
