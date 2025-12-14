@@ -12,12 +12,12 @@ interface TournamentContextType {
   loadTournament: (id: string, initData: string) => Promise<Tournament | null>;
 }
 
-// Интерфейс сырых данных от Бэкенда
+// Интерфейс того, что присылает Бэкенд (JSON)
 interface ApiTournament {
   id: number;
   name: string;
   dates?: string;
-  status: string; 
+  status: string;
   start?: string;
   close?: string;
   tag?: string;
@@ -25,7 +25,7 @@ interface ApiTournament {
   defending_champion?: string;
   description?: string;
   matches_count?: string;
-  month?: string; // <--- Это поле должно приходить с бэка
+  month?: string; // <--- ВАЖНО: Добавили сюда
 }
 
 const TournamentContext = createContext<TournamentContextType | undefined>(undefined);
@@ -35,7 +35,6 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-
   const [tournamentDetails, setTournamentDetails] = useState<Record<string, Tournament>>({});
 
   const fetchTournaments = useCallback(async () => {
@@ -57,10 +56,12 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
       
       const data = await response.json();
       
-      // Лог для проверки: смотрим, есть ли month в данных от сервера
-      console.log("Raw API Data:", data); 
+      // Лог для отладки: посмотрим, видит ли браузер месяц
+      if (data.length > 0) {
+          console.log("First tournament month:", data[0].month);
+      }
 
-      // БЕЗОПАСНЫЙ МАППИНГ
+      // МАППИНГ ДАННЫХ
       const mappedData: Tournament[] = data.map((item: ApiTournament) => ({
         id: item.id,
         name: item.name,
@@ -70,19 +71,18 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
         close: item.close,
         tag: item.tag,
         
-        // --- ВАЖНО: Передаем новые поля ---
+        // Переносим новые поля
         surface: item.surface,
         defending_champion: item.defending_champion,
         description: item.description,
         matches_count: item.matches_count,
-        month: item.month, // <--- ВОТ ЗДЕСЬ ТЕРЯЛИСЬ ДАННЫЕ
-        // ---------------------------------
+        month: item.month, // <--- ЕСЛИ ЭТОЙ СТРОКИ НЕТ, КАЛЕНДАРЬ НЕ РАБОТАЕТ
 
         true_draws: [],
         user_picks: [],
         scores: [],
         rounds: [],
-      })) as Tournament[]; 
+      })) as Tournament[];
 
       setTournaments(mappedData);
       setIsLoaded(true);
@@ -108,16 +108,10 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
 
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
       const data = await response.json();
-
       if (data.status) data.status = data.status.toString().trim().toUpperCase();
-
       const tournamentData = data as Tournament;
 
-      setTournamentDetails(prev => ({
-        ...prev,
-        [id]: tournamentData
-      }));
-
+      setTournamentDetails(prev => ({ ...prev, [id]: tournamentData }));
       return tournamentData;
     } catch (e) {
       console.error("Error loading tournament details:", e);
@@ -131,12 +125,8 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <TournamentContext.Provider value={{ 
-        tournaments, 
-        isLoading, 
-        error, 
-        refreshTournaments: fetchTournaments,
-        getTournamentData,
-        loadTournament 
+        tournaments, isLoading, error, refreshTournaments: fetchTournaments,
+        getTournamentData, loadTournament 
     }}>
       {children}
     </TournamentContext.Provider>
@@ -145,8 +135,6 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
 
 export const useTournamentContext = () => {
   const context = useContext(TournamentContext);
-  if (!context) {
-    throw new Error('useTournamentContext must be used within a TournamentProvider');
-  }
+  if (!context) throw new Error('useTournamentContext error');
   return context;
 };
