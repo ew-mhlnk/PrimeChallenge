@@ -1,9 +1,9 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useState, useRef } from 'react';
 import ActiveBracket from '@/components/bracket/ActiveBracket';
 import ClosedBracket from '@/components/bracket/ClosedBracket';
-import PlannedTournamentView from '@/components/tournament/PlannedTournamentView'; // <--- 1. Импорт
+import PlannedTournamentView from '@/components/tournament/PlannedTournamentView';
 import { useTournamentContext } from '@/context/TournamentContext';
 import { Tournament } from '@/types';
 
@@ -12,51 +12,67 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
   const id = resolvedParams.id;
   const { getTournamentData, loadTournament } = useTournamentContext();
   
-  const [status, setStatus] = useState<string | null>(null);
-  const [name, setName] = useState<string>('');
-  
-  // 2. Объявляем состояние для полных данных (чтобы передать их в PlannedView)
-  const [fullData, setFullData] = useState<Tournament | null>(null);
+  // 1. СРАЗУ берем данные из кэша (синхронно), если они есть
+  const cachedData = getTournamentData(id);
+
+  // Инициализируем стейт кэшом. Если кэш есть - юзер увидит контент мгновенно.
+  const [fullData, setFullData] = useState<Tournament | null>(cachedData);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Используем ref, чтобы избежать двойных запросов в React 18 Strict Mode
+  const hasFetched = useRef(false);
 
   useEffect(() => {
-      // Пытаемся взять из кэша
-      const t = getTournamentData(id);
-      if (t) {
-          setStatus(t.status);
-          setName(t.name);
-          setFullData(t); // Сохраняем полные данные
-      } else {
-          // Если нет, грузим
-          const load = async () => {
-              const initData = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initData : '';
-              const data = await loadTournament(id, initData || '');
-              if (data) {
-                  setStatus(data.status);
-                  setName(data.name);
-                  setFullData(data); // Сохраняем полные данные
-              }
-          };
-          load();
-      }
-  }, [id, getTournamentData, loadTournament]);
+      const fetchFreshData = async () => {
+          // Если данные уже есть (из кэша), мы не блокируем экран, а обновляем тихо
+          // Если данных нет (первый вход), будет виден спиннер
+          if (!fullData) setIsUpdating(true);
 
-  // Ждем загрузки статуса и данных
-  if (!status || !fullData) {
-      return <div className="flex justify-center pt-20 text-[#5F6067]">Загрузка турнира...</div>;
+          const initData = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initData : '';
+          const freshData = await loadTournament(id, initData || '');
+          
+          if (freshData) {
+              setFullData(freshData);
+          }
+          setIsUpdating(false);
+      };
+
+      // Стратегия кэширования:
+      // 1. Если данных нет вообще -> Грузим.
+      // 2. Если данные есть, но турнир АКТИВЕН или ИДЕТ -> Грузим в фоне (обновить счет).
+      // 3. Если турнир ПЛАНИРУЕТСЯ или ЗАВЕРШЕН и данные уже есть -> Можно не грузить (экономим трафик), 
+      //    но лучше грузить, вдруг админ поменял описание.
+      
+      // Самая надежная стратегия: "Покажи кэш сразу, обнови в фоне"
+      if (!hasFetched.current) {
+          hasFetched.current = true;
+          fetchFreshData();
+      }
+  }, [id, loadTournament]); // Убрали fullData из зависимостей, чтобы не зациклить
+
+  // Если нет ни кэша, ни загруженных данных - показываем спиннер
+  if (!fullData) {
+      return (
+        <div className="min-h-screen bg-[#141414] flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-[#00B2FF] border-t-transparent rounded-full animate-spin" />
+                <span className="text-[#5F6067] text-sm">Загрузка турнира...</span>
+            </div>
+        </div>
+      );
   }
 
-  // --- ДИСПЕТЧЕР ОТОБРАЖЕНИЯ ---
+  // --- ДИСПЕТЧЕР ---
+  const { status, name } = fullData;
 
-  // 1. Если ПЛАНИРУЕТСЯ -> Показываем красивое превью
   if (status === 'PLANNED') {
       return <PlannedTournamentView tournament={fullData} />;
   } 
   
-  // 2. Если АКТИВЕН -> Показываем сетку для прогнозов
   if (status === 'ACTIVE') {
       return <ActiveBracket id={id} tournamentName={name} />;
   } 
   
-  // 3. Если ЗАКРЫТ или ЗАВЕРШЕН -> Показываем результаты
+  // CLOSED / COMPLETED
   return <ClosedBracket id={id} tournamentName={name} />;
 }
