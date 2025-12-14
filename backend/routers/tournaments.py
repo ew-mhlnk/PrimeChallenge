@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 async def get_tournaments(db: Session = Depends(get_db)):
     logger.info("Fetching all tournaments")
     tournaments = db.query(models.Tournament).all()
+    
+    # --- ИСПРАВЛЕНИЕ: Добавляем новые поля в ответ ---
     return [
         {
             "id": t.id,
@@ -26,6 +28,12 @@ async def get_tournaments(db: Session = Depends(get_db)):
             "start": t.start,
             "close": t.close,
             "tag": t.tag,
+            # Новые поля
+            "surface": t.surface,
+            "defending_champion": t.defending_champion,
+            "description": t.description,
+            "matches_count": t.matches_count,
+            "month": t.month, # <--- ВОТ ОНО! Без этого фронт не видит месяц
         }
         for t in tournaments
     ]
@@ -39,16 +47,11 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     
     user_id = user["id"]
     
-    # --- ВАЖНОЕ ИСПРАВЛЕНИЕ: ПРЕОБРАЗОВАНИЕ ENUM В СТРОКУ ---
-    # SQLAlchemy может возвращать Enum объект, который не равен строке "CLOSED"
+    # Преобразование Enum в строку (fix для PostgreSQL Enum error)
     status_val = tournament.status
     status_str = status_val.value if hasattr(status_val, 'value') else str(status_val)
-    # Приводим к верхнему регистру на всякий случай
     status_str = status_str.upper()
     
-    logger.info(f"Tournament Status Check: DB='{status_val}' -> Str='{status_str}'")
-    # --------------------------------------------------------
-
     true_draws = db.query(models.TrueDraw).filter(models.TrueDraw.tournament_id == id).all()
     
     user_picks = db.query(models.UserPick).filter(
@@ -65,22 +68,16 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
         starting_index = 2 
     rounds = all_rounds[starting_index:]
     
-    # 1. Генерируем БАЗОВУЮ структуру
+    # 1. Генерация структуры
     bracket = generate_bracket(tournament, true_draws, user_picks, rounds)
     
-    # 2. ЕСЛИ ТУРНИР ЗАКРЫТ: Включаем режим Фэнтези
-    # Используем нашу надежную строку status_str
+    # 2. Логика Фэнтези для закрытых турниров
     if status_str in ["CLOSED", "COMPLETED"]:
-        logger.info("Applying Fantasy Logic (Reconstruct + Enrich)...")
         try:
             bracket = reconstruct_fantasy_bracket(bracket, user_picks)
             bracket = enrich_bracket_with_status(bracket, true_draws)
-            logger.info("Fantasy Logic applied successfully.")
         except Exception as e:
             logger.error(f"Error applying fantasy logic: {e}")
-            # Не падаем, отдаем базовую сетку, но пишем ошибку
-    else:
-        logger.info("Skipping Fantasy Logic (Tournament is ACTIVE)")
 
     has_picks = any(p.predicted_winner for p in user_picks)
     
@@ -91,6 +88,7 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     true_draws_data = [TrueDraw.model_validate(draw) for draw in true_draws]
     user_picks_data = [UserPick.model_validate(pick) for pick in user_picks]
 
+    # Создаем объект Tournament с новыми полями
     tournament_data = Tournament(
         id=tournament.id,
         name=tournament.name,
@@ -102,6 +100,13 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
         start=tournament.start,
         close=tournament.close,
         tag=tournament.tag,
+        # Новые поля
+        surface=tournament.surface,
+        defending_champion=tournament.defending_champion,
+        description=tournament.description,
+        matches_count=tournament.matches_count,
+        month=tournament.month,
+        
         true_draws=true_draws_data,
         user_picks=user_picks_data,
         scores=None
