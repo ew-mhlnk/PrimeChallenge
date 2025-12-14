@@ -3,11 +3,13 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
+
 class TournamentStatus(str, Enum):
-    PLANNED = "PLANNED"  # <---
+    PLANNED = "PLANNED"
     ACTIVE = "ACTIVE"
     CLOSED = "CLOSED"
     COMPLETED = "COMPLETED"
+
 
 class UserBase(BaseModel):
     user_id: int
@@ -17,6 +19,7 @@ class UserBase(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class TournamentBase(BaseModel):
     id: int
@@ -36,10 +39,13 @@ class TournamentBase(BaseModel):
     description: Optional[str] = None
     matches_count: Optional[str] = None
     month: Optional[str] = None
-    # ------------------
+    
+    # КАРТИНКА
+    image_url: Optional[str] = None
 
     class Config:
         from_attributes = True
+
 
 class TrueDrawBase(BaseModel):
     id: int
@@ -58,6 +64,7 @@ class TrueDrawBase(BaseModel):
     class Config:
         from_attributes = True
 
+
 class UserPickBase(BaseModel):
     id: int
     user_id: int
@@ -73,6 +80,7 @@ class UserPickBase(BaseModel):
     class Config:
         from_attributes = True
 
+
 class UserScoreBase(BaseModel):
     id: int
     user_id: int
@@ -83,6 +91,7 @@ class UserScoreBase(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class LeaderboardBase(BaseModel):
     id: int
@@ -96,15 +105,18 @@ class LeaderboardBase(BaseModel):
     class Config:
         from_attributes = True
 
+
 class UserPickCreate(BaseModel):
     tournament_id: int
     round: str
     match_number: int
     predicted_winner: str
 
+
 class Player(BaseModel):
     name: str
     seed: Optional[int] = None
+
 
 class BracketMatch(BaseModel):
     id: str
@@ -114,7 +126,7 @@ class BracketMatch(BaseModel):
     player2: Player
     predicted_winner: Optional[str] = None
     actual_winner: Optional[str] = None
-    scores: Optional[List[str]] = None 
+    scores: Optional[List[str]] = None
     source_matches: List[Dict[str, Any]] = []
     
     status: Optional[str] = "PENDING"
@@ -124,20 +136,25 @@ class BracketMatch(BaseModel):
     real_player2: Optional[str] = None
     is_eliminated: Optional[bool] = False
 
+
 class TrueDraw(TrueDrawBase):
     pass
+
 
 class UserPick(UserPickBase):
     user: Optional[UserBase] = None
     tournament: Optional[TournamentBase] = None
 
+
 class UserScore(UserScoreBase):
     user: Optional[UserBase] = None
     tournament: Optional[TournamentBase] = None
 
+
 class Leaderboard(LeaderboardBase):
     user: Optional[UserBase] = None
     tournament: Optional[TournamentBase] = None
+
 
 class Tournament(TournamentBase):
     true_draws: Optional[List[TrueDraw]] = None
@@ -148,6 +165,7 @@ class Tournament(TournamentBase):
     has_picks: Optional[bool] = None
     score: Optional[int] = None
     correct_picks: Optional[int] = None
+
 
 class ProfileStatsResponse(BaseModel):
     user_id: int

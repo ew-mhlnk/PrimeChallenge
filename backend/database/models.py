@@ -5,25 +5,27 @@ from sqlalchemy.schema import UniqueConstraint
 from database.db import Base
 import enum
 
+
 class TournamentStatus(enum.Enum):
     PLANNED = "PLANNED"  # <--- Новый статус
     ACTIVE = "ACTIVE"
     CLOSED = "CLOSED"
     COMPLETED = "COMPLETED"
 
+
 class Tournament(Base):
     __tablename__ = "tournaments"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    dates = Column(String) 
+    dates = Column(String)
     status = Column(Enum(TournamentStatus), default=TournamentStatus.PLANNED)
     sheet_name = Column(String, nullable=True)
     starting_round = Column(String)
     type = Column(String)
     
     # ВРЕМЕННЫЕ МЕТКИ
-    start = Column(String) # Дата ОТКРЫТИЯ прогнозов
-    close = Column(String) # Дата ЗАКРЫТИЯ прогнозов (начало матчей)
+    start = Column(String)  # Дата ОТКРЫТИЯ прогнозов
+    close = Column(String)  # Дата ЗАКРЫТИЯ прогнозов (начало матчей)
     
     tag = Column(String, nullable=True)
     
@@ -33,12 +35,16 @@ class Tournament(Base):
     description = Column(String, nullable=True)       # Info
     matches_count = Column(String, nullable=True)
     month = Column(String, nullable=True)             # 01.2025
+    
+    # КАРТИНКА
+    image_url = Column(String, nullable=True)
     # ------------------
 
     true_draws = relationship("TrueDraw", back_populates="tournament")
     user_picks = relationship("UserPick", back_populates="tournament")
     scores = relationship("UserScore", back_populates="tournament")
     leaderboard_entries = relationship("Leaderboard", back_populates="tournament")
+
 
 class TrueDraw(Base):
     __tablename__ = "true_draw"
@@ -61,9 +67,10 @@ class TrueDraw(Base):
     )
     tournament = relationship("Tournament", back_populates="true_draws")
 
+
 class User(Base):
     __tablename__ = "users"
-    user_id = Column(BigInteger, primary_key=True, index=True) 
+    user_id = Column(BigInteger, primary_key=True, index=True)
     first_name = Column(String)
     last_name = Column(String, nullable=True)
     username = Column(String, nullable=True)
@@ -72,10 +79,11 @@ class User(Base):
     scores = relationship("UserScore", back_populates="user")
     leaderboard_entries = relationship("Leaderboard", back_populates="user")
 
+
 class UserPick(Base):
     __tablename__ = "user_picks"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("users.user_id"), index=True) 
+    user_id = Column(BigInteger, ForeignKey("users.user_id"), index=True)
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
     round = Column(String)
     match_number = Column(Integer)
@@ -88,10 +96,11 @@ class UserPick(Base):
     user = relationship("User", back_populates="user_picks")
     tournament = relationship("Tournament", back_populates="user_picks")
 
+
 class UserScore(Base):
     __tablename__ = "user_scores"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("users.user_id"), index=True) 
+    user_id = Column(BigInteger, ForeignKey("users.user_id"), index=True)
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
     score = Column(Integer, default=0)
     correct_picks = Column(Integer, default=0)
@@ -100,11 +109,12 @@ class UserScore(Base):
     user = relationship("User", back_populates="scores")
     tournament = relationship("Tournament", back_populates="scores")
 
+
 class Leaderboard(Base):
     __tablename__ = "leaderboard"
     id = Column(Integer, primary_key=True, index=True)
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
-    user_id = Column(BigInteger, ForeignKey("users.user_id"), index=True) 
+    user_id = Column(BigInteger, ForeignKey("users.user_id"), index=True)
     rank = Column(Integer)
     score = Column(Integer)
     correct_picks = Column(Integer)

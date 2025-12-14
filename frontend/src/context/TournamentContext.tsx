@@ -12,7 +12,7 @@ interface TournamentContextType {
   loadTournament: (id: string, initData: string) => Promise<Tournament | null>;
 }
 
-// Интерфейс того, что присылает Бэкенд (JSON)
+// Интерфейс данных, приходящих с бэкенда
 interface ApiTournament {
   id: number;
   name: string;
@@ -25,7 +25,8 @@ interface ApiTournament {
   defending_champion?: string;
   description?: string;
   matches_count?: string;
-  month?: string; // <--- ВАЖНО: Добавили сюда
+  month?: string;
+  image_url?: string; // <--- 1: Добавлено новое поле для изображения турнира
 }
 
 const TournamentContext = createContext<TournamentContextType | undefined>(undefined);
@@ -42,10 +43,10 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
     try {
       let attempts = 0;
       if (typeof window !== 'undefined') {
-         while (!window.Telegram?.WebApp?.initData && attempts < 10) {
-             await new Promise(r => setTimeout(r, 100));
-             attempts++;
-         }
+        while (!window.Telegram?.WebApp?.initData && attempts < 10) {
+          await new Promise(r => setTimeout(r, 100));
+          attempts++;
+        }
       }
       const initData = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initData : '';
       const headers: HeadersInit = {};
@@ -56,28 +57,26 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
       
       const data = await response.json();
       
-      // Лог для отладки: посмотрим, видит ли браузер месяц
+      // Лог для отладки
       if (data.length > 0) {
-          console.log("First tournament month:", data[0].month);
+        console.log("First tournament month:", data[0].month);
       }
 
-      // МАППИНГ ДАННЫХ
+      // Маппинг данных с бэкенда в локальный тип Tournament
       const mappedData: Tournament[] = data.map((item: ApiTournament) => ({
         id: item.id,
         name: item.name,
         dates: item.dates,
-        status: item.status, 
+        status: item.status,
         start: item.start,
         close: item.close,
         tag: item.tag,
-        
-        // Переносим новые поля
         surface: item.surface,
         defending_champion: item.defending_champion,
         description: item.description,
         matches_count: item.matches_count,
-        month: item.month, // <--- ЕСЛИ ЭТОЙ СТРОКИ НЕТ, КАЛЕНДАРЬ НЕ РАБОТАЕТ
-
+        month: item.month,
+        image_url: item.image_url, // <--- 2: Переносим URL изображения турнира
         true_draws: [],
         user_picks: [],
         scores: [],
@@ -121,12 +120,16 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     fetchTournaments();
-  }, [fetchTournaments]); 
+  }, [fetchTournaments]);
 
   return (
     <TournamentContext.Provider value={{ 
-        tournaments, isLoading, error, refreshTournaments: fetchTournaments,
-        getTournamentData, loadTournament 
+        tournaments, 
+        isLoading, 
+        error, 
+        refreshTournaments: fetchTournaments,
+        getTournamentData, 
+        loadTournament 
     }}>
       {children}
     </TournamentContext.Provider>

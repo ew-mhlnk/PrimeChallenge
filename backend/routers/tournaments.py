@@ -13,12 +13,12 @@ from utils.bracket_status import enrich_bracket_with_status, reconstruct_fantasy
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
 @router.get("/tournaments", response_model=List[dict])
 async def get_tournaments(db: Session = Depends(get_db)):
     logger.info("Fetching all tournaments")
     tournaments = db.query(models.Tournament).all()
     
-    # --- ИСПРАВЛЕНИЕ: Добавляем новые поля в ответ ---
     return [
         {
             "id": t.id,
@@ -28,18 +28,24 @@ async def get_tournaments(db: Session = Depends(get_db)):
             "start": t.start,
             "close": t.close,
             "tag": t.tag,
-            # Новые поля
+            # Дополнительные информационные поля
             "surface": t.surface,
             "defending_champion": t.defending_champion,
             "description": t.description,
             "matches_count": t.matches_count,
-            "month": t.month, # <--- ВОТ ОНО! Без этого фронт не видит месяц
+            "month": t.month,
+            "image_url": t.image_url  # <--- ДОБАВЛЕНО: URL изображения турнира
         }
         for t in tournaments
     ]
 
+
 @router.get("/tournament/{id}", response_model=dict)
-async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+async def get_tournament_by_id(
+    id: int,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user)
+):
     logger.info(f"Fetching tournament with id={id}")
     tournament = db.query(models.Tournament).filter(models.Tournament.id == id).first()
     if not tournament:
@@ -47,48 +53,54 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
     
     user_id = user["id"]
     
-    # Преобразование Enum в строку (fix для PostgreSQL Enum error)
+    # Обработка статуса (поддержка Enum и строки)
     status_val = tournament.status
     status_str = status_val.value if hasattr(status_val, 'value') else str(status_val)
     status_str = status_str.upper()
     
+    # Загрузка реальных матчей и прогнозов пользователя
     true_draws = db.query(models.TrueDraw).filter(models.TrueDraw.tournament_id == id).all()
-    
     user_picks = db.query(models.UserPick).filter(
         models.UserPick.tournament_id == id,
         models.UserPick.user_id == user_id
     ).all()
     
+    # Определение раундов турнира
     all_rounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'Champion']
     start_round_clean = tournament.starting_round.strip() if tournament.starting_round else "R32"
-    
     try:
         starting_index = all_rounds.index(start_round_clean)
     except ValueError:
-        starting_index = 2 
+        starting_index = 2  # fallback на R32
     rounds = all_rounds[starting_index:]
     
-    # 1. Генерация структуры
+    # Генерация базовой сетки
     bracket = generate_bracket(tournament, true_draws, user_picks, rounds)
     
-    # 2. Логика Фэнтези для закрытых турниров
+    # Применение фэнтези-логики для завершённых/закрытых турниров
     if status_str in ["CLOSED", "COMPLETED"]:
         try:
             bracket = reconstruct_fantasy_bracket(bracket, user_picks)
             bracket = enrich_bracket_with_status(bracket, true_draws)
         except Exception as e:
             logger.error(f"Error applying fantasy logic: {e}")
-
+    
+    # Проверка наличия прогнозов
     has_picks = any(p.predicted_winner for p in user_picks)
     
-    user_score_obj = db.query(models.UserScore).filter_by(user_id=user_id, tournament_id=tournament.id).first()
+    # Текущий счёт пользователя
+    user_score_obj = db.query(models.UserScore).filter_by(
+        user_id=user_id,
+        tournament_id=tournament.id
+    ).first()
     current_score = user_score_obj.score if user_score_obj else 0
     current_correct = user_score_obj.correct_picks if user_score_obj else 0
 
+    # Валидация данных через Pydantic схемы
     true_draws_data = [TrueDraw.model_validate(draw) for draw in true_draws]
     user_picks_data = [UserPick.model_validate(pick) for pick in user_picks]
 
-    # Создаем объект Tournament с новыми полями
+    # Формирование основного объекта турнира с новыми полями
     tournament_data = Tournament(
         id=tournament.id,
         name=tournament.name,
@@ -100,12 +112,12 @@ async def get_tournament_by_id(id: int, db: Session = Depends(get_db), user: dic
         start=tournament.start,
         close=tournament.close,
         tag=tournament.tag,
-        # Новые поля
         surface=tournament.surface,
         defending_champion=tournament.defending_champion,
         description=tournament.description,
         matches_count=tournament.matches_count,
         month=tournament.month,
+        image_url=tournament.image_url,  # <--- ДОБАВЛЕНО: изображение турнира
         
         true_draws=true_draws_data,
         user_picks=user_picks_data,

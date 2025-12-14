@@ -86,7 +86,6 @@ export interface Tournament {
   id: number;
   name: string;
   dates?: string;
-  // Добавили | string, чтобы TS не падал при несоответствии
   status: 'PLANNED' | 'ACTIVE' | 'CLOSED' | 'COMPLETED' | string;
   sheet_name?: string;
   starting_round?: string;
@@ -94,14 +93,16 @@ export interface Tournament {
   start?: string;
   close?: string;
   tag?: string;
-  
-  // Новые поля
-  surface?: string; // Упростили тип до string
+
+  // Дополнительные информационные поля
+  surface?: string;
   defending_champion?: string;
   description?: string;
   matches_count?: string;
   month?: string;
+  image_url?: string; // <--- ВАЖНО: Добавлено для отображения изображения турнира
 
+  // Данные по сетке и прогнозам
   true_draws?: Match[];
   user_picks?: UserPick[];
   scores?: UserScore[];
