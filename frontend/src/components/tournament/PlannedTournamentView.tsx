@@ -21,8 +21,19 @@ const MatchesIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
 );
 
+// Хелпер для формирования пути к картинке
+const getImageUrl = (url?: string) => {
+    if (!url) return null;
+    // Если это полная ссылка (https://...) - оставляем как есть
+    if (url.startsWith('http')) return url;
+    // Если это просто имя файла (brisbane.jpg) - ищем в папке public/tournaments
+    return `/tournaments/${url}`;
+};
+
 export default function PlannedTournamentView({ tournament }: { tournament: Tournament }) {
   const router = useRouter();
+  
+  const imageSrc = getImageUrl(tournament.image_url);
 
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col relative overflow-hidden">
@@ -30,16 +41,18 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
       {/* --- HERO IMAGE BLOCK --- */}
       <div className="relative w-full h-[65vh]">
           {/* Фото */}
-          {tournament.image_url ? (
+          {imageSrc ? (
               <div className="absolute inset-0">
                   <Image 
-                    src={tournament.image_url} 
+                    src={imageSrc} 
                     alt={tournament.name} 
                     fill 
                     className="object-cover"
                     priority
+                    // Если картинки локальные, Next.js может попросить sizes для оптимизации
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   />
-                  {/* Градиент затемнения снизу (Progressive Blur effect) */}
+                  {/* Градиент затемнения снизу */}
                   <div 
                     className="absolute bottom-0 left-0 right-0 h-[400px]"
                     style={{ background: 'linear-gradient(180deg, rgba(20, 20, 20, 0) 0%, #141414 100%)' }}
@@ -79,12 +92,11 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
                   </motion.p>
               )}
 
-              {/* Детали: Город, Покрытие, Матчи */}
+              {/* Детали */}
               <motion.div 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
                 className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[14px] text-white font-medium"
               >
-                  {/* Город = Имя турнира (как ты просила) */}
                   <div className="flex items-center gap-2">
                       <LocationIcon />
                       <span>{tournament.name}</span>
@@ -121,7 +133,6 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
       {/* --- НИЖНЯЯ ЧАСТЬ --- */}
       <div className="flex-1 relative flex flex-col items-center justify-start pt-10 pb-20 z-0 bg-[#141414]">
           
-          {/* Декор Левый (Огромный, наполовину скрыт) */}
           <div className="absolute -left-[180px] top-[-50px] opacity-60 pointer-events-none">
               <Image 
                 src="/decoration-left.png" 
@@ -132,7 +143,6 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
               />
           </div>
 
-          {/* Декор Правый (Огромный, наполовину скрыт) */}
           <div className="absolute -right-[180px] top-[50px] opacity-60 pointer-events-none">
               <Image 
                 src="/decoration-right.png" 
@@ -143,7 +153,6 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
               />
           </div>
 
-          {/* Надпись по центру */}
           <div className="relative z-10 text-center px-10 mt-10">
               <h2 className="text-[20px] font-bold text-white mb-2">Турнир еще не начался</h2>
               <p className="text-[#8E8E93] text-[15px]">
