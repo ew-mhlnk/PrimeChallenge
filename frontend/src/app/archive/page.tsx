@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo, Suspense } from 'react'; // Добавил Suspense
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'; // Добавил хуки
 import { motion, AnimatePresence } from 'framer-motion';
 import useTournaments from '../../hooks/useTournaments';
 import { TournamentListItem } from '@/components/tournament/TournamentListItem';
@@ -53,6 +53,7 @@ const parseMonth = (monthStr: string) => {
     };
 };
 
+// --- КОМПОНЕНТ ФИЛЬТРА ТЕГОВ ---
 const FilterPill = ({ label, isActive, onClick, colorClass }: { label: string, isActive: boolean, onClick: () => void, colorClass: string }) => (
     <button
       onClick={onClick}
@@ -75,17 +76,28 @@ const FilterPill = ({ label, isActive, onClick, colorClass }: { label: string, i
     </button>
 );
 
-export default function TournamentsPage() {
+// Основной контент страницы выносим в отдельный компонент для работы с useSearchParams
+function TournamentsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  
   const { tournaments, error, isLoading } = useTournaments();
   
-  // --- СОСТОЯНИЯ ---
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
-  const [selectedTag, setSelectedTag] = useState<string>('ВСЕ');
+  // --- ИНИЦИАЛИЗАЦИЯ ИЗ URL ---
+  // Считываем параметры из URL при первой загрузке
+  const initialTag = searchParams.get('tag') || 'ВСЕ';
+  const initialMonth = searchParams.get('month'); // Может быть null
+
+  const [selectedTag, setSelectedTag] = useState<string>(initialTag);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(initialMonth);
+  
+  // Год инициализируем либо из URL-месяца, либо позже
+  const initialYear = initialMonth ? parseMonth(initialMonth).year : null;
+  const [selectedYear, setSelectedYear] = useState<number | null>(initialYear);
   
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear()); // Год внутри модалки
+  const [pickerYear, setPickerYear] = useState<number>(new Date().getFullYear());
 
   const filters = [
     { label: 'ВСЕ', color: 'bg-[#007AFF]' },
@@ -93,6 +105,31 @@ export default function TournamentsPage() {
     { label: 'WTA', color: 'bg-[#7B00FF]' },
     { label: 'ТБШ', color: 'bg-gradient-to-r from-[#FDF765] to-[#DAB07F]' },
   ];
+
+  // --- ФУНКЦИЯ ОБНОВЛЕНИЯ URL ---
+  const updateUrl = (tag: string, month: string | null) => {
+      const params = new URLSearchParams(searchParams.toString());
+      
+      if (tag && tag !== 'ВСЕ') params.set('tag', tag);
+      else params.delete('tag');
+
+      if (month) params.set('month', month);
+      else params.delete('month');
+
+      // replace заменяет текущую запись в истории, scroll: false предотвращает скачок наверх
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  // Обертки для смены состояния + обновления URL
+  const handleTagChange = (tag: string) => {
+      setSelectedTag(tag);
+      updateUrl(tag, selectedMonth);
+  };
+
+  const handleMonthChange = (month: string) => {
+      setSelectedMonth(month);
+      updateUrl(selectedTag, month);
+  };
 
   // 1. Получаем данные
   const { years, months } = useMemo(() => {
@@ -105,8 +142,9 @@ export default function TournamentsPage() {
       return { years: uniqueYears, months: sortedMonths };
   }, [tournaments]);
 
-  // 2. Инициализация
+  // 2. Умная инициализация (если в URL ничего не было)
   useEffect(() => {
+      // Если год не выбран (значит и месяц в URL не был задан) и данные загрузились
       if (!selectedYear && years.length > 0) {
           const currentYear = new Date().getFullYear();
           const startYear = years.includes(currentYear) ? currentYear : years[0];
@@ -115,19 +153,31 @@ export default function TournamentsPage() {
       }
   }, [years, selectedYear]);
 
-  // 3. Авто-выбор месяца
   useEffect(() => {
-      if (selectedYear && months.length > 0) {
-          const currentMonthYear = selectedMonth ? parseMonth(selectedMonth).year : -1;
+      // Если месяц не выбран (и в URL его не было) и есть данные
+      if (selectedYear && months.length > 0 && !selectedMonth) {
+          const currentMonthYear = -1; // Месяц не выбран
           
           if (currentMonthYear !== selectedYear) {
               const firstMonthOfYear = months.find(m => parseMonth(m).year === selectedYear);
-              if (firstMonthOfYear) setSelectedMonth(firstMonthOfYear);
+              if (firstMonthOfYear) {
+                  // Здесь вызываем handleMonthChange, чтобы сразу записать в URL дефолтный месяц
+                  handleMonthChange(firstMonthOfYear);
+              }
           }
       }
-  }, [selectedYear, months, selectedMonth]);
+      // Если год сменился, а месяц остался от старого года -> переключаем
+      else if (selectedYear && selectedMonth) {
+          const currentMonthYear = parseMonth(selectedMonth).year;
+          if (currentMonthYear !== selectedYear) {
+               const firstMonthOfYear = months.find(m => parseMonth(m).year === selectedYear);
+               if (firstMonthOfYear) handleMonthChange(firstMonthOfYear);
+          }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear, months, selectedMonth]); 
 
-  // 4. Фильтрация
+  // 3. Фильтрация
   const visibleMonths = months.filter(m => parseMonth(m).year === selectedYear);
 
   const filteredList = useMemo(() => {
@@ -139,23 +189,17 @@ export default function TournamentsPage() {
       });
   }, [tournaments, selectedMonth, selectedTag]);
 
-  // Обработчик выбора месяца в модалке
   const handleModalMonthSelect = (monthIndex: number) => {
-      // Формируем строку месяца, например "01.2026"
       const mStr = String(monthIndex + 1).padStart(2, '0');
       const targetMonthStr = `${mStr}.${pickerYear}`;
       
-      // Проверяем, есть ли такой месяц в данных (опционально, можно и просто переключить)
-      // Если данных нет, список будет пуст, это нормально.
-      
       setSelectedYear(pickerYear);
-      setSelectedMonth(targetMonthStr);
+      handleMonthChange(targetMonthStr); // Обновляем состояние и URL
       setIsDatePickerOpen(false);
   };
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white flex flex-col pb-32 relative">
-      
+    <>
       {/* --- HEADER --- */}
       <header className="pt-8 pb-2 bg-[#141414] sticky top-0 z-30 border-b border-white/5">
         <div className="px-6 flex items-center justify-between mb-4">
@@ -168,11 +212,10 @@ export default function TournamentsPage() {
                 </button>
                 <div className="flex flex-col">
                     <h1 className="text-[20px] font-bold text-white leading-none">Календарь</h1>
-                    {/* Убрали текстовую кнопку года отсюда */}
                 </div>
             </div>
             
-            {/* Кнопка календаря - ОТКРЫВАЕТ МОДАЛКУ */}
+            {/* Кнопка календаря */}
             <button 
                 onClick={() => {
                     setPickerYear(selectedYear || new Date().getFullYear());
@@ -184,16 +227,17 @@ export default function TournamentsPage() {
             </button>
         </div>
 
-        {/* --- ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ (Оставляем для удобства внутри года) --- */}
+        {/* --- ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ --- */}
         <div className="w-full overflow-x-auto scrollbar-hide px-6 pb-3">
             <div className="flex gap-3 min-w-min">
                 {visibleMonths.map((monthStr) => {
                     const isActive = selectedMonth === monthStr;
                     const { label } = parseMonth(monthStr);
+
                     return (
                         <button
                             key={monthStr}
-                            onClick={() => setSelectedMonth(monthStr)}
+                            onClick={() => handleMonthChange(monthStr)} // Обновляем URL
                             className={`
                                 relative px-4 py-2.5 rounded-[14px] text-[13px] font-bold transition-all duration-300 flex-shrink-0
                                 ${isActive 
@@ -214,12 +258,18 @@ export default function TournamentsPage() {
       <div className="sticky top-[110px] z-20 bg-[#141414]/95 backdrop-blur-md pb-4 pt-4 border-b border-white/5">
           <div className="flex gap-2 px-6 overflow-x-auto scrollbar-hide">
             {filters.map((f) => (
-              <FilterPill key={f.label} label={f.label} isActive={selectedTag === f.label} colorClass={f.color} onClick={() => setSelectedTag(f.label)} />
+              <FilterPill 
+                key={f.label} 
+                label={f.label} 
+                isActive={selectedTag === f.label} 
+                colorClass={f.color} 
+                onClick={() => handleTagChange(f.label)} // Обновляем URL
+              />
             ))}
           </div>
       </div>
 
-      {/* --- СПИСОК ТУРНИРОВ --- */}
+      {/* --- СПИСОК --- */}
       <main className="px-4 flex flex-col gap-3 mt-4 min-h-[300px]">
         {isLoading ? (
             <div className="flex justify-center mt-10"><div className="w-6 h-6 border-2 border-[#00B2FF] border-t-transparent rounded-full animate-spin"></div></div>
@@ -240,74 +290,34 @@ export default function TournamentsPage() {
         )}
       </main>
 
-      {/* --- НОВАЯ МОДАЛКА (ГОД + МЕСЯЦЫ) --- */}
+      {/* --- МОДАЛКА --- */}
       <AnimatePresence>
         {isDatePickerOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-                {/* Фон */}
-                <motion.div 
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    onClick={() => setIsDatePickerOpen(false)}
-                    className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-                />
-                
-                {/* Окно */}
-                <motion.div
-                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                    animate={{ scale: 1, opacity: 1, y: 0 }}
-                    exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                    className="relative w-full max-w-[320px] bg-[#1C1C1E] border border-white/10 rounded-[32px] p-5 shadow-2xl z-10 overflow-hidden"
-                >
-                    {/* Хедер модалки: Выбор года */}
-                    <div className="flex items-center justify-between mb-6">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDatePickerOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+                <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }} className="relative w-full max-w-[320px] bg-[#1C1C1E] border border-white/10 rounded-[32px] p-5 shadow-2xl z-10 overflow-hidden">
+                    <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-2 bg-black/30 rounded-full p-1 border border-white/5">
-                            <button 
-                                onClick={() => setPickerYear(prev => prev - 1)}
-                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-[#8E8E93] hover:text-white transition-colors"
-                            >
-                                <ChevronLeft />
-                            </button>
-                            <span className="text-[17px] font-bold text-white font-mono px-2">
-                                {pickerYear}
-                            </span>
-                            <button 
-                                onClick={() => setPickerYear(prev => prev + 1)}
-                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-[#8E8E93] hover:text-white transition-colors"
-                            >
-                                <ChevronRight />
-                            </button>
+                            <button onClick={() => setPickerYear(prev => prev - 1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-[#8E8E93] hover:text-white transition-colors"><ChevronLeft /></button>
+                            <span className="text-[17px] font-bold text-white font-mono px-2">{pickerYear}</span>
+                            <button onClick={() => setPickerYear(prev => prev + 1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-[#8E8E93] hover:text-white transition-colors"><ChevronRight /></button>
                         </div>
-
-                        <button onClick={() => setIsDatePickerOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-[#8E8E93] hover:text-white">
-                            <CloseIcon />
-                        </button>
+                        <button onClick={() => setIsDatePickerOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-[#8E8E93] hover:text-white"><CloseIcon /></button>
                     </div>
                     
-                    {/* Сетка месяцев */}
                     <div className="grid grid-cols-3 gap-3">
                         {['Янв', 'Фев', 'Март', 'Апр', 'Май', 'Июнь', 'Июль', 'Авг', 'Сент', 'Окт', 'Ноя', 'Дек'].map((mName, idx) => {
-                            // Формируем полный ID месяца для проверки (01.2026)
                             const currentPickerMonthStr = `${String(idx + 1).padStart(2, '0')}.${pickerYear}`;
-                            
-                            // Проверяем, выбран ли этот месяц ВООБЩЕ (в текущем просмотре)
                             const isSelected = selectedMonth === currentPickerMonthStr;
-                            
-                            // Проверяем, есть ли данные за этот месяц (чтобы подсветить доступные)
                             const hasData = months.includes(currentPickerMonthStr);
 
                             return (
                                 <button
                                     key={idx}
                                     onClick={() => handleModalMonthSelect(idx)}
-                                    disabled={!hasData && false} // Можно отключить disabled, если хочешь разрешить выбор пустых месяцев
                                     className={`
                                         py-3 rounded-[16px] text-[13px] font-bold transition-all duration-200 border
-                                        ${isSelected 
-                                            ? 'bg-[#007AFF] border-[#007AFF] text-white shadow-lg' 
-                                            : hasData 
-                                                ? 'bg-[#2C2C2E] border-transparent text-white hover:bg-[#3A3A3C]'
-                                                : 'bg-[#1C1C1E] border-white/5 text-[#5F6067] hover:border-white/10'
-                                        }
+                                        ${isSelected ? 'bg-[#007AFF] border-[#007AFF] text-white shadow-lg' : hasData ? 'bg-[#2C2C2E] border-transparent text-white hover:bg-[#3A3A3C]' : 'bg-[#1C1C1E] border-white/5 text-[#5F6067] hover:border-white/10'}
                                     `}
                                 >
                                     {mName}
@@ -319,6 +329,15 @@ export default function TournamentsPage() {
             </div>
         )}
       </AnimatePresence>
-    </div>
+    </>
+  );
+}
+
+// Оборачиваем в Suspense, так как useSearchParams требует этого в клиентских компонентах
+export default function TournamentsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#141414] flex items-center justify-center text-[#5F6067]">Загрузка...</div>}>
+      <TournamentsContent />
+    </Suspense>
   );
 }
