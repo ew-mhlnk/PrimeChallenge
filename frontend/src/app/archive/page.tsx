@@ -87,7 +87,6 @@ export default function TournamentsPage() {
       
       const uniqueMonths = Array.from(new Set(tournaments.map(t => t.month).filter(Boolean) as string[]));
       const sortedMonths = uniqueMonths.sort((a, b) => parseMonth(a).sortVal - parseMonth(b).sortVal);
-      
       const uniqueYears = Array.from(new Set(sortedMonths.map(m => parseMonth(m).year)));
       
       return { years: uniqueYears, months: sortedMonths };
@@ -96,12 +95,11 @@ export default function TournamentsPage() {
   // 2. Инициализация (При первой загрузке)
   useEffect(() => {
       if (!selectedYear && years.length > 0) {
-          // Выбираем текущий год или первый доступный
           const currentYear = new Date().getFullYear();
           if (years.includes(currentYear)) {
               setSelectedYear(currentYear);
           } else {
-              setSelectedYear(years[0]); // Например 2026
+              setSelectedYear(years[0]);
           }
       }
   }, [years, selectedYear]);
@@ -109,21 +107,17 @@ export default function TournamentsPage() {
   // 3. Авто-выбор месяца при смене года
   useEffect(() => {
       if (selectedYear && months.length > 0) {
-          // Проверяем, принадлежит ли текущий выбранный месяц выбранному году
           const currentMonthYear = selectedMonth ? parseMonth(selectedMonth).year : -1;
           
           if (currentMonthYear !== selectedYear) {
-              // Ищем первый месяц в выбранном году
               const firstMonthOfYear = months.find(m => parseMonth(m).year === selectedYear);
               if (firstMonthOfYear) setSelectedMonth(firstMonthOfYear);
           }
       }
   }, [selectedYear, months, selectedMonth]);
 
-  // 4. Фильтрация списка месяцев для ленты (по году)
   const visibleMonths = months.filter(m => parseMonth(m).year === selectedYear);
 
-  // 5. Фильтрация турниров
   const filteredList = useMemo(() => {
       if (!tournaments) return [];
       return tournaments.filter(t => {
@@ -148,17 +142,20 @@ export default function TournamentsPage() {
                 </button>
                 <div className="flex flex-col">
                     <h1 className="text-[20px] font-bold text-white leading-none">Календарь</h1>
-                    {/* Кликабельный год */}
-                    <button 
-                        onClick={() => setIsYearPickerOpen(true)}
-                        className="text-[12px] text-[#00B2FF] font-bold mt-0.5 flex items-center gap-1 active:opacity-70"
-                    >
-                        {selectedYear || '...'} год ▼
-                    </button>
+                    
+                    {/* Год (Показываем только когда он выбран) */}
+                    {selectedYear && (
+                      <button 
+                          onClick={() => setIsYearPickerOpen(true)}
+                          className="text-[12px] text-[#00B2FF] font-bold mt-0.5 flex items-center gap-1 active:opacity-70 justify-start"
+                      >
+                          {selectedYear} год ▼
+                      </button>
+                    )}
                 </div>
             </div>
             
-            {/* Кнопка календаря (Открывает выбор года) */}
+            {/* Кнопка календаря */}
             <button 
                 onClick={() => setIsYearPickerOpen(true)}
                 className="w-9 h-9 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/10 active:scale-90 transition-transform text-[#00B2FF]"
@@ -190,10 +187,6 @@ export default function TournamentsPage() {
                         </button>
                     );
                 })}
-                
-                {visibleMonths.length === 0 && !isLoading && (
-                    <span className="text-[#5F6067] text-sm py-2">Нет турниров в {selectedYear}</span>
-                )}
             </div>
         </div>
       </header>
@@ -244,15 +237,15 @@ export default function TournamentsPage() {
         )}
       </main>
 
-      {/* --- МОДАЛКА ВЫБОРА ГОДА --- */}
+      {/* --- МОДАЛКА ВЫБОРА ГОДА (ИСПРАВЛЕНАЯ) --- */}
       <AnimatePresence>
         {isYearPickerOpen && (
-            <>
+            <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
                 {/* Backdrop */}
                 <motion.div 
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                     onClick={() => setIsYearPickerOpen(false)}
-                    className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40"
+                    className="absolute inset-0 bg-black/80 backdrop-blur-sm"
                 />
                 
                 {/* Modal Content */}
@@ -260,16 +253,19 @@ export default function TournamentsPage() {
                     initial={{ scale: 0.9, opacity: 0, y: 20 }}
                     animate={{ scale: 1, opacity: 1, y: 0 }}
                     exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                    className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[280px] bg-[#1C1C1E] border border-white/10 rounded-[24px] p-5 z-50 shadow-2xl"
+                    className="relative w-full max-w-[300px] bg-[#1C1C1E] border border-white/10 rounded-[24px] p-5 shadow-2xl z-10"
                 >
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-bold text-white">Выберите год</h3>
-                        <button onClick={() => setIsYearPickerOpen(false)} className="text-[#8E8E93]">
+                        <button 
+                            onClick={() => setIsYearPickerOpen(false)} 
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-[#8E8E93] hover:text-white"
+                        >
                             <CloseIcon />
                         </button>
                     </div>
                     
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
                         {years.map(year => (
                             <button
                                 key={year}
@@ -278,7 +274,7 @@ export default function TournamentsPage() {
                                     setIsYearPickerOpen(false);
                                 }}
                                 className={`
-                                    py-3 rounded-[16px] font-bold text-[16px] transition-all
+                                    py-3 rounded-[16px] font-bold text-[16px] transition-all w-full
                                     ${selectedYear === year 
                                         ? 'bg-[#007AFF] text-white' 
                                         : 'bg-[#2C2C2E] text-[#8E8E93] hover:bg-[#3A3A3C]'
@@ -288,10 +284,10 @@ export default function TournamentsPage() {
                                 {year}
                             </button>
                         ))}
-                        {years.length === 0 && <p className="text-center text-[#5F6067]">Нет данных</p>}
+                        {years.length === 0 && <p className="text-center text-[#5F6067] py-4">Нет данных</p>}
                     </div>
                 </motion.div>
-            </>
+            </div>
         )}
       </AnimatePresence>
 
