@@ -3,7 +3,9 @@
 import { Tournament } from '@/types';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
+import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 
 // --- ИКОНКИ ---
 const BackIcon = () => (
@@ -41,14 +43,27 @@ const getImageUrl = (url?: string) => {
 export default function PlannedTournamentView({ tournament }: { tournament: Tournament }) {
   const router = useRouter();
   const imageSrc = getImageUrl(tournament.image_url);
+  
+  // Состояние для разворачивания текста
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { impact } = useHapticFeedback();
+
+  // Функция переключения
+  const toggleDescription = () => {
+      impact('light');
+      setIsExpanded(!isExpanded);
+  };
+
+  // Проверяем длину описания, чтобы не показывать кнопку "Еще" для коротких текстов
+  const isLongDescription = tournament.description && tournament.description.length > 120;
 
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col relative overflow-hidden">
       
       {/* --- HERO IMAGE BLOCK --- */}
-      {/* h-[60vh] - Занимает 60% высоты экрана. 
-          На мобильных это оптимально, чтобы внизу оставалось место для статуса */}
-      <div className="relative w-full h-[60vh] min-h-[400px]">
+      {/* Используем min-h, чтобы при разворачивании текста картинка могла растягиваться, если нужно, 
+          но лучше фиксировать высоту, чтобы контент скроллился поверх */}
+      <div className="relative w-full h-[60vh] min-h-[420px]">
           
           {/* ФОТОГРАФИЯ */}
           {imageSrc ? (
@@ -57,30 +72,26 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
                     src={imageSrc} 
                     alt={tournament.name} 
                     fill 
-                    // object-cover: Ключевое свойство. 
-                    // Растягивает фото на весь блок, обрезая лишнее, но НЕ искажая пропорции.
                     className="object-cover object-top" 
                     priority
                     sizes="(max-width: 768px) 100vw, 50vw"
                   />
                   
-                  {/* Градиент (Scrim) для читаемости текста.
-                      Делаем его более плавным и высоким, чтобы текст всегда был на темном. */}
+                  {/* Градиент */}
                   <div 
                     className="absolute inset-0"
                     style={{ 
-                        background: 'linear-gradient(180deg, rgba(20, 20, 20, 0) 40%, rgba(20, 20, 20, 0.6) 60%, #141414 100%)' 
+                        background: 'linear-gradient(180deg, rgba(20, 20, 20, 0) 40%, rgba(20, 20, 20, 0.7) 60%, #141414 100%)' 
                     }}
                   />
               </div>
           ) : (
-              // Фоллбэк градиент, если фото нет
               <div className="absolute inset-0 bg-gradient-to-b from-[#0B80B3] to-[#141414]" />
           )}
 
           {/* Кнопка Назад */}
           <button 
-            onClick={() => router.back()} 
+            onClick={() => { impact('light'); router.back(); }} 
             className="absolute top-6 left-6 w-10 h-10 flex items-center justify-center rounded-full bg-black/20 backdrop-blur-md border border-white/10 active:scale-90 transition-transform z-30"
           >
             <BackIcon />
@@ -95,7 +106,6 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
                 animate={{ opacity: 1, y: 0 }} 
                 transition={{ duration: 0.4 }}
               >
-                  {/* Флаг (если есть в названии) + Название */}
                   <h1 className="text-[28px] font-bold leading-tight drop-shadow-md">
                       {tournament.name} 
                       <span className="text-white/60 font-normal text-[20px] ml-2">
@@ -104,26 +114,48 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
                   </h1>
               </motion.div>
 
-              {/* Описание (Уменьшили шрифт до text-[14px]) */}
+              {/* Описание с логикой "Еще" */}
               {tournament.description && (
-                  <motion.p 
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
-                    className="text-[14px] text-[#EBEBF5]/80 leading-snug line-clamp-3 drop-shadow-sm font-medium pr-4"
+                  <motion.div 
+                    layout // Позволяет плавно анимировать изменение высоты
+                    initial={{ opacity: 0 }} 
+                    animate={{ opacity: 1 }} 
+                    transition={{ delay: 0.1 }}
+                    className="flex flex-col items-start"
                   >
-                      {tournament.description}
-                  </motion.p>
+                      <p 
+                        className={`
+                            text-[14px] text-[#EBEBF5]/80 leading-snug font-medium pr-4 transition-all duration-300
+                            ${isExpanded ? '' : 'line-clamp-3'} 
+                        `}
+                      >
+                          {tournament.description}
+                      </p>
+                      
+                      {isLongDescription && (
+                          <button 
+                            onClick={toggleDescription}
+                            className="text-[#00B2FF] text-[13px] font-bold mt-1 active:opacity-70"
+                          >
+                              {isExpanded ? 'Скрыть' : 'Еще'}
+                          </button>
+                      )}
+                  </motion.div>
               )}
 
-              {/* Блок деталей и чемпиона (Сгруппировали плотнее) */}
+              {/* Блок деталей и чемпиона */}
               <motion.div 
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
+                layout // Чтобы этот блок плавно сдвигался вниз при открытии текста
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                transition={{ delay: 0.2 }}
                 className="flex flex-col gap-1.5 mt-1"
               >
-                  {/* Детали: Город, Покрытие, Матчи */}
+                  {/* Детали */}
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-white/90 font-medium">
                       <div className="flex items-center gap-1.5">
                           <LocationIcon />
-                          <span>{tournament.name}</span> {/* Или City если добавим */}
+                          <span>{tournament.name}</span>
                       </div>
                       
                       {tournament.surface && (
@@ -141,7 +173,7 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
                       )}
                   </div>
 
-                  {/* Чемпион (Почти без отступа от деталей) */}
+                  {/* Чемпион */}
                   {tournament.defending_champion && (
                       <div className="flex items-center gap-2 text-[13px]">
                           <span className="text-[#8E8E93]">Действующий чемпион:</span>
@@ -154,32 +186,16 @@ export default function PlannedTournamentView({ tournament }: { tournament: Tour
       </div>
 
       {/* --- НИЖНЯЯ ЧАСТЬ (СТАТУС + ДЕКОР) --- */}
-      {/* flex-1 заставляет этот блок занять всё оставшееся место */}
       <div className="flex-1 relative flex flex-col items-center justify-start pt-8 pb-10 z-10 bg-[#141414]">
           
-          {/* Декор Левый */}
           <div className="absolute -left-[100px] top-[-60px] opacity-40 pointer-events-none select-none">
-              <Image 
-                src="/decoration-left.png" 
-                alt="" 
-                width={300} 
-                height={500} 
-                className="object-contain" 
-              />
+              <Image src="/decoration-left.png" alt="" width={300} height={500} className="object-contain" />
           </div>
 
-          {/* Декор Правый */}
           <div className="absolute -right-[100px] top-[20px] opacity-40 pointer-events-none select-none">
-              <Image 
-                src="/decoration-right.png" 
-                alt="" 
-                width={300} 
-                height={500} 
-                className="object-contain" 
-              />
+              <Image src="/decoration-right.png" alt="" width={300} height={500} className="object-contain" />
           </div>
 
-          {/* Статус текст */}
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
