@@ -7,7 +7,6 @@ import { Player } from '@/types';
 const CheckIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>);
 const TrophyIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>);
 
-// --- ИНТЕРФЕЙС СТРОКИ ИГРОКА ---
 interface PlayerRowProps {
   player: Player | { name: string; seed?: number } | null;
   status: 'default' | 'selected' | 'correct' | 'incorrect' | 'tbd';
@@ -50,27 +49,20 @@ const PlayerRow = ({ player, status, score, onClick, showCheck, showTrophy, hint
   );
 };
 
-// --- ИНТЕРФЕЙС КАРТОЧКИ (ТУТ БЫЛА ОШИБКА) ---
 interface BracketMatchCardProps {
   player1: any;
   player2: any;
   scores?: string[];
-  
   p1Status?: 'default' | 'selected' | 'correct' | 'incorrect' | 'tbd';
   p2Status?: 'default' | 'selected' | 'correct' | 'incorrect' | 'tbd';
-  
   onP1Click?: () => void;
   onP2Click?: () => void;
-  
   showChecks?: boolean;
   p1Hint?: string | null;
   p2Hint?: string | null;
   p1Eliminated?: boolean;
   p2Eliminated?: boolean;
-  
   isChampion?: boolean;
-  
-  // ВАЖНО: Добавили это поле, чтобы TS не ругался
   showConnector?: boolean; 
 }
 
@@ -82,7 +74,7 @@ export const BracketMatchCard = ({
   p1Hint, p2Hint,
   p1Eliminated, p2Eliminated,
   isChampion = false,
-  showConnector = true // Значение по умолчанию
+  showConnector = true
 }: BracketMatchCardProps) => {
 
   if (isChampion) {
@@ -93,13 +85,16 @@ export const BracketMatchCard = ({
 
       return (
         <div className={styles.championWrapper}>
-            <div className={styles.championContainer} style={{ border: 'none', background: bgStyle }}>
-                <PlayerRow 
-                    player={player1} 
-                    status={p1Status} 
-                    showTrophy={p1Status === 'correct'} 
-                    hintName={p1Hint}
-                />
+            <div className={styles.championContainer}>
+                {/* Для чемпиона переопределяем стиль контейнера инлайн или через класс */}
+                <div style={{ background: bgStyle, borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <PlayerRow 
+                        player={player1} 
+                        status={p1Status} 
+                        showTrophy={p1Status === 'correct'} 
+                        hintName={p1Hint}
+                    />
+                </div>
             </div>
         </div>
       );
@@ -128,10 +123,12 @@ export const BracketMatchCard = ({
             />
         </div>
 
-        {/* Линии (Connectors) */}
+        {/* Скругленные Линии */}
         {showConnector && (
             <div className={styles.bracketConnector}>
+                <div className={styles.connectorTop} />
                 <div className={styles.node} />
+                <div className={styles.connectorBottom} />
             </div>
         )}
     </div>

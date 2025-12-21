@@ -2,95 +2,175 @@
 .container {
   height: 100dvh;
   width: 100%;
-  background-color: #0E0E0E; /* Чуть светлее чистого черного, как на макете */
+  background-color: #000000;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* ... (Header, Banner, RoundsContainer оставляем как были) ... */
-.header, .bannerWrapper, .roundsContainer, .roundButton, .activeRound {
-  /* Оставляем старый код этих классов без изменений */
+/* --- Header --- */
+.header {
   flex-shrink: 0;
-  /* ... */
+  display: flex;
+  align-items: center;
+  padding: 20px 24px 10px;
+  gap: 12px;
+  background-color: #000000;
+  z-index: 30;
 }
-/* Только добавь это в roundsContainer для красоты */
+
+.backArrow {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  background: transparent;
+  border: none;
+}
+
+.tournamentTitle {
+  color: #FFFFFF;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+/* --- Banner --- */
+.bannerWrapper {
+  flex-shrink: 0;
+  padding: 0 24px 15px 24px;
+  z-index: 20;
+}
+
+/* --- Navigation (Раунды) --- */
 .roundsContainer {
-  /* ... */
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px 10px 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  height: 50px;
   z-index: 20;
   margin-bottom: 10px;
 }
+.roundsContainer::-webkit-scrollbar { display: none; }
 
+.roundButton {
+  position: relative;
+  padding: 8px 18px;
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: #1C1C1E;
+  color: #5F6067;
+  border: 1px solid transparent;
+  flex-shrink: 0; 
+}
 
-/* --- BRACKET WINDOW --- */
+.activeRound {
+  color: #FFFFFF;
+  background: linear-gradient(180deg, #008CFF 0%, #0077FF 100%);
+  border: 1px solid #00B3FF;
+  box-shadow: 0 0 15px rgba(0, 140, 255, 0.4);
+}
+
+/* --- BRACKET WINDOW (Вернули контейнер) --- */
 .bracketWindow {
-  flex: 1;
-  width: 100%;
+  width: calc(100% - 32px);
+  margin: 0 auto;
+  background: #121212; /* Вернули фон */
+  border: 1px solid #333; /* Вернули рамку */
+  border-radius: 24px;
   position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* Убрали background и border, чтобы сетка "парила" на фоне */
+  flex: 1; /* Занимает все место */
+  margin-bottom: 100px; /* Место под кнопку */
+  transition: all 0.4s cubic-bezier(0.32, 0.72, 0, 1);
 }
+
+.bracketWindowCompact { flex-grow: 0; height: auto; flex: none; }
 
 /* --- SCROLL AREA --- */
 .scrollArea {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 20px 0 100px 0; /* Отступ снизу для кнопки */
+  padding: 20px 0;
 }
+.scrollArea::-webkit-scrollbar { display: none; }
 
 .sliderWrapper {
   display: flex;
   flex-direction: column;
-  /* Увеличили отступ между матчами, чтобы линии были длиннее */
-  gap: 16px; 
+  gap: 24px;
   width: 100%;
-  padding: 0 16px;
+  padding: 0 20px;
   box-sizing: border-box;
 }
 
-/* --- MATCH STRUCTURE --- */
+/* --- MATCH WRAPPER --- */
 .matchWrapper {
   position: relative;
   width: 100%;
-  display: flex;
-  align-items: center;
-  /* Высота матча должна быть достаточной для линий */
-  min-height: 100px; 
+  /* Важно для позиционирования линий */
+  display: flex; 
+  justify-content: flex-start;
 }
 
+/* --- MATCH CONTAINER (Коробка с игроками) --- */
 .matchContainer {
   display: flex;
   flex-direction: column;
-  /* Ширина ячейки. Делаем меньше 100%, чтобы осталось место для линий справа */
-  width: 85%; 
-  gap: 8px; /* Отступ между игроками в паре */
+  width: 100%;
+  /* gap: 4px; Убрали гэп, чтобы ячейки слипались или были очень близко, как на макете */
+  gap: 0; 
+  background: transparent;
+  position: relative;
   z-index: 2;
+  /* Уменьшаем ширину, чтобы влезли линии справа */
+  width: 88%; 
 }
 
-/* --- PLAYER CELL (ЯЧЕЙКА) --- */
+/* --- PLAYER ROW (Ячейка игрока) --- */
 .playerRow {
-  height: 44px; /* h-11 */
+  height: 44px; /* h-11 из макета */
   width: 100%;
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  padding: 0 12px;
   cursor: pointer;
   position: relative;
   transition: all 0.2s;
   
-  /* Базовый стиль (Твой Default) */
-  background: linear-gradient(90deg, #171717 0%, #171717 100%); /* neutral-900 */
-  border: 1px solid rgba(255, 255, 255, 0.15); /* border-white/25 чуть прозрачнее */
-  border-radius: 12px; /* rounded-xl */
+  /* Базовый стиль (Neutral Gradient) */
+  background: linear-gradient(90deg, #171717 0%, #171717 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25); /* 25% прозрачности */
   color: #5F6067;
   font-size: 14px;
   font-weight: 500;
+  
+  /* Скругления: Верхний игрок */
+  &:first-child {
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom: none; /* Убираем двойную границу посередине */
+  }
+  
+  /* Скругления: Нижний игрок */
+  &:last-child {
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1); /* Тонкая линия между игроками */
+  }
 }
-
-.playerRow:active { transform: scale(0.98); }
 
 .playerInfo {
   display: flex;
@@ -107,101 +187,93 @@
 }
 
 .playerSeed {
-  color: #444; 
+  color: #666; 
   font-size: 11px;
 }
 
-/* --- STATES (Цвета из твоего ТЗ) --- */
+/* --- STATES (Цвета из ТЗ) --- */
 
-/* 1. TBD (Пусто) */
+/* 1. TBD */
 .tbd {
-  background: #121212;
-  border-color: rgba(255, 255, 255, 0.05);
+  background: #171717;
   color: #333;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
-/* 2. Selected (Выбран юзером) */
-/* from-slate-800 via-gray-900 to-neutral-900 */
+/* 2. Selected (Нажата юзером) */
+/* from-slate-800 via-gray-900 to-neutral-900 -> Цвет CBCBCB */
 .selected {
   background: linear-gradient(90deg, #1e293b 0%, #111827 50%, #171717 100%);
+  color: #CBCBCB;
   border-color: rgba(255, 255, 255, 0.4);
-  color: #CBCBCB; /* Твой цвет */
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
 }
 
 /* 3. Correct (Верно) */
-/* from-stone-900 to-neutral-900 + Зеленый текст */
+/* from-stone-900 -> Зеленоватый оттенок для текста можно добавить */
 .correct {
   background: linear-gradient(90deg, #1c1917 0%, #171717 100%);
-  border-color: rgba(74, 222, 128, 0.3); /* Легкая зеленая рамка */
-  color: #4ADE80; /* Зеленый текст (как на скрине Altmaier) */
+  color: #CBCBCB; /* Или чуть зеленее #E2E8F0 */
+  border-color: rgba(255, 255, 255, 0.25);
 }
+/* Можно добавить зеленую подсветку тексту или бордеру, если нужно */
 
 /* 4. Incorrect (Неверно) */
-/* from-stone-900 to-neutral-900 + Красный текст */
+/* from-stone-900 -> Цвет 7E5B5B */
 .incorrect {
-  background: linear-gradient(90deg, #1c1917 0%, #171717 100%);
+  background: linear-gradient(90deg, #2a1b1b 0%, #171717 100%);
+  color: #7E5B5B;
   border-color: rgba(255, 69, 58, 0.15);
-  color: #7E5B5B; /* Твой цвет */
   text-decoration: line-through;
-  opacity: 0.8;
 }
 
 /* --- СЧЕТ --- */
 .score {
   font-family: monospace;
   font-size: 13px;
-  color: #888;
-  letter-spacing: 2px;
+  color: #666;
 }
 .selected .score { color: #FFF; }
-.correct .score { color: #4ADE80; }
 
-/* --- ЛИНИИ (CONNECTORS) --- */
-/* Рисуем "вилку" справа от матча */
+/* --- ЛИНИИ (Rounded Connectors) --- */
 .bracketConnector {
   position: absolute;
   right: 0;
-  top: 22px; /* Середина верхней ячейки (44px / 2) */
-  bottom: 22px; /* Середина нижней ячейки */
-  width: 15%; /* Занимает оставшееся место */
+  top: 22px; /* Центр верхнего игрока */
+  bottom: 22px; /* Центр нижнего игрока */
+  width: 12%; /* Ширина отступа для линий */
   
-  /* Линии */
-  border-right: 1px solid #444; /* Вертикальная палка */
-  
-  /* Верхний и нижний "ус" */
-  /* Используем псевдоэлементы для горизонтальных палочек */
+  display: flex;
+  flex-direction: column;
 }
 
-.bracketConnector::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
+/* Верхняя дуга */
+.connectorTop {
+  flex: 1;
   width: 100%;
-  height: 1px;
-  background: #444;
+  border-bottom: 1px solid #555;
+  border-right: 1px solid #555;
+  border-bottom-right-radius: 10px; /* Закругление */
 }
 
-.bracketConnector::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
+/* Нижняя дуга */
+.connectorBottom {
+  flex: 1;
   width: 100%;
-  height: 1px;
-  background: #444;
+  border-top: 1px solid #555;
+  border-right: 1px solid #555;
+  border-top-right-radius: 10px; /* Закругление */
+  margin-top: -1px; /* Чтобы линии сошлись */
 }
 
-/* "Узел" (Node) - белый квадратик на стыке, как на скрине */
+/* Узел (Node) */
 .node {
   position: absolute;
   top: 50%;
-  right: -4px; /* Сдвигаем, чтобы центр был на линии */
+  right: -4px;
   transform: translateY(-50%);
   width: 8px;
   height: 8px;
-  background: #D9D9D9; /* Светло-серый */
+  background: #D9D9D9;
   border-radius: 2px;
   z-index: 5;
 }
@@ -211,7 +283,7 @@
   width: 100%;
   display: flex;
   justify-content: center;
-  padding: 20px;
+  padding: 0;
 }
 .championContainer {
   width: 100%;
@@ -229,12 +301,22 @@
   pointer-events: none;
 }
 .saveButton {
-  /* ... старый код кнопки ... */
   pointer-events: auto;
-  background-color: #1C1C1E;
-  color: white;
-  border: 1px solid #333;
-  padding: 12px 30px;
-  border-radius: 20px;
+  background-color: rgba(255, 255, 255, 0.15); 
+  backdrop-filter: blur(12px);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  border-radius: 999px;
+  font-size: 15px;
   font-weight: 600;
+  cursor: pointer;
+  gap: 8px;
+}
+.saveButtonSuccess {
+  background-color: #FFFFFF;
+  color: #000000;
 }
