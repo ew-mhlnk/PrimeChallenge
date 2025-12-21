@@ -6,8 +6,10 @@ import { motion } from 'framer-motion';
 import useTournaments from '../hooks/useTournaments';
 import useAuth from '../hooks/useAuth';
 import { Tournament } from '@/types';
+// ИМПОРТ НОВОГО КОМПОНЕНТА
+import { TournamentCard } from '@/components/tournament/TournamentCard';
 
-// 1. Теги
+// 1. Теги (Оставляем локально, так как используются только здесь)
 interface FilterPillProps {
   label: string;
   isActive: boolean;
@@ -39,67 +41,7 @@ const FilterPill = ({ label, isActive, onClick, colorClass }: FilterPillProps) =
   );
 };
 
-// 2. Карточка турнира
-const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
-  const isActive = tournament.status === 'ACTIVE';
-  const isClosed = tournament.status === 'CLOSED';
-  
-  let statusText = '';
-  let statusColor = 'text-[#8E8E93]';
-  let dotColor = 'bg-[#8E8E93]';
-
-  if (isActive) {
-      statusText = 'Live • Идет сейчас';
-      statusColor = 'text-[#32D74B]';
-      dotColor = 'bg-[#32D74B] animate-pulse';
-  } else if (isClosed) {
-      statusText = 'Турнир уже начался';
-      statusColor = 'text-[#FFD700]';
-      dotColor = 'bg-[#FFD700]';
-  } 
-
-  return (
-    <Link href={`/tournament/${tournament.id}`} className="block w-full">
-      <motion.div
-        whileTap={{ scale: 0.96 }}
-        className="w-full relative overflow-hidden bg-[#1C1C1E] rounded-[28px] border border-white/5 p-5 shadow-lg group"
-      >
-        <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-
-        <div className="flex flex-col gap-1 relative z-10">
-          <div className="flex items-start justify-between">
-             <h3 className="text-[20px] font-bold text-white leading-tight pr-4">
-                {tournament.name}
-             </h3>
-             {tournament.tag && (
-               <span className={`
-                 text-[10px] font-black px-2 py-0.5 rounded-md border border-white/10 uppercase
-                 ${tournament.tag === 'ATP' ? 'bg-[#002BFF]/20 text-[#5E83FF]' : ''}
-                 ${tournament.tag === 'WTA' ? 'bg-[#7B00FF]/20 text-[#C685FF]' : ''}
-                 ${tournament.tag === 'ТБШ' ? 'bg-yellow-500/20 text-yellow-300' : ''}
-               `}>
-                 {tournament.tag}
-               </span>
-             )}
-          </div>
-
-          <p className="text-[12px] font-medium text-[#8E8E93] mt-1">
-            {tournament.dates || 'Даты уточняются'}
-          </p>
-
-          <div className="mt-5 flex items-center gap-2">
-            <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-            <span className={`text-[11px] font-medium ${statusColor}`}>
-              {statusText}
-            </span>
-          </div>
-        </div>
-      </motion.div>
-    </Link>
-  );
-};
-
-// 3. Loading Screen
+// 2. Loading Screen (Оставляем)
 const LoadingScreen = () => (
   <div className="fixed inset-0 z-50 bg-[#141414] flex flex-col items-center justify-center">
     <div 
@@ -112,6 +54,8 @@ const LoadingScreen = () => (
     </div>
   </div>
 );
+
+// --- MAIN PAGE ---
 
 export default function Home() {
   const { tournaments, error, isLoading } = useTournaments();
@@ -128,8 +72,7 @@ export default function Home() {
   if (isLoading) return <LoadingScreen />;
   if (error) return <p className="text-red-500 px-8 pt-20">Ошибка: {error}</p>;
 
-  // ИЗМЕНЕНИЕ: Оставляем только ACTIVE и CLOSED.
-  // PLANNED и COMPLETED уходят в календарь.
+  // На главной только ACTIVE и CLOSED
   const activeTournaments = tournaments ? tournaments.filter((tournament: Tournament) => {
     if (!['ACTIVE', 'CLOSED'].includes(tournament.status)) return false;
     
@@ -197,10 +140,10 @@ export default function Home() {
             ))}
           </div>
 
-          <div className="flex flex-col gap-4 mt-1">
+          <div className="flex flex-col gap-3 mt-1">
             {!tournaments ? (
                [1,2].map(i => (
-                 <div key={i} className="h-[120px] w-full bg-[#1C1C1E] rounded-[28px] animate-pulse border border-white/5" />
+                 <div key={i} className="h-[120px] w-full bg-[#1C1C1E] rounded-[24px] animate-pulse border border-white/5" />
                ))
             ) : activeTournaments.length === 0 ? (
                 <div className="text-center py-10">
@@ -209,6 +152,7 @@ export default function Home() {
                 </div>
             ) : (
                 activeTournaments.map((tournament: Tournament) => (
+                  // ИСПОЛЬЗУЕМ НОВЫЙ КОМПОНЕНТ
                   <TournamentCard key={tournament.id} tournament={tournament} />
                 ))
             )}

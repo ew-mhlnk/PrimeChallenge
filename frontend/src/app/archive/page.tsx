@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import useTournaments from '../../hooks/useTournaments';
-import { TournamentListItem } from '@/components/tournament/TournamentListItem';
-import { useHapticFeedback } from '@/hooks/useHapticFeedback'; // <--- Импорт
+// ВАЖНО: Импортируем новый универсальный компонент
+import { TournamentCard } from '@/components/tournament/TournamentCard';
+import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 
 // --- ИКОНКИ ---
 const BackIcon = () => (
@@ -36,7 +37,6 @@ const ChevronRight = () => (
 // --- ХЕЛПЕРЫ ---
 const parseMonth = (monthStr: string) => {
     const monthsShort = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН', 'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
-    const monthsFull = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
     
     if (!monthStr || typeof monthStr !== 'string' || !monthStr.includes('.')) {
         return { label: '?', fullLabel: '?', year: 2025, index: 0, sortVal: 999999 };
@@ -47,14 +47,12 @@ const parseMonth = (monthStr: string) => {
     
     return {
         label: monthsShort[mIdx] || '?',
-        fullLabel: monthsFull[mIdx] || '?',
         year: y,
         index: m,
         sortVal: y * 100 + m 
     };
 };
 
-// --- КОМПОНЕНТ ФИЛЬТРА ТЕГОВ ---
 const FilterPill = ({ label, isActive, onClick, colorClass }: { label: string, isActive: boolean, onClick: () => void, colorClass: string }) => (
     <button
       onClick={onClick}
@@ -83,9 +81,9 @@ function TournamentsContent() {
   const pathname = usePathname();
   
   const { tournaments, error, isLoading } = useTournaments();
-  const { impact, selection } = useHapticFeedback(); // <--- Hook
+  const { impact, selection } = useHapticFeedback();
   
-  // --- ИНИЦИАЛИЗАЦИЯ ИЗ URL ---
+  // --- СОСТОЯНИЯ ---
   const initialTag = searchParams.get('tag') || 'ВСЕ';
   const initialMonth = searchParams.get('month');
 
@@ -114,20 +112,19 @@ function TournamentsContent() {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  // HANDLERS С ВИБРАЦИЕЙ
   const handleTagChange = (tag: string) => {
-      if (selectedTag !== tag) impact('light'); // Вибрация при смене
+      if (selectedTag !== tag) impact('light');
       setSelectedTag(tag);
       updateUrl(tag, selectedMonth);
   };
 
   const handleMonthChange = (month: string) => {
-      if (selectedMonth !== month) impact('light'); // Вибрация при смене
+      if (selectedMonth !== month) impact('light');
       setSelectedMonth(month);
       updateUrl(selectedTag, month);
   };
 
-  // 1. Получаем данные
+  // 1. Получаем данные (Годы и Месяцы)
   const { years, months } = useMemo(() => {
       if (!tournaments || tournaments.length === 0) return { years: [], months: [] };
       const uniqueMonths = Array.from(new Set(tournaments.map(t => t.month).filter(Boolean) as string[]));
@@ -136,7 +133,7 @@ function TournamentsContent() {
       return { years: uniqueYears, months: sortedMonths };
   }, [tournaments]);
 
-  // 2. Инициализация (При первой загрузке)
+  // 2. Инициализация года
   useEffect(() => {
       if (!selectedYear && years.length > 0) {
           const currentYear = new Date().getFullYear();
@@ -153,7 +150,6 @@ function TournamentsContent() {
           if (currentMonthYear !== selectedYear) {
               const firstMonthOfYear = months.find(m => parseMonth(m).year === selectedYear);
               if (firstMonthOfYear) {
-                  // Здесь не вибрируем, это авто-выбор
                   setSelectedMonth(firstMonthOfYear);
                   updateUrl(selectedTag, firstMonthOfYear);
               }
@@ -164,6 +160,7 @@ function TournamentsContent() {
 
   const visibleMonths = months.filter(m => parseMonth(m).year === selectedYear);
 
+  // 4. ФИЛЬТРАЦИЯ СПИСКА (Вот переменная, которую терял компилятор)
   const filteredList = useMemo(() => {
       if (!tournaments) return [];
       return tournaments.filter(t => {
@@ -177,7 +174,7 @@ function TournamentsContent() {
       const mStr = String(monthIndex + 1).padStart(2, '0');
       const targetMonthStr = `${mStr}.${pickerYear}`;
       
-      impact('medium'); // Подтверждение выбора
+      impact('medium');
       setSelectedYear(pickerYear);
       setSelectedMonth(targetMonthStr);
       updateUrl(selectedTag, targetMonthStr);
@@ -264,7 +261,8 @@ function TournamentsContent() {
                 <AnimatePresence mode="wait">
                     {filteredList.map(t => (
                         <motion.div key={t.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-                            <TournamentListItem tournament={t} />
+                            {/* Используем универсальную карточку */}
+                            <TournamentCard tournament={t} />
                         </motion.div>
                     ))}
                 </AnimatePresence>
