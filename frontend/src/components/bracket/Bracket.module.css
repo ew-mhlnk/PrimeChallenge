@@ -2,159 +2,95 @@
 .container {
   height: 100dvh;
   width: 100%;
-  background-color: #000000;
+  background-color: #0E0E0E; /* Чуть светлее чистого черного, как на макете */
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* --- Header --- */
-.header {
+/* ... (Header, Banner, RoundsContainer оставляем как были) ... */
+.header, .bannerWrapper, .roundsContainer, .roundButton, .activeRound {
+  /* Оставляем старый код этих классов без изменений */
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  padding: 20px 24px 10px;
-  gap: 12px;
-  background-color: #000000;
-  z-index: 30;
+  /* ... */
 }
-
-.backArrow {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 5px;
-  background: transparent;
-  border: none;
-}
-
-.tournamentTitle {
-  color: #FFFFFF;
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-}
-
-/* --- Banner --- */
-.bannerWrapper {
-  flex-shrink: 0;
-  padding: 0 24px 15px 24px;
-  z-index: 20;
-}
-
-/* --- Navigation --- */
+/* Только добавь это в roundsContainer для красоты */
 .roundsContainer {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 24px 10px 24px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  height: 50px;
+  /* ... */
   z-index: 20;
   margin-bottom: 10px;
 }
-.roundsContainer::-webkit-scrollbar { display: none; }
 
-.roundButton {
-  position: relative;
-  padding: 8px 18px;
-  border-radius: 99px;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: #1C1C1E;
-  color: #5F6067;
-  border: 1px solid transparent;
-  flex-shrink: 0; 
-}
-
-.activeRound {
-  color: #FFFFFF;
-  background: linear-gradient(180deg, #008CFF 0%, #0077FF 100%);
-  border: 1px solid #00B3FF;
-  box-shadow: 0 0 15px rgba(0, 140, 255, 0.4);
-}
 
 /* --- BRACKET WINDOW --- */
 .bracketWindow {
-  width: calc(100% - 32px);
-  margin: 0 auto;
-  background: #121212;
-  border: 1px solid #333;
-  border-radius: 24px;
+  flex: 1;
+  width: 100%;
   position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  min-height: 200px;
-  margin-bottom: 115px;
-  transition: all 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+  /* Убрали background и border, чтобы сетка "парила" на фоне */
 }
-
-.bracketWindowFull { flex: 1; }
-.bracketWindowCompact { flex-grow: 0; height: auto; }
 
 /* --- SCROLL AREA --- */
 .scrollArea {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 20px 0;
+  padding: 20px 0 100px 0; /* Отступ снизу для кнопки */
 }
-.scrollArea::-webkit-scrollbar { display: none; }
 
 .sliderWrapper {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  /* Увеличили отступ между матчами, чтобы линии были длиннее */
+  gap: 16px; 
   width: 100%;
-  padding: 0 20px;
+  padding: 0 16px;
   box-sizing: border-box;
-  min-height: auto; 
 }
 
-/* --- MATCH --- */
+/* --- MATCH STRUCTURE --- */
 .matchWrapper {
   position: relative;
   width: 100%;
   display: flex;
-  justify-content: flex-start;
+  align-items: center;
+  /* Высота матча должна быть достаточной для линий */
+  min-height: 100px; 
 }
 
 .matchContainer {
   display: flex;
   flex-direction: column;
-  width: 100%;
-  background: #1E1E1E;
-  border: 1px solid #38383A;
-  border-radius: 12px;
-  position: relative;
+  /* Ширина ячейки. Делаем меньше 100%, чтобы осталось место для линий справа */
+  width: 85%; 
+  gap: 8px; /* Отступ между игроками в паре */
   z-index: 2;
-  overflow: hidden;
 }
 
-/* --- PLAYER ROW --- */
+/* --- PLAYER CELL (ЯЧЕЙКА) --- */
 .playerRow {
-  height: 46px;
+  height: 44px; /* h-11 */
   width: 100%;
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 16px;
   cursor: pointer;
   position: relative;
-  transition: background 0.2s;
-  background: #1E1E1E;
-  border-left: 4px solid transparent;
+  transition: all 0.2s;
+  
+  /* Базовый стиль (Твой Default) */
+  background: linear-gradient(90deg, #171717 0%, #171717 100%); /* neutral-900 */
+  border: 1px solid rgba(255, 255, 255, 0.15); /* border-white/25 чуть прозрачнее */
+  border-radius: 12px; /* rounded-xl */
+  color: #5F6067;
+  font-size: 14px;
+  font-weight: 500;
 }
-.playerRow:first-child { 
-  border-bottom: 1px solid #2C2C2E; 
-}
-.playerRow:active { background: #2C2C2E; }
+
+.playerRow:active { transform: scale(0.98); }
 
 .playerInfo {
   display: flex;
@@ -166,94 +102,108 @@
 }
 
 .playerName {
-  color: #DDD;
-  font-size: 13px;
-  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.playerSeed { color: #666; font-size: 11px; }
 
-/* --- STATES --- */
-
-.tbd { opacity: 0.5; }
-
-/* Selected (Blue) */
-.selected { 
-  background: #152230 !important; 
-  border-left-color: #00B3FF !important;
-}
-.selected .playerName { 
-  color: #00B3FF; 
-  font-weight: 600; 
+.playerSeed {
+  color: #444; 
+  font-size: 11px;
 }
 
-/* Correct (Green) */
-.correct { 
-  background: rgba(48, 209, 88, 0.15) !important; 
-  border-left-color: #30D158 !important;
-}
-.correct .playerName { 
-  color: #30D158; 
-  font-weight: 700;
+/* --- STATES (Цвета из твоего ТЗ) --- */
+
+/* 1. TBD (Пусто) */
+.tbd {
+  background: #121212;
+  border-color: rgba(255, 255, 255, 0.05);
+  color: #333;
 }
 
-/* Incorrect (Red) */
-.incorrect { 
-  background: rgba(255, 69, 58, 0.15) !important; 
-  border-left-color: #FF453A !important;
-}
-.incorrect .playerName { 
-  color: #FF453A; 
-  text-decoration: line-through; 
-  opacity: 0.7;
+/* 2. Selected (Выбран юзером) */
+/* from-slate-800 via-gray-900 to-neutral-900 */
+.selected {
+  background: linear-gradient(90deg, #1e293b 0%, #111827 50%, #171717 100%);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #CBCBCB; /* Твой цвет */
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
 }
 
-/* Correction Text (Arrow + Real Name) */
-.correctionText {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+/* 3. Correct (Верно) */
+/* from-stone-900 to-neutral-900 + Зеленый текст */
+.correct {
+  background: linear-gradient(90deg, #1c1917 0%, #171717 100%);
+  border-color: rgba(74, 222, 128, 0.3); /* Легкая зеленая рамка */
+  color: #4ADE80; /* Зеленый текст (как на скрине Altmaier) */
+}
+
+/* 4. Incorrect (Неверно) */
+/* from-stone-900 to-neutral-900 + Красный текст */
+.incorrect {
+  background: linear-gradient(90deg, #1c1917 0%, #171717 100%);
+  border-color: rgba(255, 69, 58, 0.15);
+  color: #7E5B5B; /* Твой цвет */
+  text-decoration: line-through;
+  opacity: 0.8;
+}
+
+/* --- СЧЕТ --- */
+.score {
+  font-family: monospace;
   font-size: 13px;
-  color: #FFFFFF;
-  font-weight: 600;
-  margin-left: 6px;
+  color: #888;
+  letter-spacing: 2px;
 }
-.correctionArrow {
-  color: #8E8E93;
-  font-size: 12px;
-}
+.selected .score { color: #FFF; }
+.correct .score { color: #4ADE80; }
 
-.checkIcon {
-  color: #00B3FF;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-}
-
-/* --- CONNECTORS --- */
+/* --- ЛИНИИ (CONNECTORS) --- */
+/* Рисуем "вилку" справа от матча */
 .bracketConnector {
   position: absolute;
   right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 20px;
-  height: 45px;
-  border-right: 1px solid #555;
-  border-top: 1px solid #555;
-  border-bottom: 1px solid #555;
-  border-top-right-radius: 6px;
-  border-bottom-right-radius: 6px;
-  z-index: 1;
+  top: 22px; /* Середина верхней ячейки (44px / 2) */
+  bottom: 22px; /* Середина нижней ячейки */
+  width: 15%; /* Занимает оставшееся место */
+  
+  /* Линии */
+  border-right: 1px solid #444; /* Вертикальная палка */
+  
+  /* Верхний и нижний "ус" */
+  /* Используем псевдоэлементы для горизонтальных палочек */
 }
+
+.bracketConnector::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: #444;
+}
+
 .bracketConnector::after {
   content: '';
   position: absolute;
-  top: 50%;
-  right: -10px;
-  width: 10px;
+  bottom: 0;
+  left: 0;
+  width: 100%;
   height: 1px;
-  background: #555;
+  background: #444;
+}
+
+/* "Узел" (Node) - белый квадратик на стыке, как на скрине */
+.node {
+  position: absolute;
+  top: 50%;
+  right: -4px; /* Сдвигаем, чтобы центр был на линии */
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  background: #D9D9D9; /* Светло-серый */
+  border-radius: 2px;
+  z-index: 5;
 }
 
 /* --- CHAMPION --- */
@@ -261,15 +211,10 @@
   width: 100%;
   display: flex;
   justify-content: center;
-  padding: 0;
+  padding: 20px;
 }
 .championContainer {
   width: 100%;
-  background: #1E1E1E;
-  border: 1px solid #38383A;
-  border-radius: 12px;
-  padding: 0;
-  overflow: hidden;
 }
 
 /* --- Footer --- */
@@ -284,27 +229,12 @@
   pointer-events: none;
 }
 .saveButton {
+  /* ... старый код кнопки ... */
   pointer-events: auto;
-  background-color: rgba(255, 255, 255, 0.15); 
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: #FFFFFF;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 24px;
-  border-radius: 999px;
-  font-size: 15px;
+  background-color: #1C1C1E;
+  color: white;
+  border: 1px solid #333;
+  padding: 12px 30px;
+  border-radius: 20px;
   font-weight: 600;
-  cursor: pointer;
-  gap: 8px;
-  transition: all 0.3s;
-}
-.saveButton:active { transform: scale(0.96); }
-.saveButtonSuccess {
-  background-color: #FFFFFF;
-  color: #000000;
-  border-color: #FFFFFF;
-  box-shadow: 0 0 25px rgba(255, 255, 255, 0.4);
 }

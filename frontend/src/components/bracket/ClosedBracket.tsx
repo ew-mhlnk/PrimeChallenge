@@ -79,16 +79,11 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
               {displayBracket[selectedRound]?.length > 0 ? (
                 displayBracket[selectedRound].map((match: BracketMatch, index: number) => {
                   
-                  // Данные для счета и подсказок берем из trueBracket (реальности)
-                  // Но индексы могут не совпадать, если сетки разные (редкий кейс, но все же)
-                  // Лучше всего полагаться на match.match_number
                   const trueMatch = trueBracket[selectedRound]?.find(m => m.match_number === match.match_number);
-                  
                   const uP1 = match.player1;
                   const uP2 = match.player2;
                   const scores = trueMatch?.scores || []; 
 
-                  // --- ЛОГИКА ЦВЕТОВ ---
                   const getStatus = (
                       playerName: string | null | undefined, 
                       slotStatus: string | undefined, 
@@ -97,23 +92,22 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                       const safeName = playerName || 'TBD';
                       const cleanName = clean(safeName);
                       
-                      // 1. ЗРИТЕЛИ (не играли) -> СЕРЫЙ
+                      // 1. ЗРИТЕЛИ
                       if (!hasPicks) {
                           if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
                           return 'default';
                       }
 
-                      // 2. ПЕРВЫЙ РАУНД -> СЕРЫЙ (жирный если выбран)
+                      // 2. ПЕРВЫЙ РАУНД
                       if (isFirstRound) {
                            if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
-                           if (isUserPick) return 'default'; // Тут можно было бы selected, но без синего цвета
+                           if (isUserPick) return 'default';
                            return 'default';
                       }
 
                       // 3. СЛЕДУЮЩИЕ РАУНДЫ
                       if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
 
-                      // ЦВЕТА (от Бэкенда)
                       if (slotStatus === 'CORRECT') return 'correct';
                       if (slotStatus === 'INCORRECT') return 'incorrect';
                       if (isUserPick) return 'selected'; // PENDING
@@ -128,8 +122,6 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                   const p1Stat = getStatus(uP1.name, match.player1_status, p1IsPick);
                   const p2Stat = getStatus(uP2.name, match.player2_status, p2IsPick);
 
-                  // Подсказки (показываем реальное имя, если ошиблись, и если там не TBD)
-                  // Важно: match.real_player1 приходит с бэкенда
                   const getHint = (status: string, realName?: string) => {
                       if (status === 'incorrect' && realName && clean(realName) !== 'tbd') {
                           return realName;
@@ -152,9 +144,9 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                       );
                   }
 
+                  // Обычный матч
                   return (
-                    <div key={match.id} className={styles.matchWrapper}>
-                      
+                    <div key={match.id} className="w-full">
                       <BracketMatchCard 
                           player1={uP1}
                           player2={uP2}
@@ -166,14 +158,11 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                           p1Hint={getHint(p1Stat, match.real_player1)}
                           p2Hint={getHint(p2Stat, match.real_player2)}
                           
-                          // Если INCORRECT и isEliminated=true (с бэка), то зачеркиваем
                           p1Eliminated={match.is_eliminated && p1Stat === 'incorrect'}
                           p2Eliminated={match.is_eliminated && p2Stat === 'incorrect'}
 
-                          showChecks={false} // В Closed галочек нет
+                          showConnector={selectedRound !== 'F'} // Линии везде, кроме Финала
                       />
-
-                      {selectedRound !== 'F' && <div className={styles.bracketConnector} />}
                     </div>
                   );
                 })
