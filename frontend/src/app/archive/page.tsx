@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import useTournaments from '../../hooks/useTournaments';
-// ВАЖНО: Импортируем новый универсальный компонент
-import { TournamentCard } from '@/components/tournament/TournamentCard';
+// ИМПОРТ НОВОЙ КАРТОЧКИ
+import { TournamentCard } from '@/components/tournament/TournamentCard'; 
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 
 // --- ИКОНКИ ---
@@ -27,11 +27,11 @@ const CloseIcon = () => (
 );
 
 const ChevronLeft = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18L9 12L15 6"/></svg>
 );
 
 const ChevronRight = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6 6 6"/></svg>
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18L15 12L9 6"/></svg>
 );
 
 // --- ХЕЛПЕРЫ ---
@@ -39,7 +39,7 @@ const parseMonth = (monthStr: string) => {
     const monthsShort = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН', 'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
     
     if (!monthStr || typeof monthStr !== 'string' || !monthStr.includes('.')) {
-        return { label: '?', fullLabel: '?', year: 2025, index: 0, sortVal: 999999 };
+        return { label: '?', year: 2025, index: 0, sortVal: 999999 };
     }
 
     const [m, y] = monthStr.split('.').map(Number);
@@ -53,6 +53,7 @@ const parseMonth = (monthStr: string) => {
     };
 };
 
+// --- КОМПОНЕНТ ФИЛЬТРА ---
 const FilterPill = ({ label, isActive, onClick, colorClass }: { label: string, isActive: boolean, onClick: () => void, colorClass: string }) => (
     <button
       onClick={onClick}
@@ -124,7 +125,7 @@ function TournamentsContent() {
       updateUrl(selectedTag, month);
   };
 
-  // 1. Получаем данные (Годы и Месяцы)
+  // 1. Данные
   const { years, months } = useMemo(() => {
       if (!tournaments || tournaments.length === 0) return { years: [], months: [] };
       const uniqueMonths = Array.from(new Set(tournaments.map(t => t.month).filter(Boolean) as string[]));
@@ -160,7 +161,7 @@ function TournamentsContent() {
 
   const visibleMonths = months.filter(m => parseMonth(m).year === selectedYear);
 
-  // 4. ФИЛЬТРАЦИЯ СПИСКА (Вот переменная, которую терял компилятор)
+  // 4. Фильтрация списка
   const filteredList = useMemo(() => {
       if (!tournaments) return [];
       return tournaments.filter(t => {
@@ -182,7 +183,9 @@ function TournamentsContent() {
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-[#141414] text-white flex flex-col pb-32 relative">
+      
+      {/* --- HEADER --- */}
       <header className="pt-8 pb-2 bg-[#141414] sticky top-0 z-30 border-b border-white/5">
         <div className="px-6 flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
@@ -209,8 +212,9 @@ function TournamentsContent() {
             </button>
         </div>
 
+        {/* --- ГОРИЗОНТАЛЬНЫЙ СКРОЛЛ --- */}
         <div className="w-full overflow-x-auto scrollbar-hide px-6 pb-3">
-            <div className="flex gap-3 min-w-min">
+            <div className="flex gap-2 min-w-min">
                 {visibleMonths.map((monthStr) => {
                     const isActive = selectedMonth === monthStr;
                     const { label } = parseMonth(monthStr);
@@ -220,7 +224,7 @@ function TournamentsContent() {
                             key={monthStr}
                             onClick={() => handleMonthChange(monthStr)}
                             className={`
-                                relative px-4 py-2.5 rounded-[14px] text-[13px] font-bold transition-all duration-300 flex-shrink-0
+                                relative px-3 py-1.5 rounded-[12px] text-[12px] font-bold transition-all duration-300 flex-shrink-0
                                 ${isActive 
                                     ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.15)] scale-105' 
                                     : 'bg-[#1C1C1E] text-[#8E8E93] border border-white/5 hover:bg-[#2C2C2E]'
@@ -235,7 +239,8 @@ function TournamentsContent() {
         </div>
       </header>
 
-      <div className="sticky top-[110px] z-20 bg-[#141414]/95 backdrop-blur-md pb-4 pt-4 border-b border-white/5">
+      {/* --- ФИЛЬТРЫ ТЕГОВ --- */}
+      <div className="sticky top-[102px] z-20 bg-[#141414]/95 backdrop-blur-md pb-4 pt-4 border-b border-white/5">
           <div className="flex gap-2 px-6 overflow-x-auto scrollbar-hide">
             {filters.map((f) => (
               <FilterPill 
@@ -249,6 +254,7 @@ function TournamentsContent() {
           </div>
       </div>
 
+      {/* --- СПИСОК ТУРНИРОВ --- */}
       <main className="px-4 flex flex-col gap-3 mt-4 min-h-[300px]">
         {isLoading ? (
             <div className="flex justify-center mt-10"><div className="w-6 h-6 border-2 border-[#00B2FF] border-t-transparent rounded-full animate-spin"></div></div>
@@ -270,6 +276,7 @@ function TournamentsContent() {
         )}
       </main>
 
+      {/* --- МОДАЛКА ВЫБОРА ГОДА И МЕСЯЦА --- */}
       <AnimatePresence>
         {isDatePickerOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -278,6 +285,7 @@ function TournamentsContent() {
                     onClick={() => setIsDatePickerOpen(false)} 
                     className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
                 />
+                
                 <motion.div 
                     initial={{ scale: 0.9, opacity: 0, y: 20 }} 
                     animate={{ scale: 1, opacity: 1, y: 0 }} 
@@ -285,14 +293,20 @@ function TournamentsContent() {
                     className="relative w-full max-w-[320px] bg-[#1C1C1E] border border-white/10 rounded-[32px] p-5 shadow-2xl z-10 overflow-hidden"
                 >
                     <div className="flex justify-between items-center mb-6">
-                        <div className="flex items-center gap-2 bg-black/30 rounded-full p-1 border border-white/5">
+                        
+                        {/* Счетчик года */}
+                        <div className="flex items-center justify-between bg-black/30 rounded-full p-1 border border-white/5 w-full mr-3">
                             <button 
                                 onClick={() => { selection(); setPickerYear(prev => prev - 1); }} 
                                 className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-[#8E8E93] hover:text-white transition-colors"
                             >
                                 <ChevronLeft />
                             </button>
-                            <span className="text-[17px] font-bold text-white font-mono px-2">{pickerYear}</span>
+                            
+                            <span className="text-[17px] font-bold text-white font-mono">
+                                {pickerYear}
+                            </span>
+                            
                             <button 
                                 onClick={() => { selection(); setPickerYear(prev => prev + 1); }} 
                                 className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-[#8E8E93] hover:text-white transition-colors"
@@ -300,9 +314,10 @@ function TournamentsContent() {
                                 <ChevronRight />
                             </button>
                         </div>
+
                         <button 
                             onClick={() => { impact('light'); setIsDatePickerOpen(false); }} 
-                            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-[#8E8E93] hover:text-white"
+                            className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-white/5 text-[#8E8E93] hover:text-white"
                         >
                             <CloseIcon />
                         </button>
@@ -320,7 +335,12 @@ function TournamentsContent() {
                                     onClick={() => handleModalMonthSelect(idx)}
                                     className={`
                                         py-3 rounded-[16px] text-[13px] font-bold transition-all duration-200 border
-                                        ${isSelected ? 'bg-[#007AFF] border-[#007AFF] text-white shadow-lg' : hasData ? 'bg-[#2C2C2E] border-transparent text-white hover:bg-[#3A3A3C]' : 'bg-[#1C1C1E] border-white/5 text-[#5F6067] hover:border-white/10'}
+                                        ${isSelected 
+                                            ? 'bg-[#007AFF] border-[#007AFF] text-white shadow-lg' 
+                                            : hasData 
+                                                ? 'bg-[#2C2C2E] border-transparent text-white hover:bg-[#3A3A3C]' 
+                                                : 'bg-[#1C1C1E] border-white/5 text-[#5F6067] hover:border-white/10'
+                                        }
                                     `}
                                 >
                                     {mName}
@@ -332,10 +352,11 @@ function TournamentsContent() {
             </div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }
 
+// Оборачиваем в Suspense для безопасности useSearchParams
 export default function TournamentsPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#141414] flex items-center justify-center text-[#5F6067]">Загрузка...</div>}>
