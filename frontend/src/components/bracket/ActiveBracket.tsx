@@ -1,16 +1,17 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, Variants, PanInfo } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import styles from './Bracket.module.css'; 
 import { BracketMatch } from '@/types';
-import { useState, useEffect } from 'react'; // Добавил useEffect
 import { useActiveTournament } from '@/hooks/useActiveTournament';
-import { useRouter } from 'next/navigation';
-import { useHapticFeedback } from '@/hooks/useHapticFeedback'; // <--- Импорт
+import { useHapticFeedback } from '@/hooks/useHapticFeedback';
+import { BracketMatchCard } from './BracketMatchCard'; // <--- Импорт нового компонента
 
+// Иконки для UI (кнопки, хедер)
 const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>);
 const CheckIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>);
-const TrophyIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>);
 
 const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' | 'loading' | 'success' }) => (
     <motion.button layout onClick={onClick} disabled={status !== 'idle'} className={`${styles.saveButton} ${status === 'success' ? styles.saveButtonSuccess : ''}`} initial={false} animate={{ width: status === 'loading' ? 50 : 200, backgroundColor: status === 'success' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.15)', color: status === 'success' ? '#000000' : '#FFFFFF' }}>
@@ -41,11 +42,10 @@ interface ActiveBracketProps {
 export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps) {
   const router = useRouter();
   const { bracket, isLoading, selectedRound, setSelectedRound, rounds, handlePick, savePicks, saveStatus } = useActiveTournament(id);
-  const { impact, notification, selection } = useHapticFeedback(); // <--- Hook
+  const { impact, notification, selection } = useHapticFeedback();
   
   const [direction, setDirection] = useState(0);
 
-  // Эффект для вибрации при успешном сохранении
   useEffect(() => {
     if (saveStatus === 'success') {
       notification('success');
@@ -60,23 +60,20 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
     const nIdx = rounds.indexOf(newRound);
     if (idx === nIdx) return;
     
-    selection(); // <--- Вибрация при смене таба
-    
+    selection(); 
     setDirection(nIdx > idx ? 1 : -1);
     setSelectedRound(newRound);
   };
 
-  // Обертка для клика по игроку с вибрацией
   const handlePickClick = (round: string, matchId: string, player: string) => {
       if (player !== 'TBD' && player !== 'Bye') {
-          impact('light'); // <--- Вибрация при выборе
+          impact('light');
           handlePick(round, matchId, player);
       }
   };
 
-  // Обертка для сохранения
   const handleSaveClick = () => {
-      impact('medium'); // <--- Вибрация при нажатии кнопки
+      impact('medium');
       savePicks();
   };
 
@@ -118,56 +115,48 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
                   const myPick = match.predicted_winner;
                   const scores = match.scores || [];
 
-                  const getStyle = (name: string | null | undefined, isPick: boolean) => {
-                      const cls = styles.playerRow;
+                  // Логика статуса для Active (только selected или default)
+                  const getStatus = (name: string | null | undefined, isPick: boolean) => {
                       const safeName = name || 'TBD';
-                      if (safeName === 'TBD') return { className: `${cls} ${styles.tbd}`, display: 'TBD' };
-                      if (isPick) return { className: `${cls} ${styles.selected}`, display: safeName };
-                      return { className: cls, display: safeName };
+                      if (safeName === 'TBD') return 'tbd';
+                      if (isPick) return 'selected';
+                      return 'default';
                   };
 
+                  const p1Status = getStatus(uP1.name, clean(myPick) === clean(uP1.name));
+                  const p2Status = getStatus(uP2.name, clean(myPick) === clean(uP2.name));
+
+                  // Если Чемпион, передаем данные в первый слот
                   if (selectedRound === 'Champion') {
-                     const state = getStyle(uP1?.name, !!myPick);
-                     let bgStyle = '#1E1E1E';
-                     if (state.className.includes('selected')) bgStyle = '#152230';
-
-                     return (
-                        <div key={match.id} className={styles.championWrapper}>
-                            <div className={styles.championContainer} style={{ border: 'none', background: bgStyle }}>
-                                <div className={state.className} style={{ height: '60px', cursor: 'default', borderRadius: '12px', background: 'transparent', border: 'none' }}>
-                                    <div className={styles.playerInfo} style={{ justifyContent: 'center' }}>
-                                        <span className={styles.playerName} style={{ fontSize: '16px' }}>{state.display}</span>
-                                    </div>
-                                    {state.className.includes('selected') && <div className={styles.checkIcon}><TrophyIcon /></div>}
-                                </div>
-                            </div>
-                        </div>
-                     );
+                      return (
+                          <div key={match.id} className="w-full">
+                              <BracketMatchCard 
+                                  player1={uP1} 
+                                  player2={null}
+                                  p1Status={p1Status as any}
+                                  isChampion={true}
+                              />
+                          </div>
+                      );
                   }
-
-                  const p1S = getStyle(uP1.name, clean(myPick) === clean(uP1.name));
-                  const p2S = getStyle(uP2.name, clean(myPick) === clean(uP2.name));
 
                   return (
                     <div key={match.id} className={styles.matchWrapper}>
-                      <div className={styles.matchContainer}>
-                        <div className={p1S.className} onClick={() => uP1.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP1.name)}>
-                          <div className={styles.playerInfo}>
-                              <span className={styles.playerName}>{p1S.display}</span>
-                              {p1S.display !== 'TBD' && <span className={styles.playerSeed}>{uP1.seed ? `[${uP1.seed}]` : ''}</span>}
-                          </div>
-                          <div className="flex gap-2 mr-2">{scores.map((s: string, i: number) => <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{s.split('-')[0]}</span>)}</div>
-                          {clean(myPick) === clean(p1S.display) && <div className={styles.checkIcon}><CheckIcon/></div>}
-                        </div>
-                        <div className={p2S.className} onClick={() => uP2.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP2.name)}>
-                           <div className={styles.playerInfo}>
-                              <span className={styles.playerName}>{p2S.display}</span>
-                              <span className={styles.playerSeed}>{uP2.seed ? `[${uP2.seed}]` : ''}</span>
-                           </div>
-                           <div className="flex gap-2 mr-2">{scores.map((s: string, i: number) => <span key={i} className="text-[11px] font-mono text-[#8E8E93]">{s.split('-')[1]}</span>)}</div>
-                           {clean(myPick) === clean(p2S.display) && <div className={styles.checkIcon}><CheckIcon/></div>}
-                        </div>
-                      </div>
+                      
+                      <BracketMatchCard 
+                          player1={uP1}
+                          player2={uP2}
+                          scores={scores}
+                          
+                          p1Status={p1Status as any}
+                          p2Status={p2Status as any}
+                          
+                          onP1Click={() => uP1.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP1.name)}
+                          onP2Click={() => uP2.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP2.name)}
+                          
+                          showChecks={true} // Показываем галочки при выборе
+                      />
+
                       {selectedRound !== 'F' && <div className={styles.bracketConnector} />}
                     </div>
                   );
