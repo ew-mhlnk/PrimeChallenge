@@ -79,6 +79,7 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
               {displayBracket[selectedRound]?.length > 0 ? (
                 displayBracket[selectedRound].map((match: BracketMatch, index: number) => {
                   
+                  // Пытаемся найти реальный матч для отображения счета
                   const trueMatch = trueBracket[selectedRound]?.find(m => m.match_number === match.match_number);
                   const uP1 = match.player1;
                   const uP2 = match.player2;
@@ -88,66 +89,74 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                   const p1IsPick = clean(myPick) === clean(uP1.name);
                   const p2IsPick = clean(myPick) === clean(uP2.name);
 
-                  // --- 1. ОПРЕДЕЛЯЕМ СТАТУС (ЦВЕТ) ---
-                  const resolveStatus = (playerName: string | undefined, slotStatus: string | undefined, isPick: boolean) => {
+                  // --- 1. ЛОГИКА ЦВЕТОВ (STATUS) ---
+                  const getStatus = (
+                      playerName: string | null | undefined, 
+                      slotStatus: string | undefined, 
+                      isUserPick: boolean
+                  ) => {
                       const safeName = playerName || 'TBD';
                       const cleanName = clean(safeName);
-
-                      // Зритель или Первый раунд -> Серый
-                      if (!hasPicks || isFirstRound) {
+                      
+                      // Если Зритель (не играл) -> Серый
+                      if (!hasPicks) {
                           if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
                           return 'default';
                       }
 
-                      // Пустые ячейки
+                      // Если Первый Раунд -> Серый (выбор жирным)
+                      // Но 'selected' красит в синий, а нам в R32 синий не нужен по ТЗ ("просто серым").
+                      // Поэтому возвращаем 'default' даже если isUserPick
+                      if (isFirstRound) {
+                           if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
+                           return 'default'; 
+                      }
+
+                      // Если пустая ячейка
                       if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
 
-                      // Статусы от Бэкенда (Зеленый / Красный)
-                      if (slotStatus === 'CORRECT') return 'correct';
-                      if (slotStatus === 'INCORRECT') return 'incorrect';
+                      // ЦВЕТА (R16+)
+                      if (slotStatus === 'CORRECT') return 'correct';     // Зеленый
+                      if (slotStatus === 'INCORRECT') return 'incorrect'; // Красный
                       
-                      // Синий (если выбран, но еще не сыгран/не решен)
-                      if (isPick) return 'selected';
+                      // Если статус PENDING (синий), но это наш выбор
+                      if (isUserPick) return 'selected';
                       
                       return 'default';
                   };
 
-                  const p1Status = resolveStatus(uP1.name, match.player1_status, p1IsPick);
-                  const p2Status = resolveStatus(uP2.name, match.player2_status, p2IsPick);
+                  const p1Stat = getStatus(uP1.name, match.player1_status, p1IsPick);
+                  const p2Stat = getStatus(uP2.name, match.player2_status, p2IsPick);
 
-                  // --- 2. ОПРЕДЕЛЯЕМ ПОДСКАЗКУ (СТРЕЛКУ) ---
-                  const resolveHint = (status: string, realName?: string) => {
+                  // --- 2. ЛОГИКА ПОДСКАЗКИ (СТРЕЛКА) ---
+                  const getHint = (status: string, realName?: string) => {
+                      // Показываем стрелку только если ответ неверный и мы знаем правильный ответ
                       if (status === 'incorrect' && realName && clean(realName) !== 'tbd') {
                           return realName;
                       }
                       return null;
                   };
 
-                  const p1Hint = resolveHint(p1Status, match.real_player1);
-                  const p2Hint = resolveHint(p2Status, match.real_player2);
+                  const p1Hint = getHint(p1Stat, match.real_player1);
+                  const p2Hint = getHint(p2Stat, match.real_player2);
 
-                  // --- 3. ОПРЕДЕЛЯЕМ ВЫЛЕТ (ПРОЗРАЧНОСТЬ) ---
-                  // Если игрок вылетел ранее (is_eliminated=true) И текущий статус incorrect
-                  const p1Eliminated = match.is_eliminated && p1Status === 'incorrect';
-                  const p2Eliminated = match.is_eliminated && p2Status === 'incorrect';
-
-
-                  // --- РЕНДЕР ЧЕМПИОНА ---
+                  // --- ЧЕМПИОН ---
                   if (selectedRound === 'Champion') {
                       return (
                           <div key={match.id} className="w-full">
                               <BracketMatchCard 
                                   player1={uP1} 
                                   player2={null}
-                                  p1Status={p1Status as any}
+                                  p1Status={p1Stat as any}
                                   p1Hint={p1Hint}
                                   isChampion={true}
+                                  showChecks={false}
                               />
                           </div>
                       );
                   }
 
-                  // --- РЕНДЕР ОБЫЧНОГО МАТЧА ---
+                  // --- ОБЫЧНЫЙ МАТЧ ---
                   return (
                     <div key={match.id} className="w-full">
                       <BracketMatchCard 
@@ -155,17 +164,13 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                           player2={uP2}
                           scores={scores}
                           
-                          // Передаем рассчитанные строки статусов
-                          p1Status={p1Status as any}
-                          p2Status={p2Status as any}
+                          p1Status={p1Stat as any}
+                          p2Status={p2Stat as any}
                           
                           p1Hint={p1Hint}
                           p2Hint={p2Hint}
                           
-                          p1Eliminated={p1Eliminated}
-                          p2Eliminated={p2Eliminated}
-
-                          showChecks={false} // Галочки выключены в Closed
+                          showChecks={false} // Галочки отключены
                           showConnector={selectedRound !== 'F'}
                       />
                     </div>

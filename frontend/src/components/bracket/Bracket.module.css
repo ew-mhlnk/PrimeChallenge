@@ -8,7 +8,7 @@
   overflow: hidden;
 }
 
-/* --- Header & Navigation --- */
+/* Header & Nav */
 .header {
   flex-shrink: 0;
   display: flex;
@@ -73,7 +73,7 @@
   box-shadow: 0 0 15px rgba(0, 140, 255, 0.4);
 }
 
-/* --- BRACKET WINDOW --- */
+/* --- КОНТЕЙНЕР СЕТКИ --- */
 .bracketWindow {
   flex: 1;
   width: calc(100% - 32px);
@@ -91,43 +91,44 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 20px 0;
+  padding: 20px; 
 }
 .scrollArea::-webkit-scrollbar { display: none; }
 
 .sliderWrapper {
   display: flex;
   flex-direction: column;
-  /* Убрали GAP, чтобы строки прилегали друг к другу */
-  gap: 0px; 
+  /* ТВОЕ ТРЕБОВАНИЕ: Между матчами 25px */
+  gap: 25px; 
   width: 100%;
-  padding: 0 20px;
   box-sizing: border-box;
 }
 
-/* --- MATCH WRAPPER --- */
+/* --- Обертка пары --- */
 .matchWrapper {
   position: relative;
   width: 100%;
   display: flex;
-  align-items: stretch; /* Важно для линий */
-  min-height: 90px;
+  /* Центрируем, чтобы линии рисовались корректно */
+  align-items: center; 
 }
 
-/* --- MATCH CONTAINER (Ячейки + Линии) --- */
+/* --- Колонка с игроками --- */
 .matchContainer {
   display: flex;
   flex-direction: column;
   justify-content: center;
   flex: 1; 
-  gap: 4px; /* Отступ между ячейками */
+  /* ТВОЕ ТРЕБОВАНИЕ: Между ячейками 10px */
+  gap: 10px; 
   z-index: 2;
-  margin-right: 25px; /* Место для линий */
+  /* Оставляем место справа для линий. Линии шириной 22px, значит отступ такой же */
+  margin-right: 22px; 
 }
 
-/* --- ЯЧЕЙКА ИГРОКА --- */
+/* --- ЯЧЕЙКА ИГРОКА (Базовые настройки) --- */
 .playerRow {
-  height: 44px;
+  height: 44px; /* h-11 */
   width: 100%;
   display: flex;
   align-items: center;
@@ -136,28 +137,18 @@
   position: relative;
   transition: all 0.2s;
   
-  /* Базовый стиль (Неактивный) */
-  background: linear-gradient(90deg, #1B1A1E 0%, #161616 100%);
-  border: 1px solid rgba(255, 255, 255, 0.25); /* 25% Прозрачность */
+  border-radius: 12px; /* rounded-xl */
   color: #5F6067;
   font-size: 14px;
   font-weight: 500;
+  
+  /* Трюк для градиентного бордера: */
+  border: 1px solid transparent;
+  background-clip: padding-box, border-box;
+  background-origin: padding-box, border-box;
 }
 
-/* Отступы у первых/последних ячеек */
-.playerRow:first-child {
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
-  border-bottom: none; /* Убираем нижнюю границу */
-}
-.playerRow:last-child {
-  border-bottom-left-radius: 12px;
-  border-bottom-right-radius: 12px;
-  /* Добавляем тонкую линию между игроками, если не последний элемент */
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1); 
-}
-
-.playerRow:active { background: #222; }
+.playerRow:active { opacity: 0.8; }
 
 .playerInfo {
   display: flex;
@@ -170,12 +161,48 @@
 .playerName { overflow: hidden; text-overflow: ellipsis; }
 .playerSeed { color: #555; font-size: 11px; }
 
-/* --- СТАТУСЫ --- */
 
-.tbd { background: #121212; color: #333; border-color: rgba(255, 255, 255, 0.1); }
-.selected { background: linear-gradient(90deg, #132941 0%, #131F2A 50%, #141414 100%); color: #CBCBCB; border-color: rgba(255, 255, 255, 0.5); }
-.correct { background: linear-gradient(90deg, #1D1F1A 0%, #161616 100%); color: #CBCBCB; border-color: rgba(74, 222, 128, 0.5); } /* Зеленая */
-.incorrect { background: linear-gradient(90deg, #201212 0%, #161616 100%); color: #7E5B5B; border-color: rgba(255, 69, 58, 0.3); text-decoration: line-through; }
+/* --- СТАТУСЫ (ТВОИ ТОЧНЫЕ ЦВЕТА) --- */
+
+/* 1. НЕАКТИВНАЯ (DEFAULT/TBD) */
+.tbd {
+  /* Фон: #1B1A1E -> #161616 */
+  /* Бордер: #212121 -> #161616 */
+  background-image: 
+    linear-gradient(90deg, #1B1A1E 0%, #161616 100%), 
+    linear-gradient(90deg, #212121 0%, #161616 100%);
+  color: #5F6067;
+}
+
+/* 2. АКТИВНАЯ (SELECTED) */
+.selected {
+  /* Фон: #132941 -> #131F2A -> #141414 */
+  /* Бордер: Тот же темный */
+  background-image: 
+    linear-gradient(90deg, #132941 0%, #131F2A 50%, #141414 100%),
+    linear-gradient(90deg, #212121 0%, #161616 100%);
+  color: #CBCBCB; /* Твой цвет шрифта */
+}
+
+/* 3. ПРАВИЛЬНАЯ (CORRECT) */
+.correct {
+  /* Фон: #1D1F1A -> #161616 */
+  background-image: 
+    linear-gradient(90deg, #1D1F1A 0%, #161616 100%),
+    linear-gradient(90deg, #212121 0%, #161616 100%);
+  color: #CBCBCB;
+}
+
+/* 4. НЕПРАВИЛЬНАЯ (INCORRECT) */
+.incorrect {
+  /* Фон: #201212 -> #161616 */
+  background-image: 
+    linear-gradient(90deg, #201212 0%, #161616 100%),
+    linear-gradient(90deg, #212121 0%, #161616 100%);
+  color: #7E5B5B; /* Твой цвет шрифта */
+  text-decoration: line-through;
+}
+
 
 /* --- СЧЕТ --- */
 .score {
@@ -200,45 +227,57 @@
   margin-left: 6px;
 }
 
-/* --- ИСПРАВЛЕННЫЕ ЛИНИИ (КОННЕКТОРЫ) --- */
+/* --- ЛИНИИ (CONNECTORS) --- */
+/* Реализуем скобку ] через CSS Border, цвет #434343 */
 .connectorWrapper {
   position: absolute;
   right: 0;
-  /* Центрируем вертикально относительно родителя matchWrapper */
+  
+  /* Высота рассчитывается так: 
+     Ячейка = 44px. Половина = 22px.
+     Мы начинаем от центра верхней ячейки и заканчиваем в центре нижней.
+  */
   top: 22px; 
   bottom: 22px; 
-  width: 15px; 
+  width: 22px; /* Ширина как в твоем SVG */
   
   display: flex;
   flex-direction: column;
+  pointer-events: none;
 }
 
-/* Верхняя линия скобки */
 .connectorTop {
   flex: 1; 
   width: 100%;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.25); /* Полупрозрачная */
-  border-right: 1px solid rgba(255, 255, 255, 0.25);
-  /* Скругление */
-  border-bottom-right-radius: 8px; 
+  /* Линии цветом #434343 */
+  border-top: 2px solid #434343; /* Увеличил толщину до 2px для видимости */
+  border-right: 2px solid #434343;
+  border-top-right-radius: 12px; /* Скругление */
 }
 
-/* Нижняя линия скобки */
 .connectorBottom {
   flex: 1;
   width: 100%;
-  border-top: 1px solid rgba(255, 255, 255, 0.25);
-  border-right: 1px solid rgba(255, 255, 255, 0.25);
-  border-top-right-radius: 8px;
-  /* Убираем margin, чтобы линии были сплошными */
-  margin-top: -1px; 
+  border-bottom: 2px solid #434343;
+  border-right: 2px solid #434343;
+  border-bottom-right-radius: 12px;
 }
 
-/* Узелок (если нужен) - пока скрыт */
-/* .node { ... } */
+/* Узелок посередине скобки (опционально, если на макете он есть) */
+.connectorNode {
+  position: absolute;
+  top: 50%;
+  right: -5px; /* Чтобы перекрыть линию */
+  transform: translateY(-50%);
+  width: 10px;
+  height: 20px; /* Прямоугольник как на сайте */
+  background: #121212; /* Цвет фона, чтобы перекрыть линию */
+  border: 1px solid #434343;
+  border-radius: 4px;
+}
 
 /* --- CHAMPION --- */
-.championWrapper { width: 100%; display: flex; justify-content: center; padding: 0; }
+.championWrapper { width: 100%; display: flex; justify-content: center; }
 .championContainer { width: 100%; }
 
 /* --- Footer --- */
@@ -248,16 +287,12 @@
 }
 .saveButton {
   pointer-events: auto;
-  background-color: rgba(255, 255, 255, 0.15); 
-  backdrop-filter: blur(12px);
-  color: #FFFFFF;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  display: flex; gap: 8px; align-items: center;
-  padding: 12px 24px;
+  background-color: #1C1C1E;
+  color: white;
+  border: 1px solid #333;
+  padding: 12px 30px;
   border-radius: 999px;
   font-weight: 600;
-  cursor: pointer;
+  display: flex; gap: 8px; align-items: center;
 }
-.saveButtonSuccess {
-  background-color: white; color: black;
-}
+.saveButtonSuccess { background-color: white; color: black; }
