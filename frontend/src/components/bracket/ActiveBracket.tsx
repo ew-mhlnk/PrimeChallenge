@@ -7,13 +7,11 @@ import styles from './Bracket.module.css';
 import { BracketMatch } from '@/types';
 import { useActiveTournament } from '@/hooks/useActiveTournament';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
-import { BracketMatchCard } from './BracketMatchCard'; // Убедись, что этот файл создан
+import { BracketMatchCard } from './BracketMatchCard';
 
-// --- ИКОНКИ ---
 const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>);
 const CheckIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>);
 
-// --- КНОПКА СОХРАНЕНИЯ ---
 const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' | 'loading' | 'success' }) => (
     <motion.button layout onClick={onClick} disabled={status !== 'idle'} className={`${styles.saveButton} ${status === 'success' ? styles.saveButtonSuccess : ''}`} initial={false} animate={{ width: status === 'loading' ? 50 : 200, backgroundColor: status === 'success' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.15)', color: status === 'success' ? '#000000' : '#FFFFFF' }}>
       <AnimatePresence mode="wait" initial={false}>
@@ -24,7 +22,6 @@ const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' |
     </motion.button>
 );
 
-// --- АНИМАЦИИ ---
 const variants: Variants = {
   enter: (direction: number) => ({ x: direction > 0 ? 50 : -50, opacity: 0, scale: 0.95 }),
   center: { x: 0, opacity: 1, scale: 1, position: 'relative' },
@@ -45,13 +42,10 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
   const router = useRouter();
   const { bracket, isLoading, selectedRound, setSelectedRound, rounds, handlePick, savePicks, saveStatus } = useActiveTournament(id);
   const { impact, notification, selection } = useHapticFeedback();
-  
   const [direction, setDirection] = useState(0);
 
   useEffect(() => {
-    if (saveStatus === 'success') {
-      notification('success');
-    }
+    if (saveStatus === 'success') notification('success');
   }, [saveStatus, notification]);
 
   if (isLoading) return <div className="flex justify-center pt-20 text-[#5F6067]">Загрузка...</div>;
@@ -61,7 +55,6 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
     const idx = rounds.indexOf(selectedRound);
     const nIdx = rounds.indexOf(newRound);
     if (idx === nIdx) return;
-    
     selection(); 
     setDirection(nIdx > idx ? 1 : -1);
     setSelectedRound(newRound);
@@ -88,24 +81,19 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
 
   return (
     <div className={styles.container}>
-      {/* Header */}
       <div className={styles.header}>
         <button onClick={() => router.back()} className={styles.backArrow}><BackIcon /></button>
         <h2 className={styles.tournamentTitle}>{tournamentName}</h2>
       </div>
-      
       <div className={styles.bannerWrapper}>
          <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[16px] opacity-90"></div>
       </div>
-      
-      {/* Tabs */}
       <div className={styles.roundsContainer}>
         {rounds.map((round) => (
           <button key={round} onClick={() => changeRound(round)} className={`${styles.roundButton} ${selectedRound === round ? styles.activeRound : ''}`}>{round}</button>
         ))}
       </div>
 
-      {/* Bracket Area */}
       <div className={`${styles.bracketWindow} ${['SF', 'F', 'Champion'].includes(selectedRound) ? styles.bracketWindowCompact : styles.bracketWindowFull}`}>
         <div className={styles.scrollArea}>
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
@@ -122,7 +110,6 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
                   const myPick = match.predicted_winner;
                   const scores = match.scores || [];
 
-                  // Логика статуса для Active
                   const getStatus = (name: string | null | undefined, isPick: boolean) => {
                       const safeName = name || 'TBD';
                       if (safeName === 'TBD') return 'tbd';
@@ -133,7 +120,6 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
                   const p1Status = getStatus(uP1.name, clean(myPick) === clean(uP1.name));
                   const p2Status = getStatus(uP2.name, clean(myPick) === clean(uP2.name));
 
-                  // Если Чемпион
                   if (selectedRound === 'Champion') {
                       return (
                           <div key={match.id} className="w-full">
@@ -142,26 +128,24 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
                                   player2={null}
                                   p1Status={p1Status as any}
                                   isChampion={true}
+                                  showChecks={true}
                               />
                           </div>
                       );
                   }
 
-                  // Обычный матч
                   return (
                     <div key={match.id} className="w-full">
                       <BracketMatchCard 
                           player1={uP1}
                           player2={uP2}
                           scores={scores}
-                          
                           p1Status={p1Status as any}
                           p2Status={p2Status as any}
-                          
                           onP1Click={() => uP1.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP1.name)}
                           onP2Click={() => uP2.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP2.name)}
-                          
-                          showConnector={selectedRound !== 'F'} // Линии везде, кроме Финала
+                          showChecks={true} // <-- Галочки включены
+                          showConnector={selectedRound !== 'F'}
                       />
                     </div>
                   );

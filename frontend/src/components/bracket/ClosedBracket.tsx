@@ -7,7 +7,7 @@ import styles from './Bracket.module.css';
 import { BracketMatch } from '@/types';
 import { useClosedTournament } from '@/hooks/useClosedTournament';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
-import { BracketMatchCard } from './BracketMatchCard'; // <--- Импорт
+import { BracketMatchCard } from './BracketMatchCard';
 
 const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>);
 
@@ -92,25 +92,22 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                       const safeName = playerName || 'TBD';
                       const cleanName = clean(safeName);
                       
-                      // 1. ЗРИТЕЛИ
                       if (!hasPicks) {
                           if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
                           return 'default';
                       }
 
-                      // 2. ПЕРВЫЙ РАУНД
                       if (isFirstRound) {
                            if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
                            if (isUserPick) return 'default';
                            return 'default';
                       }
 
-                      // 3. СЛЕДУЮЩИЕ РАУНДЫ
                       if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
 
                       if (slotStatus === 'CORRECT') return 'correct';
                       if (slotStatus === 'INCORRECT') return 'incorrect';
-                      if (isUserPick) return 'selected'; // PENDING
+                      if (isUserPick) return 'selected';
                       
                       return 'default';
                   };
@@ -129,7 +126,6 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                       return null;
                   };
 
-                  // Чемпион
                   if (selectedRound === 'Champion') {
                       return (
                           <div key={match.id} className="w-full">
@@ -144,24 +140,20 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                       );
                   }
 
-                  // Обычный матч
                   return (
                     <div key={match.id} className="w-full">
                       <BracketMatchCard 
                           player1={uP1}
                           player2={uP2}
                           scores={scores}
-                          
                           p1Status={p1Stat as any}
                           p2Status={p2Stat as any}
-                          
                           p1Hint={getHint(p1Stat, match.real_player1)}
                           p2Hint={getHint(p2Stat, match.real_player2)}
-                          
                           p1Eliminated={match.is_eliminated && p1Stat === 'incorrect'}
                           p2Eliminated={match.is_eliminated && p2Stat === 'incorrect'}
-
-                          showConnector={selectedRound !== 'F'} // Линии везде, кроме Финала
+                          showChecks={false} // Галочки выключены для Closed
+                          showConnector={selectedRound !== 'F'}
                       />
                     </div>
                   );
