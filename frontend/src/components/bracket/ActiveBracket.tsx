@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, Variants, PanInfo } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import styles from './Bracket.module.css'; 
+import styles from './Bracket.module.css';
 import { BracketMatch } from '@/types';
 import { useActiveTournament } from '@/hooks/useActiveTournament';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
@@ -29,7 +29,7 @@ const variants: Variants = {
 };
 
 const clean = (name: string | undefined | null) => {
-    if (!name || name === 'TBD' || name.toLowerCase() === 'bye') return "tbd";
+    if (!name || name === 'TBD') return "tbd";
     return name;
 };
 
@@ -42,6 +42,7 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
   const router = useRouter();
   const { bracket, isLoading, selectedRound, setSelectedRound, rounds, handlePick, savePicks, saveStatus } = useActiveTournament(id);
   const { impact, notification, selection } = useHapticFeedback();
+  
   const [direction, setDirection] = useState(0);
 
   useEffect(() => {
@@ -128,7 +129,6 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
                                   player2={null}
                                   p1Status={p1Status as any}
                                   isChampion={true}
-                                  showChecks={true}
                               />
                           </div>
                       );
@@ -144,7 +144,7 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
                           p2Status={p2Status as any}
                           onP1Click={() => uP1.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP1.name)}
                           onP2Click={() => uP2.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP2.name)}
-                          showChecks={true} // <-- Галочки включены
+                          showChecks={true} // <--- Галочки включены
                           showConnector={selectedRound !== 'F'}
                       />
                     </div>

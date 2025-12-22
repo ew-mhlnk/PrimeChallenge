@@ -3,22 +3,15 @@
 import styles from './Bracket.module.css';
 import { Player } from '@/types';
 
-const CheckIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-
-const TrophyIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>
-);
+const CheckIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>);
+const TrophyIcon = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>);
 
 interface PlayerRowProps {
   player: Player | { name: string; seed?: number } | null;
   status: 'default' | 'selected' | 'correct' | 'incorrect' | 'tbd';
   score?: string;
   onClick?: () => void;
-  showCheck?: boolean; // <--- Галочка
+  showCheck?: boolean;
   showTrophy?: boolean;
   hintName?: string | null;
   isEliminated?: boolean;
@@ -47,16 +40,9 @@ const PlayerRow = ({ player, status, score, onClick, showCheck, showTrophy, hint
         )}
       </div>
       
-      {/* Счет */}
       {score && <span className={styles.score}>{score}</span>}
       
-      {/* ГАЛОЧКА (отображается если showCheck=true) */}
-      {showCheck && (
-          <div className={styles.checkIcon}>
-              <CheckIcon />
-          </div>
-      )}
-      
+      {showCheck && <div className={styles.checkIcon}><CheckIcon /></div>}
       {showTrophy && <div className={styles.checkIcon}><TrophyIcon /></div>}
     </div>
   );
@@ -76,7 +62,7 @@ interface BracketMatchCardProps {
   p1Eliminated?: boolean;
   p2Eliminated?: boolean;
   isChampion?: boolean;
-  showConnector?: boolean; 
+  showConnector?: boolean; // <-- Флаг для отображения линий
 }
 
 export const BracketMatchCard = ({
@@ -87,7 +73,7 @@ export const BracketMatchCard = ({
   p1Hint, p2Hint,
   p1Eliminated, p2Eliminated,
   isChampion = false,
-  showConnector = true
+  showConnector = true // По умолчанию показываем
 }: BracketMatchCardProps) => {
 
   if (isChampion) {
@@ -137,9 +123,14 @@ export const BracketMatchCard = ({
             />
         </div>
 
+        {/* --- КОННЕКТОРЫ (ЛИНИИ) --- */}
         {showConnector && (
             <div className={styles.connectorWrapper}>
+                {/* Верхняя линия */}
                 <div className={styles.connectorTop} />
+                {/* Узел (если нужен, но я убрал его из CSS, если что верни) */}
+                {/* <div className={styles.node} /> */} 
+                {/* Нижняя линия */}
                 <div className={styles.connectorBottom} />
             </div>
         )}
