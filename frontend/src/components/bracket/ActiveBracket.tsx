@@ -42,6 +42,7 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
   const router = useRouter();
   const { bracket, isLoading, selectedRound, setSelectedRound, rounds, handlePick, savePicks, saveStatus } = useActiveTournament(id);
   const { impact, notification, selection } = useHapticFeedback();
+  
   const [direction, setDirection] = useState(0);
 
   useEffect(() => {
@@ -110,15 +111,27 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
                   const myPick = match.predicted_winner;
                   const scores = match.scores || [];
 
-                  // --- ЛОГИКА ДЛЯ ACTIVE ---
-                  // Только 2 варианта: Selected (голубой) или Default (TBD-серый)
-                  const getStatus = (name: string | null | undefined, isPick: boolean) => {
-                      if (isPick) return 'selected'; // Голубой
-                      return 'default'; // Темный серый
+                  // Проверяем, сделан ли выбор в этом матче
+                  const matchHasPick = !!myPick;
+
+                  // --- ЕДИНАЯ ФУНКЦИЯ СТАТУСА ---
+                  // Определяет цвет ячейки для ACTIVE режима
+                  const getActiveStatus = (name: string | null | undefined, isPick: boolean) => {
+                      const safeName = name || 'TBD';
+                      if (safeName === 'TBD') return 'tbd';
+                      
+                      // Если это выбранный игрок -> Selected (Голубой)
+                      if (isPick) return 'selected';
+                      
+                      // Если в матче есть выбор, но это не он -> TBD (Темный)
+                      if (matchHasPick) return 'tbd';
+
+                      // Иначе (никто не выбран) -> Default (Такой же темный, но кликабельный на вид)
+                      return 'default';
                   };
 
-                  const p1Status = getStatus(uP1.name, clean(myPick) === clean(uP1.name));
-                  const p2Status = getStatus(uP2.name, clean(myPick) === clean(uP2.name));
+                  const p1Status = getActiveStatus(uP1.name, clean(myPick) === clean(uP1.name));
+                  const p2Status = getActiveStatus(uP2.name, clean(myPick) === clean(uP2.name));
 
                   if (selectedRound === 'Champion') {
                       return (
