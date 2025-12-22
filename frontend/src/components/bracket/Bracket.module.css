@@ -98,7 +98,8 @@
 .sliderWrapper {
   display: flex;
   flex-direction: column;
-  gap: 25px; /* Отступ между матчами (ТЗ) */
+  /* ТВОЕ ТРЕБОВАНИЕ: Между матчами 25px */
+  gap: 25px; 
   width: 100%;
   box-sizing: border-box;
 }
@@ -108,8 +109,8 @@
   position: relative;
   width: 100%;
   display: flex;
-  align-items: center;
-  min-height: 90px;
+  /* Центрируем, чтобы линии рисовались корректно */
+  align-items: center; 
 }
 
 /* --- Колонка с игроками --- */
@@ -118,14 +119,16 @@
   flex-direction: column;
   justify-content: center;
   flex: 1; 
-  gap: 10px; /* Отступ между игроками (ТЗ) */
+  /* ТВОЕ ТРЕБОВАНИЕ: Между ячейками 10px */
+  gap: 10px; 
   z-index: 2;
+  /* Оставляем место справа для линий. Линии шириной 22px, значит отступ такой же */
   margin-right: 22px; 
 }
 
-/* --- ЯЧЕЙКА ИГРОКА (БАЗА / НЕАКТИВНАЯ / TBD) --- */
+/* --- ЯЧЕЙКА ИГРОКА (Базовые настройки) --- */
 .playerRow {
-  height: 44px;
+  height: 44px; /* h-11 */
   width: 100%;
   display: flex;
   align-items: center;
@@ -134,19 +137,17 @@
   position: relative;
   transition: all 0.2s;
   
-  /* ТЗ: Неактивная ячейка */
-  background: linear-gradient(90deg, #1B1A1E 0%, #161616 100%);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 12px; 
-  
+  border-radius: 12px; /* rounded-xl */
   color: #5F6067;
   font-size: 14px;
   font-weight: 500;
   
-  /* Для градиентного бордера (если нужно будет в будущем) */
+  /* Трюк для градиентного бордера: */
+  border: 1px solid transparent;
   background-clip: padding-box, border-box;
   background-origin: padding-box, border-box;
 }
+
 .playerRow:active { opacity: 0.8; }
 
 .playerInfo {
@@ -160,37 +161,48 @@
 .playerName { overflow: hidden; text-overflow: ellipsis; }
 .playerSeed { color: #555; font-size: 11px; }
 
-/* --- СТАТУСЫ (ПЕРЕОПРЕДЕЛЕНИЕ БАЗЫ) --- */
 
-/* 1. TBD (По сути то же самое, что и база, но для явности) */
+/* --- СТАТУСЫ (ТВОИ ТОЧНЫЕ ЦВЕТА) --- */
+
+/* 1. НЕАКТИВНАЯ (DEFAULT/TBD) */
 .tbd {
-  /* Используем те же стили, что и в .playerRow */
-  background: linear-gradient(90deg, #1B1A1E 0%, #161616 100%);
-  color: #5F6067; 
-  border-color: rgba(255, 255, 255, 0.25);
+  /* Фон: #1B1A1E -> #161616 */
+  /* Бордер: #212121 -> #161616 */
+  background-image: 
+    linear-gradient(90deg, #1B1A1E 0%, #161616 100%), 
+    linear-gradient(90deg, #212121 0%, #161616 100%);
+  color: #5F6067;
 }
 
-/* 2. SELECTED (Голубенькая - Выбор юзера) */
+/* 2. АКТИВНАЯ (SELECTED) */
 .selected {
-  background: linear-gradient(90deg, #132941 0%, #131F2A 50%, #141414 100%);
-  color: #CBCBCB;
-  border-color: rgba(255, 255, 255, 0.4);
+  /* Фон: #132941 -> #131F2A -> #141414 */
+  /* Бордер: Тот же темный */
+  background-image: 
+    linear-gradient(90deg, #132941 0%, #131F2A 50%, #141414 100%),
+    linear-gradient(90deg, #212121 0%, #161616 100%);
+  color: #CBCBCB; /* Твой цвет шрифта */
 }
 
-/* 3. CORRECT (Правильно) */
+/* 3. ПРАВИЛЬНАЯ (CORRECT) */
 .correct {
-  background: linear-gradient(90deg, #1D1F1A 0%, #161616 100%);
+  /* Фон: #1D1F1A -> #161616 */
+  background-image: 
+    linear-gradient(90deg, #1D1F1A 0%, #161616 100%),
+    linear-gradient(90deg, #212121 0%, #161616 100%);
   color: #CBCBCB;
-  border-color: rgba(74, 222, 128, 0.4);
 }
 
-/* 4. INCORRECT (Неправильно) */
+/* 4. НЕПРАВИЛЬНАЯ (INCORRECT) */
 .incorrect {
-  background: linear-gradient(90deg, #201212 0%, #161616 100%);
-  color: #7E5B5B;
-  border-color: rgba(255, 69, 58, 0.3);
+  /* Фон: #201212 -> #161616 */
+  background-image: 
+    linear-gradient(90deg, #201212 0%, #161616 100%),
+    linear-gradient(90deg, #212121 0%, #161616 100%);
+  color: #7E5B5B; /* Твой цвет шрифта */
   text-decoration: line-through;
 }
+
 
 /* --- СЧЕТ --- */
 .score {
@@ -215,31 +227,53 @@
   margin-left: 6px;
 }
 
-/* --- ЛИНИИ --- */
+/* --- ЛИНИИ (CONNECTORS) --- */
+/* Реализуем скобку ] через CSS Border, цвет #434343 */
 .connectorWrapper {
   position: absolute;
   right: 0;
+  
+  /* Высота рассчитывается так: 
+     Ячейка = 44px. Половина = 22px.
+     Мы начинаем от центра верхней ячейки и заканчиваем в центре нижней.
+  */
   top: 22px; 
   bottom: 22px; 
-  width: 15px;
+  width: 22px; /* Ширина как в твоем SVG */
+  
   display: flex;
   flex-direction: column;
+  pointer-events: none;
 }
+
 .connectorTop {
   flex: 1; 
   width: 100%;
-  border-top: 2px solid #434343; /* Цвет линий из ТЗ */
+  /* Линии цветом #434343 */
+  border-top: 2px solid #434343; /* Увеличил толщину до 2px для видимости */
   border-right: 2px solid #434343;
-  border-top-right-radius: 8px;
-  margin-right: 1px; 
+  border-top-right-radius: 12px; /* Скругление */
 }
+
 .connectorBottom {
   flex: 1;
   width: 100%;
   border-bottom: 2px solid #434343;
   border-right: 2px solid #434343;
-  border-bottom-right-radius: 8px;
-  margin-right: 1px;
+  border-bottom-right-radius: 12px;
+}
+
+/* Узелок посередине скобки (опционально, если на макете он есть) */
+.connectorNode {
+  position: absolute;
+  top: 50%;
+  right: -5px; /* Чтобы перекрыть линию */
+  transform: translateY(-50%);
+  width: 10px;
+  height: 20px; /* Прямоугольник как на сайте */
+  background: #121212; /* Цвет фона, чтобы перекрыть линию */
+  border: 1px solid #434343;
+  border-radius: 4px;
 }
 
 /* --- CHAMPION --- */
