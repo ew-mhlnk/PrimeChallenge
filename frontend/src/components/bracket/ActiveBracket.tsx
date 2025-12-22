@@ -2,14 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, Variants, PanInfo } from 'framer-motion';
-import { useRouter } from 'next/navigation';
 import styles from './Bracket.module.css'; 
-import { BracketMatch } from '@/types';
+import { BracketMatch, Tournament } from '@/types'; // Добавил Tournament
 import { useActiveTournament } from '@/hooks/useActiveTournament';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { BracketMatchCard } from './BracketMatchCard';
+import { TournamentHero } from '../tournament/TournamentHero'; // <--- Импорт
 
-const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>);
 const CheckIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>);
 
 const SaveButton = ({ onClick, status }: { onClick: () => void, status: 'idle' | 'loading' | 'success' }) => (
@@ -33,16 +32,14 @@ const clean = (name: string | undefined | null) => {
     return name;
 };
 
+// ОБНОВЛЕННЫЙ ИНТЕРФЕЙС
 interface ActiveBracketProps {
-    id: string;
-    tournamentName: string;
+    tournament: Tournament; // Принимаем объект целиком
 }
 
-export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps) {
-  const router = useRouter();
-  const { bracket, isLoading, selectedRound, setSelectedRound, rounds, handlePick, savePicks, saveStatus } = useActiveTournament(id);
+export default function ActiveBracket({ tournament }: ActiveBracketProps) {
+  const { bracket, isLoading, selectedRound, setSelectedRound, rounds, handlePick, savePicks, saveStatus } = useActiveTournament(tournament.id.toString());
   const { impact, notification, selection } = useHapticFeedback();
-  
   const [direction, setDirection] = useState(0);
 
   useEffect(() => {
@@ -67,12 +64,9 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
           handlePick(round, matchId, player);
       }
   };
-
-  const handleSaveClick = () => {
-      impact('medium');
-      savePicks();
-  };
-
+  
+  const handleSaveClick = () => { impact('medium'); savePicks(); };
+  
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const idx = rounds.indexOf(selectedRound);
     if (Math.abs(info.offset.y) > Math.abs(info.offset.x)) return;
@@ -82,19 +76,18 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <button onClick={() => router.back()} className={styles.backArrow}><BackIcon /></button>
-        <h2 className={styles.tournamentTitle}>{tournamentName}</h2>
-      </div>
-      <div className={styles.bannerWrapper}>
-         <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[16px] opacity-90"></div>
-      </div>
+      
+      {/* 1. НОВАЯ ШАПКА */}
+      <TournamentHero tournament={tournament} />
+
+      {/* 2. ТАБЫ */}
       <div className={styles.roundsContainer}>
         {rounds.map((round) => (
           <button key={round} onClick={() => changeRound(round)} className={`${styles.roundButton} ${selectedRound === round ? styles.activeRound : ''}`}>{round}</button>
         ))}
       </div>
 
+      {/* 3. СЕТКА */}
       <div className={`${styles.bracketWindow} ${['SF', 'F', 'Champion'].includes(selectedRound) ? styles.bracketWindowCompact : styles.bracketWindowFull}`}>
         <div className={styles.scrollArea}>
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
@@ -105,60 +98,38 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
             >
               {bracket[selectedRound]?.length > 0 ? (
                 bracket[selectedRound].map((match: BracketMatch) => {
-                  
                   const uP1 = match.player1;
                   const uP2 = match.player2;
                   const myPick = match.predicted_winner;
                   const scores = match.scores || [];
-
-                  // Проверяем, сделан ли выбор в этом матче
                   const matchHasPick = !!myPick;
 
-                  // --- ЕДИНАЯ ФУНКЦИЯ СТАТУСА ---
-                  // Определяет цвет ячейки для ACTIVE режима
-                  const getActiveStatus = (name: string | null | undefined, isPick: boolean) => {
+                  const getStatus = (name: string | null | undefined, isPick: boolean) => {
                       const safeName = name || 'TBD';
                       if (safeName === 'TBD') return 'tbd';
-                      
-                      // Если это выбранный игрок -> Selected (Голубой)
                       if (isPick) return 'selected';
-                      
-                      // Если в матче есть выбор, но это не он -> TBD (Темный)
                       if (matchHasPick) return 'tbd';
-
-                      // Иначе (никто не выбран) -> Default (Такой же темный, но кликабельный на вид)
                       return 'default';
                   };
 
-                  const p1Status = getActiveStatus(uP1.name, clean(myPick) === clean(uP1.name));
-                  const p2Status = getActiveStatus(uP2.name, clean(myPick) === clean(uP2.name));
+                  const p1Status = getStatus(uP1.name, clean(myPick) === clean(uP1.name));
+                  const p2Status = getStatus(uP2.name, clean(myPick) === clean(uP2.name));
 
                   if (selectedRound === 'Champion') {
                       return (
                           <div key={match.id} className="w-full">
-                              <BracketMatchCard 
-                                  player1={uP1} 
-                                  player2={null}
-                                  p1Status={p1Status as any}
-                                  isChampion={true}
-                                  showChecks={true}
-                              />
+                              <BracketMatchCard player1={uP1} player2={null} p1Status={p1Status as any} isChampion={true} showChecks={true}/>
                           </div>
                       );
                   }
-
                   return (
                     <div key={match.id} className="w-full">
                       <BracketMatchCard 
-                          player1={uP1}
-                          player2={uP2}
-                          scores={scores}
-                          p1Status={p1Status as any}
-                          p2Status={p2Status as any}
+                          player1={uP1} player2={uP2} scores={scores}
+                          p1Status={p1Status as any} p2Status={p2Status as any}
                           onP1Click={() => uP1.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP1.name)}
                           onP2Click={() => uP2.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP2.name)}
-                          showChecks={true} 
-                          showConnector={selectedRound !== 'F'}
+                          showChecks={true} showConnector={selectedRound !== 'F'}
                       />
                     </div>
                   );

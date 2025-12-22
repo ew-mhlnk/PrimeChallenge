@@ -4,12 +4,11 @@ import { useState } from 'react';
 import { motion, AnimatePresence, Variants, PanInfo } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import styles from './Bracket.module.css';
-import { BracketMatch } from '@/types';
+import { BracketMatch, Tournament } from '@/types';
 import { useClosedTournament } from '@/hooks/useClosedTournament';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { BracketMatchCard } from './BracketMatchCard';
-
-const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>);
+import { TournamentHero } from '../tournament/TournamentHero';
 
 const variants: Variants = {
   enter: (direction: number) => ({ x: direction > 0 ? 50 : -50, opacity: 0, scale: 0.95 }),
@@ -25,14 +24,23 @@ const clean = (name: string | undefined | null) => {
     return n || "tbd";
 };
 
-export default function ClosedBracket({ id, tournamentName }: { id: string, tournamentName: string }) {
-  const router = useRouter();
-  const { userBracket, trueBracket, hasPicks, isLoading, selectedRound, setSelectedRound, rounds } = useClosedTournament(id);
+interface ClosedBracketProps {
+    tournament: Tournament;
+}
+
+export default function ClosedBracket({ tournament }: ClosedBracketProps) {
+  const { userBracket, trueBracket, hasPicks, isLoading, selectedRound, setSelectedRound, rounds } = useClosedTournament(tournament.id.toString());
   const { selection } = useHapticFeedback();
   const [direction, setDirection] = useState(0);
 
   if (isLoading) return <div className="flex justify-center pt-20 text-[#5F6067]">Загрузка...</div>;
   if (!selectedRound) return null;
+
+  // Логика победителя для Completed
+  let winnerName: string | null = null;
+  if (tournament.status === 'COMPLETED' && trueBracket['Champion']?.[0]) {
+      winnerName = trueBracket['Champion'][0].player1?.name || null;
+  }
 
   const changeRound = (newRound: string) => {
     const idx = rounds.indexOf(selectedRound);
@@ -51,23 +59,21 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
   };
 
   const displayBracket = hasPicks ? userBracket : trueBracket;
-  const isFirstRound = selectedRound === rounds[0];
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <button onClick={() => router.back()} className={styles.backArrow}><BackIcon /></button>
-        <h2 className={styles.tournamentTitle}>{tournamentName}</h2>
-      </div>
-      <div className={styles.bannerWrapper}>
-         <div className="w-full h-[80px] bg-[#D9D9D9] rounded-[16px] opacity-90"></div>
-      </div>
+      
+      {/* 1. ШАПКА */}
+      <TournamentHero tournament={tournament} winnerName={winnerName} />
+
+      {/* 2. ТАБЫ */}
       <div className={styles.roundsContainer}>
         {rounds.map((round) => (
           <button key={round} onClick={() => changeRound(round)} className={`${styles.roundButton} ${selectedRound === round ? styles.activeRound : ''}`}>{round}</button>
         ))}
       </div>
 
+      {/* 3. СЕТКА */}
       <div className={`${styles.bracketWindow} ${['SF', 'F', 'Champion'].includes(selectedRound) ? styles.bracketWindowCompact : styles.bracketWindowFull}`}>
         <div className={styles.scrollArea}>
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
@@ -84,32 +90,25 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                   const uP2 = match.player2;
                   const scores = trueMatch?.scores || []; 
 
+                  const getStatus = (playerName: string | null | undefined, slotStatus: string | undefined, isUserPick: boolean) => {
+                      const safeName = playerName || 'TBD';
+                      const cleanName = clean(safeName);
+                      if (!hasPicks) {
+                          if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
+                          return 'default';
+                      }
+                      if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
+                      if (slotStatus === 'CORRECT') return 'correct';
+                      if (slotStatus === 'INCORRECT') return 'incorrect';
+                      if (isUserPick) return 'selected';
+                      return 'tbd'; 
+                  };
+
                   const myPick = match.predicted_winner;
                   const p1IsPick = clean(myPick) === clean(uP1.name);
                   const p2IsPick = clean(myPick) === clean(uP2.name);
-
-                  // --- ЛОГИКА ДЛЯ CLOSED (4 ВАРИАНТА) ---
-                  const getStatus = (
-                      playerName: string | null | undefined, 
-                      slotStatus: string | undefined, 
-                      isUserPick: boolean
-                  ) => {
-                      
-                      // 1. Если не участвовал -> Все серые (TBD/Default)
-                      if (!hasPicks) return 'default';
-
-                      // 2. Если первый раунд -> Серые (без цветов успеха)
-                      if (isFirstRound) return 'default';
-
-                      // 3. ЦВЕТА
-                      if (slotStatus === 'CORRECT') return 'correct';     // Зеленый
-                      if (slotStatus === 'INCORRECT') return 'incorrect'; // Красный
-                      if (isUserPick) return 'selected';                  // Голубой (Pending)
-                      
-                      // 4. Все остальное (соперник) -> Серый
-                      return 'default';
-                  };
-
+                  
+                  // ПЕРЕМЕННЫЕ СОЗДАЮТСЯ ЗДЕСЬ: p1Stat, p2Stat
                   const p1Stat = getStatus(uP1.name, match.player1_status, p1IsPick);
                   const p2Stat = getStatus(uP2.name, match.player2_status, p2IsPick);
 
@@ -125,10 +124,11 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                           <div key={match.id} className="w-full">
                               <BracketMatchCard 
                                   player1={uP1} 
-                                  player2={null}
-                                  p1Status={p1Stat as any}
-                                  p1Hint={getHint(p1Stat, match.real_player1)}
-                                  isChampion={true}
+                                  player2={null} 
+                                  p1Status={p1Stat as any} 
+                                  p1Hint={getHint(p1Stat, match.real_player1)} 
+                                  isChampion={true} 
+                                  showChecks={false}
                               />
                           </div>
                       );
@@ -137,12 +137,15 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                   return (
                     <div key={match.id} className="w-full">
                       <BracketMatchCard 
-                          player1={uP1}
-                          player2={uP2}
+                          player1={uP1} 
+                          player2={uP2} 
                           scores={scores}
-                          p1Status={p1Stat as any}
-                          p2Status={p2Stat as any}
-                          p1Hint={getHint(p1Stat, match.real_player1)}
+                          
+                          // ИСПОЛЬЗУЕМ p1Stat и p2Stat (без опечаток)
+                          p1Status={p1Stat as any} 
+                          p2Status={p2Stat as any} 
+                          
+                          p1Hint={getHint(p1Stat, match.real_player1)} 
                           p2Hint={getHint(p2Stat, match.real_player2)}
                           showChecks={false} 
                           showConnector={selectedRound !== 'F'}
