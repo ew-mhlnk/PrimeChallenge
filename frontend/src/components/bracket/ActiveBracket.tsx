@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, Variants, PanInfo } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import styles from './Bracket.module.css';
+import styles from './Bracket.module.css'; 
 import { BracketMatch } from '@/types';
 import { useActiveTournament } from '@/hooks/useActiveTournament';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
@@ -29,7 +29,7 @@ const variants: Variants = {
 };
 
 const clean = (name: string | undefined | null) => {
-    if (!name || name === 'TBD') return "tbd";
+    if (!name || name === 'TBD' || name.toLowerCase() === 'bye') return "tbd";
     return name;
 };
 
@@ -111,10 +111,20 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
                   const myPick = match.predicted_winner;
                   const scores = match.scores || [];
 
+                  // Проверяем, сделан ли выбор в этом матче вообще
+                  const matchHasPick = !!myPick;
+
                   const getStatus = (name: string | null | undefined, isPick: boolean) => {
                       const safeName = name || 'TBD';
                       if (safeName === 'TBD') return 'tbd';
+                      
+                      // Если это выбранный игрок -> Синий
                       if (isPick) return 'selected';
+                      
+                      // --- ИЗМЕНЕНИЕ: Если выбор в матче ЕСТЬ, а этот игрок НЕ выбран -> затемняем (как TBD) ---
+                      if (matchHasPick) return 'tbd';
+                      
+                      // Если выбора нет -> Обычный (активный для клика)
                       return 'default';
                   };
 
@@ -144,7 +154,7 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
                           p2Status={p2Status as any}
                           onP1Click={() => uP1.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP1.name)}
                           onP2Click={() => uP2.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP2.name)}
-                          showChecks={true} // <--- Галочки включены
+                          showChecks={true}
                           showConnector={selectedRound !== 'F'}
                       />
                     </div>

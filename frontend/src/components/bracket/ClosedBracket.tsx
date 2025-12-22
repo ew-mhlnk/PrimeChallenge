@@ -79,17 +79,11 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
               {displayBracket[selectedRound]?.length > 0 ? (
                 displayBracket[selectedRound].map((match: BracketMatch, index: number) => {
                   
-                  // Пытаемся найти реальный матч для отображения счета
                   const trueMatch = trueBracket[selectedRound]?.find(m => m.match_number === match.match_number);
                   const uP1 = match.player1;
                   const uP2 = match.player2;
                   const scores = trueMatch?.scores || []; 
 
-                  const myPick = match.predicted_winner;
-                  const p1IsPick = clean(myPick) === clean(uP1.name);
-                  const p2IsPick = clean(myPick) === clean(uP2.name);
-
-                  // --- 1. ЛОГИКА ЦВЕТОВ (STATUS) ---
                   const getStatus = (
                       playerName: string | null | undefined, 
                       slotStatus: string | undefined, 
@@ -98,49 +92,41 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                       const safeName = playerName || 'TBD';
                       const cleanName = clean(safeName);
                       
-                      // Если Зритель (не играл) -> Серый
                       if (!hasPicks) {
                           if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
                           return 'default';
                       }
 
-                      // Если Первый Раунд -> Серый (выбор жирным)
-                      // Но 'selected' красит в синий, а нам в R32 синий не нужен по ТЗ ("просто серым").
-                      // Поэтому возвращаем 'default' даже если isUserPick
                       if (isFirstRound) {
                            if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
-                           return 'default'; 
+                           if (isUserPick) return 'default';
+                           return 'default';
                       }
 
-                      // Если пустая ячейка
                       if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
 
-                      // ЦВЕТА (R16+)
-                      if (slotStatus === 'CORRECT') return 'correct';     // Зеленый
-                      if (slotStatus === 'INCORRECT') return 'incorrect'; // Красный
-                      
-                      // Если статус PENDING (синий), но это наш выбор
+                      if (slotStatus === 'CORRECT') return 'correct';
+                      if (slotStatus === 'INCORRECT') return 'incorrect';
                       if (isUserPick) return 'selected';
                       
-                      return 'default';
+                      // --- ИЗМЕНЕНИЕ: Если не сработали условия выше, значит игрок неинтересен -> затемняем ---
+                      return 'tbd'; 
                   };
+
+                  const myPick = match.predicted_winner;
+                  const p1IsPick = clean(myPick) === clean(uP1.name);
+                  const p2IsPick = clean(myPick) === clean(uP2.name);
 
                   const p1Stat = getStatus(uP1.name, match.player1_status, p1IsPick);
                   const p2Stat = getStatus(uP2.name, match.player2_status, p2IsPick);
 
-                  // --- 2. ЛОГИКА ПОДСКАЗКИ (СТРЕЛКА) ---
                   const getHint = (status: string, realName?: string) => {
-                      // Показываем стрелку только если ответ неверный и мы знаем правильный ответ
                       if (status === 'incorrect' && realName && clean(realName) !== 'tbd') {
                           return realName;
                       }
                       return null;
                   };
 
-                  const p1Hint = getHint(p1Stat, match.real_player1);
-                  const p2Hint = getHint(p2Stat, match.real_player2);
-
-                  // --- ЧЕМПИОН ---
                   if (selectedRound === 'Champion') {
                       return (
                           <div key={match.id} className="w-full">
@@ -148,29 +134,24 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                                   player1={uP1} 
                                   player2={null}
                                   p1Status={p1Stat as any}
-                                  p1Hint={p1Hint}
+                                  p1Hint={getHint(p1Stat, match.real_player1)}
                                   isChampion={true}
-                                  showChecks={false}
                               />
                           </div>
                       );
                   }
 
-                  // --- ОБЫЧНЫЙ МАТЧ ---
                   return (
                     <div key={match.id} className="w-full">
                       <BracketMatchCard 
                           player1={uP1}
                           player2={uP2}
                           scores={scores}
-                          
                           p1Status={p1Stat as any}
                           p2Status={p2Stat as any}
-                          
-                          p1Hint={p1Hint}
-                          p2Hint={p2Hint}
-                          
-                          showChecks={false} // Галочки отключены
+                          p1Hint={getHint(p1Stat, match.real_player1)}
+                          p2Hint={getHint(p2Stat, match.real_player2)}
+                          showChecks={false} 
                           showConnector={selectedRound !== 'F'}
                       />
                     </div>
