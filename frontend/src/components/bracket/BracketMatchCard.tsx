@@ -11,16 +11,9 @@ const CheckIcon = () => (
   </svg>
 );
 
-// Трофей (Золотой)
+// Трофей
 const TrophyIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2">
-    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-    <path d="M4 22h16" />
-    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
-    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
-    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
-  </svg>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>
 );
 
 interface PlayerRowProps {
@@ -28,7 +21,7 @@ interface PlayerRowProps {
   status: 'default' | 'selected' | 'correct' | 'incorrect' | 'tbd';
   score?: string;
   onClick?: () => void;
-  showCheck?: boolean;    // <--- Флаг для галочки
+  showCheck?: boolean; // <--- Галочка
   showTrophy?: boolean;
   hintName?: string | null;
   isEliminated?: boolean;
@@ -57,19 +50,23 @@ const PlayerRow = ({ player, status, score, onClick, showCheck, showTrophy, hint
         
         {/* Подсказка (стрелка) */}
         {hintName && (
-            <div className={styles.correctionText}>
+            <span className={styles.correctionText}>
                  → {hintName}
-            </div>
+            </span>
         )}
       </div>
       
       {/* Счет */}
       {score && <span className={styles.score}>{score}</span>}
       
-      {/* ГАЛОЧКА (Для Active) */}
-      {showCheck && <div className={styles.checkIcon}><CheckIcon /></div>}
+      {/* ГАЛОЧКА: Отображается, если передан showCheck=true */}
+      {showCheck && (
+          <div className={styles.checkIcon}>
+              <CheckIcon />
+          </div>
+      )}
       
-      {/* Трофей (Для Чемпиона) */}
+      {/* Трофей */}
       {showTrophy && <div className={styles.checkIcon}><TrophyIcon /></div>}
     </div>
   );
@@ -83,7 +80,7 @@ interface BracketMatchCardProps {
   p2Status?: 'default' | 'selected' | 'correct' | 'incorrect' | 'tbd';
   onP1Click?: () => void;
   onP2Click?: () => void;
-  showChecks?: boolean; // <--- Передаем глобально для матча
+  showChecks?: boolean; // Глобальный флаг
   p1Hint?: string | null;
   p2Hint?: string | null;
   p1Eliminated?: boolean;
@@ -96,7 +93,7 @@ export const BracketMatchCard = ({
   player1, player2, scores = [],
   p1Status = 'default', p2Status = 'default',
   onP1Click, onP2Click,
-  showChecks = false, // По умолчанию выключено (для Closed)
+  showChecks = false, // По умолчанию false
   p1Hint, p2Hint,
   p1Eliminated, p2Eliminated,
   isChampion = false,
@@ -104,22 +101,24 @@ export const BracketMatchCard = ({
 }: BracketMatchCardProps) => {
 
   if (isChampion) {
-      // Стиль для чемпиона
+      // Для чемпиона особый стиль контейнера
       let bgStyle = '#171717';
-      if (p1Status === 'correct') bgStyle = 'rgba(48, 209, 88, 0.15)';
-      if (p1Status === 'incorrect') bgStyle = 'rgba(255, 69, 58, 0.15)';
-      if (p1Status === 'selected') bgStyle = '#152230';
+      let borderStyle = '1px solid rgba(255,255,255,0.25)';
+      if (p1Status === 'correct') { bgStyle = 'rgba(48, 209, 88, 0.15)'; borderStyle = '1px solid rgba(74, 222, 128, 0.5)'; }
+      if (p1Status === 'incorrect') { bgStyle = 'rgba(255, 69, 58, 0.15)'; borderStyle = '1px solid rgba(255, 69, 58, 0.3)'; }
+      if (p1Status === 'selected') { bgStyle = '#152230'; borderStyle = '1px solid rgba(255, 255, 255, 0.5)'; }
 
       return (
         <div className={styles.championWrapper}>
             <div className={styles.championContainer}>
-                {/* Обертка для стилизации Чемпиона */}
-                <div style={{ background: bgStyle, borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)' }}>
+                <div style={{ background: bgStyle, borderRadius: '12px', border: borderStyle }}>
                     <PlayerRow 
                         player={player1} 
                         status={p1Status} 
                         showTrophy={p1Status === 'correct'} 
                         hintName={p1Hint}
+                        // Для чемпиона в Active можно показать галочку, если selected
+                        showCheck={showChecks && p1Status === 'selected'}
                     />
                 </div>
             </div>
@@ -129,14 +128,13 @@ export const BracketMatchCard = ({
 
   return (
     <div className={styles.matchWrapper}>
-        {/* Игроки */}
         <div className={styles.matchContainer}>
             <PlayerRow 
                 player={player1} 
                 status={p1Status} 
                 score={scores[0] ? scores[0].split('-')[0] : ''}
                 onClick={onP1Click}
-                // Галочку показываем, если режим разрешает (showChecks) И статус выбран (selected)
+                // ВАЖНО: Галочка показывается ТОЛЬКО если showChecks=true И статус selected
                 showCheck={showChecks && p1Status === 'selected'}
                 hintName={p1Hint}
                 isEliminated={p1Eliminated}
@@ -152,10 +150,12 @@ export const BracketMatchCard = ({
             />
         </div>
 
-        {/* Линии (Без второго ряда, просто скобка ]) */}
+        {/* Скругленные Линии */}
         {showConnector && (
             <div className={styles.connectorWrapper}>
                 <div className={styles.connectorTop} />
+                {/* Если нужен узелок посередине, раскомментируй в CSS .node */}
+                {/* <div className={styles.node} /> */}
                 <div className={styles.connectorBottom} />
             </div>
         )}

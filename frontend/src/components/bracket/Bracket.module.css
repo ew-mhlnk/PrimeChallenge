@@ -8,7 +8,7 @@
   overflow: hidden;
 }
 
-/* --- Header --- */
+/* Header & Nav */
 .header {
   flex-shrink: 0;
   display: flex;
@@ -18,7 +18,6 @@
   background-color: #000000;
   z-index: 30;
 }
-
 .backArrow {
   cursor: pointer;
   display: flex;
@@ -28,22 +27,17 @@
   background: transparent;
   border: none;
 }
-
 .tournamentTitle {
   color: #FFFFFF;
   font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.5px;
 }
-
-/* --- Banner --- */
 .bannerWrapper {
   flex-shrink: 0;
   padding: 0 24px 15px 24px;
   z-index: 20;
 }
-
-/* --- Navigation (Раунды) --- */
 .roundsContainer {
   flex-shrink: 0;
   display: flex;
@@ -72,7 +66,6 @@
   border: 1px solid transparent;
   flex-shrink: 0; 
 }
-
 .activeRound {
   color: #FFFFFF;
   background: linear-gradient(180deg, #008CFF 0%, #0077FF 100%);
@@ -80,10 +73,11 @@
   box-shadow: 0 0 15px rgba(0, 140, 255, 0.4);
 }
 
-/* --- BRACKET WINDOW --- */
+/* --- КОНТЕЙНЕР СЕТКИ --- */
 .bracketWindow {
-  width: calc(100% - 32px);
-  margin: 0 auto;
+  flex: 1;
+  width: calc(100% - 32px); /* Отступы по бокам */
+  margin: 0 auto 100px auto; /* 100px снизу для кнопки */
   background: #121212;
   border: 1px solid #333;
   border-radius: 24px;
@@ -91,53 +85,49 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  flex: 1;
-  margin-bottom: 100px;
 }
 
-.bracketWindowCompact { flex-grow: 0; height: auto; flex: none; }
-
-/* --- SCROLL AREA --- */
 .scrollArea {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 20px 0;
+  /* Внутренний отступ 20px, как ты просила */
+  padding: 20px; 
 }
 .scrollArea::-webkit-scrollbar { display: none; }
 
 .sliderWrapper {
   display: flex;
   flex-direction: column;
-  gap: 20px; /* Отступ между матчами */
+  gap: 16px; /* Расстояние между парами матчей */
   width: 100%;
-  padding: 0 20px;
   box-sizing: border-box;
 }
 
-/* --- MATCH WRAPPER --- */
-/* Контейнер для пары игроков + линии */
+/* --- Обертка пары (Игроки + Линия) --- */
 .matchWrapper {
   position: relative;
   width: 100%;
-  display: flex; 
-  align-items: stretch; /* Растягиваем, чтобы линии подстроились */
-  min-height: 90px;
+  display: flex;
+  /* Важно: это позволяет линиям справа знать высоту блока */
+  min-height: 90px; 
 }
 
-/* --- MATCH CONTAINER (Левая часть с игроками) --- */
+/* --- Колонка с игроками --- */
 .matchContainer {
   display: flex;
   flex-direction: column;
-  justify-content: center; /* Центрируем пару по вертикали */
-  flex: 1; /* Занимает все место слева */
-  gap: 6px; /* Небольшой отступ между игроками */
+  justify-content: center;
+  flex: 1; /* Занимает всю ширину минус линии */
+  gap: 0; /* Ячейки слитно (или 1px margin) */
   z-index: 2;
+  /* Оставляем место справа для линий (15-20px) */
+  margin-right: 20px; 
 }
 
-/* --- PLAYER ROW (Ячейка) --- */
+/* --- ЯЧЕЙКА ИГРОКА --- */
 .playerRow {
-  height: 44px;
+  height: 44px; /* Фиксированная высота h-11 */
   width: 100%;
   display: flex;
   align-items: center;
@@ -146,18 +136,29 @@
   position: relative;
   transition: all 0.2s;
   
-  /* Базовый стиль */
-  /* Используем RGBA для прозрачности границы */
-  background: #171717;
-  border: 1px solid rgba(255, 255, 255, 0.25); /* 25% Прозрачности */
-  border-radius: 10px; /* Скругление 10px по ТЗ */
+  /* --- ЦВЕТА И ПРОЗРАЧНОСТЬ --- */
+  background: linear-gradient(90deg, #171717 0%, #171717 100%);
+  
+  /* ЭТО ВАЖНО: 25% Белого. На черном фоне это выглядит как тонкая серая линия */
+  border: 1px solid rgba(255, 255, 255, 0.25);
   
   color: #5F6067;
   font-size: 14px;
   font-weight: 500;
+  
+  /* Скругления для спаренных ячеек */
+  &:first-child {
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom: none; /* Чтобы стык был чистым */
+  }
+  &:last-child {
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1); /* Тонкий разделитель */
+  }
 }
-
-.playerRow:active { transform: scale(0.98); }
+.playerRow:active { background: #222; }
 
 .playerInfo {
   display: flex;
@@ -167,18 +168,10 @@
   flex: 1;
   white-space: nowrap;
 }
+.playerName { overflow: hidden; text-overflow: ellipsis; }
+.playerSeed { color: #666; font-size: 11px; }
 
-.playerName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.playerSeed {
-  color: #555; 
-  font-size: 11px;
-}
-
-/* --- STATES (Цвета) --- */
+/* --- СТАТУСЫ --- */
 
 /* 1. TBD */
 .tbd {
@@ -187,126 +180,126 @@
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-/* 2. Selected (Нажата юзером - CBCBCB) */
+/* 2. Selected (Выбран, но еще не сыгран) */
 .selected {
+  /* Градиент slate -> gray -> neutral */
   background: linear-gradient(90deg, #1e293b 0%, #171717 100%);
   color: #CBCBCB;
-  border-color: rgba(255, 255, 255, 0.5); /* Чуть ярче для выбранного */
+  /* Делаем рамку чуть ярче (50%) */
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
-/* 3. Correct (Верно) */
+/* 3. Correct (Зеленый) */
 .correct {
   background: linear-gradient(90deg, #1c1917 0%, #171717 100%);
   color: #CBCBCB;
-  /* Зеленая рамка для верного */
-  border-color: rgba(74, 222, 128, 0.4); 
+  /* Зеленая рамка */
+  border-color: rgba(74, 222, 128, 0.5);
 }
 
-/* 4. Incorrect (Неверно - 7E5B5B) */
+/* 4. Incorrect (Красный) */
 .incorrect {
   background: linear-gradient(90deg, #2a1b1b 0%, #171717 100%);
   color: #7E5B5B;
-  border-color: rgba(255, 69, 58, 0.2);
+  border-color: rgba(255, 69, 58, 0.3);
   text-decoration: line-through;
 }
 
-/* --- СЧЕТ --- */
+/* --- ЭЛЕМЕНТЫ ВНУТРИ --- */
 .score {
   font-family: monospace;
   font-size: 13px;
   color: #666;
-  margin-right: 4px;
+  margin-right: 8px;
 }
 .selected .score { color: #FFF; }
 
-/* --- ГАЛОЧКА --- */
+/* Галочка (прижимается вправо) */
 .checkIcon {
   display: flex;
   align-items: center;
   justify-content: center;
   color: #00B2FF;
+  margin-left: 4px;
 }
 
-/* --- ЛИНИИ (CONNECTORS) --- */
-/* Правая часть с линиями */
+.correctionText {
+  color: #8E8E93;
+  font-size: 11px;
+  margin-left: 6px;
+}
+
+/* --- ЛИНИИ (CONNECTORS) - ИСПРАВЛЕНО --- */
+/* Контейнер линий, который висит СПРАВА от пары */
 .connectorWrapper {
-  width: 20px; /* Фиксированная ширина линий */
+  position: absolute;
+  right: 0;
+  /* Линия начинается от центра верхней ячейки (22px = 44px/2) */
+  top: 22px; 
+  /* И заканчивается в центре нижней ячейки */
+  bottom: 22px; 
+  width: 15px; /* Ширина скобки */
+  
   display: flex;
   flex-direction: column;
-  margin-left: -1px; /* Прижимаем к ячейкам */
 }
 
-/* Верхняя линия (от середины P1 вниз) */
+/* Верхняя часть скобки ] */
 .connectorTop {
-  flex: 1; /* Занимает половину высоты */
-  border-bottom: 1px solid #444; /* Горизонтальная линия */
-  border-right: 1px solid #444;  /* Вертикальная линия */
-  border-bottom-right-radius: 8px; /* Скругление */
-  margin-bottom: 3px; /* Зазор для красоты посередине (или 0 для слитности) */
-  /* Важно: Верхняя часть должна начинаться от середины верхней ячейки. 
-     Мы это регулируем через height 50% родителя */
+  flex: 1; /* Занимает 50% высоты */
+  width: 100%;
+  border-bottom: 1px solid #555; /* Горизонтальная линия от P1 */
+  border-right: 1px solid #555;  /* Вертикальная линия вниз */
+  border-bottom-right-radius: 8px; /* Скругление угла */
 }
 
-/* Нижняя линия (от середины P2 вверх) */
+/* Нижняя часть скобки ] */
 .connectorBottom {
-  flex: 1;
-  border-top: 1px solid #444;
-  border-right: 1px solid #444;
-  border-top-right-radius: 8px;
-  margin-top: 3px;
+  flex: 1; /* Занимает 50% высоты */
+  width: 100%;
+  border-top: 1px solid #555; /* Горизонтальная линия от P2 */
+  border-right: 1px solid #555; /* Вертикальная линия вверх */
+  border-top-right-radius: 8px; /* Скругление угла */
 }
 
-/* Если хочется сплошную скобку без разрыва, убираем margin-top/bottom у connector */
+/* Узелок по центру (опционально, если на макете есть точка) */
+/* .connectorWrapper::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -3px;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  background: #D9D9D9;
+  border-radius: 50%;
+} */
 
-/* --- CHAMPION --- */
+/* --- ЧЕМПИОН --- */
 .championWrapper {
   width: 100%;
   display: flex;
   justify-content: center;
-  padding: 0;
 }
 .championContainer {
   width: 100%;
 }
 
-/* --- Footer --- */
+/* --- Кнопка Сохранить --- */
 .footer {
-  position: fixed;
-  bottom: 30px;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: center;
-  z-index: 50;
-  pointer-events: none;
+  position: fixed; bottom: 30px; left: 0; right: 0;
+  display: flex; justify-content: center; z-index: 50; pointer-events: none;
 }
 .saveButton {
   pointer-events: auto;
-  background-color: rgba(255, 255, 255, 0.15); 
-  backdrop-filter: blur(12px);
-  color: #FFFFFF;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 24px;
+  background-color: #1C1C1E;
+  color: white;
+  border: 1px solid #333;
+  padding: 12px 30px;
   border-radius: 999px;
-  font-size: 15px;
   font-weight: 600;
-  cursor: pointer;
-  gap: 8px;
+  display: flex; gap: 8px; align-items: center;
 }
 .saveButtonSuccess {
-  background-color: #FFFFFF;
-  color: #000000;
-}
-
-/* Коррекция для стрелочки (имя правильного игрока) */
-.correctionText {
-  color: #8E8E93;
-  font-size: 11px;
-  margin-left: 6px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
+  background-color: white; color: black;
 }
