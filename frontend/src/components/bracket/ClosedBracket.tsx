@@ -84,38 +84,31 @@ export default function ClosedBracket({ id, tournamentName }: { id: string, tour
                   const uP2 = match.player2;
                   const scores = trueMatch?.scores || []; 
 
+                  const myPick = match.predicted_winner;
+                  const p1IsPick = clean(myPick) === clean(uP1.name);
+                  const p2IsPick = clean(myPick) === clean(uP2.name);
+
+                  // --- ЛОГИКА ДЛЯ CLOSED (4 ВАРИАНТА) ---
                   const getStatus = (
                       playerName: string | null | undefined, 
                       slotStatus: string | undefined, 
                       isUserPick: boolean
                   ) => {
-                      const safeName = playerName || 'TBD';
-                      const cleanName = clean(safeName);
                       
-                      if (!hasPicks) {
-                          if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
-                          return 'default';
-                      }
+                      // 1. Если не участвовал -> Все серые (TBD/Default)
+                      if (!hasPicks) return 'default';
 
-                      if (isFirstRound) {
-                           if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
-                           if (isUserPick) return 'default';
-                           return 'default';
-                      }
+                      // 2. Если первый раунд -> Серые (без цветов успеха)
+                      if (isFirstRound) return 'default';
 
-                      if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
-
-                      if (slotStatus === 'CORRECT') return 'correct';
-                      if (slotStatus === 'INCORRECT') return 'incorrect';
-                      if (isUserPick) return 'selected';
+                      // 3. ЦВЕТА
+                      if (slotStatus === 'CORRECT') return 'correct';     // Зеленый
+                      if (slotStatus === 'INCORRECT') return 'incorrect'; // Красный
+                      if (isUserPick) return 'selected';                  // Голубой (Pending)
                       
-                      // --- ИЗМЕНЕНИЕ: Если не сработали условия выше, значит игрок неинтересен -> затемняем ---
-                      return 'tbd'; 
+                      // 4. Все остальное (соперник) -> Серый
+                      return 'default';
                   };
-
-                  const myPick = match.predicted_winner;
-                  const p1IsPick = clean(myPick) === clean(uP1.name);
-                  const p2IsPick = clean(myPick) === clean(uP2.name);
 
                   const p1Stat = getStatus(uP1.name, match.player1_status, p1IsPick);
                   const p2Stat = getStatus(uP2.name, match.player2_status, p2IsPick);

@@ -42,7 +42,6 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
   const router = useRouter();
   const { bracket, isLoading, selectedRound, setSelectedRound, rounds, handlePick, savePicks, saveStatus } = useActiveTournament(id);
   const { impact, notification, selection } = useHapticFeedback();
-  
   const [direction, setDirection] = useState(0);
 
   useEffect(() => {
@@ -111,21 +110,11 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
                   const myPick = match.predicted_winner;
                   const scores = match.scores || [];
 
-                  // Проверяем, сделан ли выбор в этом матче вообще
-                  const matchHasPick = !!myPick;
-
+                  // --- ЛОГИКА ДЛЯ ACTIVE ---
+                  // Только 2 варианта: Selected (голубой) или Default (TBD-серый)
                   const getStatus = (name: string | null | undefined, isPick: boolean) => {
-                      const safeName = name || 'TBD';
-                      if (safeName === 'TBD') return 'tbd';
-                      
-                      // Если это выбранный игрок -> Синий
-                      if (isPick) return 'selected';
-                      
-                      // --- ИЗМЕНЕНИЕ: Если выбор в матче ЕСТЬ, а этот игрок НЕ выбран -> затемняем (как TBD) ---
-                      if (matchHasPick) return 'tbd';
-                      
-                      // Если выбора нет -> Обычный (активный для клика)
-                      return 'default';
+                      if (isPick) return 'selected'; // Голубой
+                      return 'default'; // Темный серый
                   };
 
                   const p1Status = getStatus(uP1.name, clean(myPick) === clean(uP1.name));
@@ -139,6 +128,7 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
                                   player2={null}
                                   p1Status={p1Status as any}
                                   isChampion={true}
+                                  showChecks={true}
                               />
                           </div>
                       );
@@ -154,7 +144,7 @@ export default function ActiveBracket({ id, tournamentName }: ActiveBracketProps
                           p2Status={p2Status as any}
                           onP1Click={() => uP1.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP1.name)}
                           onP2Click={() => uP2.name !== 'TBD' && handlePickClick(selectedRound!, match.id, uP2.name)}
-                          showChecks={true}
+                          showChecks={true} 
                           showConnector={selectedRound !== 'F'}
                       />
                     </div>
