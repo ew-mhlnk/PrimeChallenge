@@ -6,10 +6,9 @@ import { motion } from 'framer-motion';
 import useTournaments from '../hooks/useTournaments';
 import useAuth from '../hooks/useAuth';
 import { Tournament } from '@/types';
-// ИМПОРТ НОВОГО КОМПОНЕНТА
 import { TournamentCard } from '@/components/tournament/TournamentCard';
 
-// 1. Теги (Оставляем локально, так как используются только здесь)
+// 1. Теги
 interface FilterPillProps {
   label: string;
   isActive: boolean;
@@ -41,13 +40,9 @@ const FilterPill = ({ label, isActive, onClick, colorClass }: FilterPillProps) =
   );
 };
 
-// 2. Loading Screen (Оставляем)
+// 2. Loading Screen
 const LoadingScreen = () => (
   <div className="fixed inset-0 z-50 bg-[#141414] flex flex-col items-center justify-center">
-    <div 
-        className="absolute top-[-100px] left-[-100px] w-[453px] h-[453px] rounded-full pointer-events-none"
-        style={{ background: '#0B80B3', filter: 'blur(90px)', opacity: 0.6, transform: 'rotate(-60deg)' }}
-    />
     <div className="relative z-10 flex flex-col items-center gap-4">
         <div className="w-12 h-12 border-4 border-[#00B2FF] border-t-transparent rounded-full animate-spin" />
         <p className="text-[#00B2FF] font-bold text-sm tracking-widest uppercase animate-pulse">Загрузка...</p>
@@ -72,7 +67,7 @@ export default function Home() {
   if (isLoading) return <LoadingScreen />;
   if (error) return <p className="text-red-500 px-8 pt-20">Ошибка: {error}</p>;
 
-  // На главной только ACTIVE и CLOSED
+  // На главной показываем: ACTIVE и CLOSED
   const activeTournaments = tournaments ? tournaments.filter((tournament: Tournament) => {
     if (!['ACTIVE', 'CLOSED'].includes(tournament.status)) return false;
     
@@ -85,16 +80,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col relative overflow-x-hidden pb-32">
       
-      <div 
-        className="fixed top-[-100px] left-[-100px] w-[453px] h-[453px] rounded-full pointer-events-none"
-        style={{
-          background: '#0B80B3',
-          filter: 'blur(90px)',
-          opacity: 0.6,
-          transform: 'rotate(-60deg)',
-          zIndex: 0
-        }}
-      />
+      {/* УБРАЛИ СИНИЙ ГРАДИЕНТ ЗДЕСЬ */}
 
       <main className="relative z-10 px-6 pt-12 flex flex-col gap-8">
         
@@ -152,7 +138,6 @@ export default function Home() {
                 </div>
             ) : (
                 activeTournaments.map((tournament: Tournament) => (
-                  // ИСПОЛЬЗУЕМ НОВЫЙ КОМПОНЕНТ
                   <TournamentCard key={tournament.id} tournament={tournament} />
                 ))
             )}
