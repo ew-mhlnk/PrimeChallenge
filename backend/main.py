@@ -6,6 +6,7 @@ from routers import auth, tournaments, picks, users, leaderboard
 # Импортируем ОБЕ функции синхронизации
 from services.sync_service import sync_google_sheets_with_db, sync_daily_challenge
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from routers import auth, tournaments, picks, users, leaderboard, daily # <--- Добавили daily
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,7 +69,7 @@ app.include_router(tournaments.router, prefix="", tags=["tournaments"])
 app.include_router(picks.router, prefix="/picks", tags=["picks"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(leaderboard.router, prefix="/leaderboard", tags=["leaderboard"])
-# NOTE: Роутер для Daily добавим в следующем шаге (Step 4), пока не подключаем
+app.include_router(daily.router, prefix="/daily", tags=["daily"])
 
 # === ПЛАНИРОВЩИК ===
 scheduler = AsyncIOScheduler()
