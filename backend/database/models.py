@@ -122,3 +122,59 @@ class Leaderboard(Base):
     
     user = relationship("User", back_populates="leaderboard_entries")
     tournament = relationship("Tournament", back_populates="leaderboard_entries")
+    # --- DAILY CHALLENGE MODELS ---
+# Добавляем в самый конец файла models.py
+
+class DailyMatch(Base):
+    __tablename__ = "daily_matches"
+
+    id = Column(String, primary_key=True, index=True)
+    
+    # Порядок колонок (как в Гугл Таблице)
+    tournament = Column(String)
+    status = Column(String, default="PLANNED")
+    round = Column(String, nullable=True)
+    start_time = Column(DateTime)
+    
+    player1 = Column(String)
+    player2 = Column(String)
+    
+    score = Column(String, nullable=True)
+    
+    # Победитель: 1 или 2
+    winner = Column(Integer, nullable=True)
+
+    # cascade="all, delete" удалит прогнозы, если удалить матч
+    picks = relationship("DailyPick", back_populates="match", cascade="all, delete-orphan")
+
+
+class DailyPick(Base):
+    __tablename__ = "daily_picks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.user_id"), index=True)
+    
+    match_id = Column(String, ForeignKey("daily_matches.id"), index=True)
+    
+    predicted_winner = Column(Integer) # 1 или 2
+    
+    # Результаты
+    is_correct = Column(Boolean, nullable=True)
+    points = Column(Integer, default=0)
+
+    created_at = Column(DateTime, server_default=func.now())
+
+    user = relationship("User")
+    match = relationship("DailyMatch", back_populates="picks")
+
+
+class DailyLeaderboard(Base):
+    __tablename__ = "daily_leaderboard"
+    
+    user_id = Column(BigInteger, ForeignKey("users.user_id"), primary_key=True)
+    
+    total_points = Column(Integer, default=0)
+    correct_picks = Column(Integer, default=0)
+    total_picks = Column(Integer, default=0)
+    
+    user = relationship("User")
