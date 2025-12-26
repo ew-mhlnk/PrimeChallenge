@@ -7,7 +7,7 @@ import { useScrollDirection } from '@/hooks/useScrollDirection';
 import { useEffect, useState } from 'react';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 
-// --- ИКОНКИ (Обновленные) ---
+// --- ИКОНКИ ---
 
 const HomeIcon = ({ active }: { active: boolean }) => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "white" : "#8E8E93"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors duration-300">
@@ -15,7 +15,13 @@ const HomeIcon = ({ active }: { active: boolean }) => (
   </svg>
 );
 
-// НОВАЯ ИКОНКА СПИСКА
+// НОВАЯ ИКОНКА ОГНЯ (ДЛЯ ДЕЙЛИ)
+const FireIcon = ({ active }: { active: boolean }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#FF453A" : "#8E8E93"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors duration-300">
+    <path d="M12 2c0 0-3 3.5-3 6 0 1.5 1 3 1 3s-3-1-3-4c0 0-3 2-3 6 0 4.418 3.582 8 8 8s8-3.582 8-8c0-4-3-6-3-6s0 3 0 4c0 0 1-1.5 1-3 0-2.5-3-6-3-6z" fill={active ? "#FF453A" : "none"} />
+  </svg>
+);
+
 const ListIcon = ({ active }: { active: boolean }) => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "white" : "#8E8E93"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors duration-300">
     <line x1="8" y1="6" x2="21" y2="6" />
@@ -46,7 +52,8 @@ const ProfileIcon = ({ active }: { active: boolean }) => (
 
 const navItems = [
   { label: 'Главная', path: '/', icon: HomeIcon },
-  { label: 'Турниры', path: '/archive', icon: ListIcon }, // Используем ListIcon
+  { label: 'Дейли', path: '/daily', icon: FireIcon }, // <--- ВТОРОЙ ПУНКТ
+  { label: 'Турниры', path: '/archive', icon: ListIcon },
   { label: 'Лидеры', path: '/leaderboard', icon: ChartIcon },
   { label: 'Профиль', path: '/profile', icon: ProfileIcon },
 ];
@@ -57,9 +64,11 @@ export default function Navigation() {
   const [isVisible, setIsVisible] = useState(true);
   const { impact } = useHapticFeedback();
 
+  // Скрываем меню на страницах конкретного турнира (там своя навигация или дизайн)
   const isTournamentPage = pathname.startsWith('/tournament/');
 
   useEffect(() => {
+    // Скрываем меню при скролле вниз
     if (scrollDirection === 'down' && window.scrollY > 50) {
       setIsVisible(false);
     } else {
@@ -72,7 +81,6 @@ export default function Navigation() {
   return (
     <div 
       className="fixed left-0 right-0 z-50 flex justify-center pointer-events-none"
-      // ИЗМЕНЕНИЕ: Увеличил отступ с 20px до 34px, чтобы поднять меню выше
       style={{ bottom: 'calc(34px + env(safe-area-inset-bottom))' }} 
     >
       <AnimatePresence>

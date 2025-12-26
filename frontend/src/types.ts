@@ -151,3 +151,15 @@ export interface ProfileStats {
   cumulative: StatRow[];
   history: TournamentHistoryRow[];
 }
+
+export interface DailyMatch {
+  id: string;
+  tournament: string;     // Название турнира
+  start_time: string;     // "14:00" или дата
+  status: 'PLANNED' | 'LIVE' | 'COMPLETED';
+  player1: string;
+  player2: string;
+  score?: string;         // "6-4, 2-1"
+  winner?: 1 | 2;         // 1 или 2
+  my_pick?: 1 | 2;        // Выбор юзера (если есть)
+}
