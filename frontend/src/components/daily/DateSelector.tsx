@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom'; // <--- Импортируем Портал
-import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 
 // --- ИКОНКИ ---
@@ -18,6 +18,13 @@ const CalendarIcon = () => (
 );
 const CloseIcon = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
 
+// --- ВАРИАНТЫ АНИМАЦИИ СЛАЙДЕРА ---
+const variants = {
+  enter: (direction: number) => ({ x: direction > 0 ? 50 : -50, opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (direction: number) => ({ x: direction < 0 ? 50 : -50, opacity: 0 }),
+};
+
 interface Props {
   selectedDate: Date;
   onSelect: (date: Date) => void;
@@ -29,7 +36,10 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
   const [weekStart, setWeekStart] = useState<Date>(getMonday(selectedDate));
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [pickerDate, setPickerDate] = useState<Date>(new Date(selectedDate));
-  const [mounted, setMounted] = useState(false); // Для портала
+  const [mounted, setMounted] = useState(false);
+  
+  // Направление анимации (1 = вправо/next, -1 = влево/prev)
+  const [direction, setDirection] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -46,11 +56,22 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
     return new Date(date.setDate(diff));
   }
 
-  const changeWeek = (direction: 'prev' | 'next') => {
+  const changeWeek = (dir: 'prev' | 'next') => {
     selection();
+    setDirection(dir === 'next' ? 1 : -1);
     const newStart = new Date(weekStart);
-    newStart.setDate(weekStart.getDate() + (direction === 'next' ? 7 : -7));
+    newStart.setDate(weekStart.getDate() + (dir === 'next' ? 7 : -7));
     setWeekStart(newStart);
+  };
+
+  // Обработчик свайпа
+  const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const threshold = 30; // Чувствительность свайпа
+    if (info.offset.x < -threshold) {
+        changeWeek('next');
+    } else if (info.offset.x > threshold) {
+        changeWeek('prev');
+    }
   };
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -69,9 +90,9 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
   const title = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${yearName}`;
 
   return (
-    <div className="flex flex-col gap-3 mb-6 w-full">
+    <div className="flex flex-col gap-3 mb-6 w-full overflow-hidden">
       
-      {/* HEADER */}
+      {/* 1. HEADER */}
       <div className="flex items-center justify-between px-2">
          <h3 className="text-[17px] font-bold text-white capitalize tracking-tight">
             {title}
@@ -84,133 +105,165 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
          </button>
       </div>
 
-      {/* ЛЕНТА */}
-      <div className="flex items-center justify-between gap-1 w-full">
-         <button onClick={() => changeWeek('prev')} className="w-8 h-10 flex flex-shrink-0 items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition rounded-lg hover:bg-white/5">
-            <ChevronLeft />
-         </button>
+      {/* 2. ЛЕНТА СО СВАЙПОМ */}
+      <div className="relative w-full">
+          {/* Контейнер со стрелками и слайдером */}
+          <div className="flex items-center justify-between gap-1 w-full">
+             
+             {/* Левая стрелка */}
+             <button onClick={() => changeWeek('prev')} className="w-8 h-10 z-10 flex flex-shrink-0 items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition rounded-lg hover:bg-white/5">
+                <ChevronLeft />
+             </button>
 
-         <div className="grid grid-cols-7 gap-1.5 flex-1">
-            {weekDays.map((date, idx) => {
-              const isActive = isSameDay(date, selectedDate);
-              const dayOfWeek = date.toLocaleString('ru-RU', { weekday: 'short' }).toUpperCase().replace('.', '');
-              const dayNumber = date.getDate();
+             {/* Область Свайпа */}
+             <div className="flex-1 overflow-hidden relative h-[60px]"> 
+                <AnimatePresence initial={false} custom={direction} mode="popLayout">
+                    <motion.div
+                        key={weekStart.toISOString()}
+                        custom={direction}
+                        variants={variants}
+                        initial="enter"
+                        animate="center"
+                        exit="exit"
+                        transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
+                        
+                        // Включаем Drag (Свайп)
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        dragElastic={0.2} // Эффект резинки
+                        onDragEnd={handleDragEnd}
+                        
+                        className="grid grid-cols-7 gap-1.5 w-full absolute top-0"
+                    >
+                        {weekDays.map((date, idx) => {
+                          const isActive = isSameDay(date, selectedDate);
+                          const dayOfWeek = date.toLocaleString('ru-RU', { weekday: 'short' }).toUpperCase().replace('.', '');
+                          const dayNumber = date.getDate();
 
-              return (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    if (!isActive) {
-                      impact('light');
-                      onSelect(date);
-                    }
-                  }}
-                  className="relative group flex flex-col items-center w-full"
-                >
-                  <div 
-                    className={`
-                       relative w-full aspect-[35/55] min-w-[32px]
-                       rounded-[13px] p-[1px] transition-all duration-300
-                       ${isActive ? 'shadow-[0_0_15px_rgba(0,178,255,0.4)] scale-105 z-10' : 'hover:opacity-80'}
-                    `}
-                    style={{
-                        background: isActive 
-                            ? '#00B2FF' 
-                            : 'linear-gradient(90deg, #212121 0%, #161616 100%)' 
-                    }}
-                  >
-                      <div 
-                        className="w-full h-full rounded-[12px] flex flex-col items-center justify-center gap-0.5"
-                        style={{
-                            background: isActive 
-                                ? '#00B2FF' 
-                                : 'linear-gradient(90deg, #1B1A1E 0%, #161616 100%)' 
-                        }}
-                      >
-                            <span className={`text-[9px] font-bold leading-none ${isActive ? 'text-white' : 'text-[#616171]'}`}>
-                                {dayOfWeek}
-                            </span>
-                            <span className={`text-[15px] font-bold leading-none ${isActive ? 'text-white' : 'text-white'}`}>
-                                {dayNumber}
-                            </span>
-                      </div>
-                  </div>
-                </button>
-              );
-            })}
-         </div>
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                if (!isActive) {
+                                  impact('light');
+                                  onSelect(date);
+                                }
+                              }}
+                              className="relative group flex flex-col items-center w-full cursor-pointer"
+                            >
+                              <div 
+                                className={`
+                                   relative w-full aspect-[35/55] min-w-[32px]
+                                   rounded-[13px] p-[1px] transition-all duration-300
+                                   ${isActive ? 'shadow-[0_0_15px_rgba(0,178,255,0.4)] scale-105 z-10' : ''}
+                                `}
+                                style={{
+                                    background: isActive 
+                                        ? '#00B2FF' 
+                                        : 'linear-gradient(90deg, #212121 0%, #161616 100%)' 
+                                }}
+                              >
+                                  <div 
+                                    className="w-full h-full rounded-[12px] flex flex-col items-center justify-center gap-0.5"
+                                    style={{
+                                        background: isActive 
+                                            ? '#00B2FF' 
+                                            : 'linear-gradient(90deg, #1B1A1E 0%, #161616 100%)' 
+                                    }}
+                                  >
+                                        <span className={`text-[9px] font-bold leading-none ${isActive ? 'text-white' : 'text-[#616171]'}`}>
+                                            {dayOfWeek}
+                                        </span>
+                                        <span className={`text-[15px] font-bold leading-none ${isActive ? 'text-white' : 'text-white'}`}>
+                                            {dayNumber}
+                                        </span>
+                                  </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </motion.div>
+                </AnimatePresence>
+             </div>
 
-         <button onClick={() => changeWeek('next')} className="w-8 h-10 flex flex-shrink-0 items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition rounded-lg hover:bg-white/5">
-            <ChevronRight />
-         </button>
+             {/* Правая стрелка */}
+             <button onClick={() => changeWeek('next')} className="w-8 h-10 z-10 flex flex-shrink-0 items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition rounded-lg hover:bg-white/5">
+                <ChevronRight />
+             </button>
+          </div>
       </div>
 
-      {/* МОДАЛКА ЧЕРЕЗ ПОРТАЛ (Чтобы быть поверх всего) */}
-      <AnimatePresence>
-        {isCalendarOpen && mounted && createPortal(
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-                {/* Backdrop */}
-                <motion.div 
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-                    onClick={() => setIsCalendarOpen(false)} 
-                    className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
-                />
-                
-                {/* Modal */}
-                <motion.div 
-                    initial={{ scale: 0.9, opacity: 0, y: 20 }} 
-                    animate={{ scale: 1, opacity: 1, y: 0 }} 
-                    exit={{ scale: 0.9, opacity: 0, y: 20 }} 
-                    className="relative w-full max-w-[320px] bg-[#1C1C1E] border border-white/10 rounded-[32px] p-5 shadow-2xl overflow-hidden"
-                >
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="flex items-center gap-2">
-                             <button onClick={() => setPickerDate(new Date(pickerDate.setMonth(pickerDate.getMonth() - 1)))} className="p-2 hover:bg-white/5 rounded-full"><ChevronLeft /></button>
-                             <span className="text-lg font-bold text-white capitalize">
-                                {pickerDate.toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}
-                             </span>
-                             <button onClick={() => setPickerDate(new Date(pickerDate.setMonth(pickerDate.getMonth() + 1)))} className="p-2 hover:bg-white/5 rounded-full"><ChevronRight /></button>
-                        </div>
-                        <button onClick={() => setIsCalendarOpen(false)} className="p-2 text-[#8E8E93] hover:text-white"><CloseIcon /></button>
-                    </div>
-
-                    <div className="grid grid-cols-7 gap-2 mb-4">
-                        {['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС'].map(d => (
-                            <span key={d} className="text-center text-[11px] text-[#616171] font-bold">{d}</span>
-                        ))}
-                        {getDaysInMonth(pickerDate).map((dateObj, i) => {
-                            if (!dateObj) return <div key={`empty-${i}`} />;
-                            const isSelected = isSameDay(dateObj, selectedDate);
-                            const isToday = isSameDay(dateObj, new Date());
-                            
-                            return (
-                                <button
-                                    key={i}
-                                    onClick={() => {
-                                        impact('medium');
-                                        onSelect(dateObj);
-                                        setIsCalendarOpen(false);
-                                    }}
-                                    className={`
-                                        aspect-square rounded-full flex items-center justify-center text-sm font-bold transition-all
-                                        ${isSelected ? 'bg-[#00B2FF] text-white shadow-lg' : 'text-white hover:bg-white/10'}
-                                        ${isToday && !isSelected ? 'border border-[#00B2FF] text-[#00B2FF]' : ''}
-                                    `}
-                                >
-                                    {dateObj.getDate()}
-                                </button>
-                            );
-                        })}
-                    </div>
+      {/* 3. МОДАЛКА КАЛЕНДАРЯ */}
+      {mounted && typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+            {isCalendarOpen && (
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center px-4 touch-none" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
                     
-                    <button onClick={() => { impact('medium'); onSelect(new Date()); setIsCalendarOpen(false); }} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-[16px] text-sm font-bold text-[#00B2FF]">
-                        Вернуться к Сегодня
-                    </button>
-                </motion.div>
-            </div>,
-            document.body
-        )}
-      </AnimatePresence>
+                    {/* Backdrop */}
+                    <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+                        onClick={() => setIsCalendarOpen(false)} 
+                        className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
+                    />
+                    
+                    {/* Modal */}
+                    <motion.div 
+                        initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+                        animate={{ scale: 1, opacity: 1, y: 0 }} 
+                        exit={{ scale: 0.9, opacity: 0, y: 20 }} 
+                        className="relative w-full max-w-[320px] bg-[#1C1C1E] border border-white/10 rounded-[32px] p-5 shadow-2xl z-50 overflow-hidden"
+                    >
+                        {/* Header Модалки */}
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-2">
+                                 <button onClick={() => setPickerDate(new Date(pickerDate.setMonth(pickerDate.getMonth() - 1)))} className="p-2 hover:bg-white/5 rounded-full"><ChevronLeft /></button>
+                                 <span className="text-lg font-bold text-white capitalize">
+                                    {pickerDate.toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}
+                                 </span>
+                                 <button onClick={() => setPickerDate(new Date(pickerDate.setMonth(pickerDate.getMonth() + 1)))} className="p-2 hover:bg-white/5 rounded-full"><ChevronRight /></button>
+                            </div>
+                            <button onClick={() => setIsCalendarOpen(false)} className="p-2 text-[#8E8E93] hover:text-white"><CloseIcon /></button>
+                        </div>
+
+                        {/* Сетка дней */}
+                        <div className="grid grid-cols-7 gap-2 mb-4">
+                            {['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС'].map(d => (
+                                <span key={d} className="text-center text-[11px] text-[#616171] font-bold">{d}</span>
+                            ))}
+                            {getDaysInMonth(pickerDate).map((dateObj, i) => {
+                                if (!dateObj) return <div key={`empty-${i}`} />;
+                                const isSelected = isSameDay(dateObj, selectedDate);
+                                const isToday = isSameDay(dateObj, new Date());
+                                
+                                return (
+                                    <button
+                                        key={i}
+                                        onClick={() => {
+                                            impact('medium');
+                                            onSelect(dateObj);
+                                            setIsCalendarOpen(false);
+                                        }}
+                                        className={`
+                                            aspect-square rounded-full flex items-center justify-center text-sm font-bold transition-all
+                                            ${isSelected ? 'bg-[#00B2FF] text-white shadow-lg' : 'text-white hover:bg-white/10'}
+                                            ${isToday && !isSelected ? 'border border-[#00B2FF] text-[#00B2FF]' : ''}
+                                        `}
+                                    >
+                                        {dateObj.getDate()}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        
+                        <button onClick={() => { impact('medium'); onSelect(new Date()); setIsCalendarOpen(false); }} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-[16px] text-sm font-bold text-[#00B2FF]">
+                            Вернуться к Сегодня
+                        </button>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };
