@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { DailyMatch } from '@/types';
 
-// Хелпер для ожидания Telegram initData
+// Хелпер для Telegram InitData
 const waitForTelegram = async () => {
     for (let i = 0; i < 20; i++) {
         if (typeof window !== 'undefined' && window.Telegram?.WebApp?.initData) {
@@ -21,15 +21,25 @@ export function useDailyChallenge() {
   const [isLoading, setIsLoading] = useState(true);
   const { impact, notification } = useHapticFeedback();
 
-  // Глобальный статус страницы
+  // Статус дня: PLANNED (ставки), ACTIVE (лайв), COMPLETED (итоги)
   const [dayStatus, setDayStatus] = useState<'PLANNED' | 'ACTIVE' | 'COMPLETED'>('PLANNED');
 
+  // Выбранная дата (по умолчанию сегодня)
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
   const fetchMatches = useCallback(async () => {
+      setIsLoading(true);
       try {
           const initData = await waitForTelegram();
           
-          // Запрос к нашему новому API
-          const res = await fetch('/api/daily/matches', {
+          // Форматируем дату в YYYY-MM-DD для API
+          // Используем локальные методы getFullYear/Month/Date, чтобы получить дату пользователя
+          const year = selectedDate.getFullYear();
+          const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+          const day = String(selectedDate.getDate()).padStart(2, '0');
+          const dateStr = `${year}-${month}-${day}`;
+
+          const res = await fetch(`/api/daily/matches?target_date=${dateStr}`, {
               headers: { Authorization: initData || '' },
               cache: 'no-store'
           });
@@ -39,11 +49,7 @@ export function useDailyChallenge() {
           const data: DailyMatch[] = await res.json();
           setMatches(data);
 
-          // ЛОГИКА ОПРЕДЕЛЕНИЯ СТАТУСА ДНЯ:
-          // 1. Если есть хоть один LIVE -> ACTIVE (показываем лайв)
-          // 2. Если ВСЕ матчи COMPLETED -> COMPLETED (показываем итоги)
-          // 3. Иначе -> PLANNED (принимаем ставки)
-          
+          // Логика переключения статуса страницы
           const hasLive = data.some(m => m.status === 'LIVE');
           const allFinished = data.length > 0 && data.every(m => m.status === 'COMPLETED');
           
@@ -53,22 +59,21 @@ export function useDailyChallenge() {
 
       } catch (e) {
           console.error(e);
-          toast.error('Не удалось загрузить матчи');
+          toast.error('Ошибка загрузки матчей');
       } finally {
           setIsLoading(false);
       }
-  }, []);
+  }, [selectedDate]); // <-- Перезапрос при смене даты
 
   // Первичная загрузка
   useEffect(() => {
       fetchMatches();
   }, [fetchMatches]);
 
-  // Функция выбора победителя
   const makePick = async (matchId: string, winner: 1 | 2) => {
       impact('medium');
       
-      // 1. Оптимистичное обновление (сразу красим кнопку в UI)
+      // Оптимистичное обновление UI
       const previousMatches = [...matches];
       setMatches(prev => prev.map(m => 
           m.id === matchId ? { ...m, my_pick: winner } : m
@@ -95,12 +100,19 @@ export function useDailyChallenge() {
           notification('error');
           toast.error(e.message === 'Too late' ? 'Прием ставок закрыт' : 'Ошибка сохранения');
           
-          // 2. Если ошибка — откатываем UI назад
+          // Откат при ошибке
           setMatches(previousMatches);
-          // И обновляем данные с сервера, чтобы получить актуальные статусы
           fetchMatches(); 
       }
   };
 
-  return { matches, dayStatus, isLoading, makePick, refresh: fetchMatches };
+  return { 
+      matches, 
+      dayStatus, 
+      isLoading, 
+      makePick, 
+      refresh: fetchMatches,
+      selectedDate,      // Экспортируем дату
+      setSelectedDate    // Экспортируем сеттер даты
+  };
 }
