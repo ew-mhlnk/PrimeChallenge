@@ -25,25 +25,18 @@ interface Props {
 export const DateSelector = ({ selectedDate, onSelect }: Props) => {
   const { impact, selection } = useHapticFeedback();
   
-  // Дата начала текущей видимой недели (Понедельник)
   const [weekStart, setWeekStart] = useState<Date>(getMonday(selectedDate));
-  
-  // Состояние модалки календаря
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  
-  // Для календаря в модалке (выбор года/месяца)
   const [pickerDate, setPickerDate] = useState<Date>(new Date(selectedDate));
 
-  // Обновляем неделю, если извне пришла новая дата (например, после выбора в модалке)
   useEffect(() => {
     setWeekStart(getMonday(selectedDate));
   }, [selectedDate]);
 
-  // --- ЛОГИКА НЕДЕЛЬ ---
   function getMonday(d: Date) {
     const date = new Date(d);
     const day = date.getDay(); 
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1); 
     return new Date(date.setDate(diff));
   }
 
@@ -54,7 +47,6 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
     setWeekStart(newStart);
   };
 
-  // Генерируем 7 дней для текущего view
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
@@ -66,113 +58,116 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
     d1.getMonth() === d2.getMonth() && 
     d1.getFullYear() === d2.getFullYear();
 
-  // Заголовок текущей недели
   const monthName = weekStart.toLocaleString('ru-RU', { month: 'long' });
   const yearName = weekStart.getFullYear();
   const title = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${yearName}`;
 
   return (
-    <div className="flex flex-col gap-5 mb-6">
+    <div className="flex flex-col gap-3 mb-6 w-full">
       
-      {/* 1. HEADER: Месяц + Стрелки + Календарь */}
-      <div className="flex items-center justify-between px-1">
-        
-        {/* Левая часть: Стрелки и Дата */}
-        <div className="flex items-center gap-3">
-             <div className="flex gap-1 bg-[#1C1C1E] rounded-lg p-0.5 border border-white/5">
-                <button onClick={() => changeWeek('prev')} className="w-7 h-7 flex items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition">
-                    <ChevronLeft />
-                </button>
-                <button onClick={() => changeWeek('next')} className="w-7 h-7 flex items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition">
-                    <ChevronRight />
-                </button>
-             </div>
-             <h3 className="text-[16px] font-bold text-white capitalize tracking-tight">
-                {title}
-             </h3>
-        </div>
-
-        {/* Правая часть: Календарь */}
-        <button 
+      {/* 1. HEADER: Месяц + Кнопка Календаря */}
+      <div className="flex items-center justify-between px-2">
+         <h3 className="text-[17px] font-bold text-white capitalize tracking-tight">
+            {title}
+         </h3>
+         <button 
             onClick={() => { impact('light'); setPickerDate(selectedDate); setIsCalendarOpen(true); }}
             className="w-9 h-9 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/5 active:scale-95 transition-transform"
-        >
+         >
             <CalendarIcon />
-        </button>
+         </button>
       </div>
 
-      {/* 2. ЛЕНТА ДНЕЙ (Строго 7) */}
-      <div className="grid grid-cols-7 gap-2">
-        {weekDays.map((date, idx) => {
-          const isActive = isSameDay(date, selectedDate);
-          const dayOfWeek = date.toLocaleString('ru-RU', { weekday: 'short' }).toUpperCase().replace('.', '');
-          const dayNumber = date.getDate();
+      {/* 2. ЛЕНТА: Стрелка < [ДНИ] > Стрелка */}
+      <div className="flex items-center justify-between gap-1 w-full">
+         
+         {/* Левая стрелка */}
+         <button 
+            onClick={() => changeWeek('prev')} 
+            className="w-8 h-10 flex flex-shrink-0 items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition rounded-lg hover:bg-white/5"
+         >
+            <ChevronLeft />
+         </button>
 
-          return (
-            <button
-              key={idx}
-              onClick={() => {
-                if (!isActive) {
-                  impact('light');
-                  onSelect(date);
-                }
-              }}
-              className="relative group flex flex-col items-center"
-            >
-              {/* КОНТЕЙНЕР ЯЧЕЙКИ */}
-              {/* Используем trick с padding для градиентной обводки */}
-              <div 
-                className={`
-                   relative w-full aspect-[35/55] min-w-[38px] max-w-[50px]
-                   rounded-[13px] p-[1px] transition-all duration-300
-                   ${isActive ? 'shadow-[0_0_15px_rgba(0,178,255,0.4)] scale-105 z-10' : 'hover:opacity-80'}
-                `}
-                style={{
-                    // Градиент обводки (задний фон родителя)
-                    background: isActive 
-                        ? '#00B2FF' // Активная обводка сплошная (или можно градиент)
-                        : 'linear-gradient(90deg, #212121 0%, #161616 100%)'
-                }}
-              >
-                  {/* ВНУТРЕННЯЯ ЧАСТЬ (Заливка) */}
+         {/* Сетка дней (растягивается) */}
+         <div className="grid grid-cols-7 gap-1.5 flex-1">
+            {weekDays.map((date, idx) => {
+              const isActive = isSameDay(date, selectedDate);
+              const dayOfWeek = date.toLocaleString('ru-RU', { weekday: 'short' }).toUpperCase().replace('.', '');
+              const dayNumber = date.getDate();
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    if (!isActive) {
+                      impact('light');
+                      onSelect(date);
+                    }
+                  }}
+                  className="relative group flex flex-col items-center w-full"
+                >
                   <div 
-                    className="w-full h-full rounded-[12px] flex flex-col items-center justify-center gap-0.5"
+                    className={`
+                       relative w-full aspect-[35/55] min-w-[32px]
+                       rounded-[13px] p-[1px] transition-all duration-300
+                       ${isActive ? 'shadow-[0_0_15px_rgba(0,178,255,0.4)] scale-105 z-10' : 'hover:opacity-80'}
+                    `}
                     style={{
                         background: isActive 
-                            ? '#00B2FF' // Активный фон
-                            : 'linear-gradient(90deg, #1B1A1E 0%, #161616 100%)' // Твой градиент
+                            ? '#00B2FF' 
+                            : 'linear-gradient(90deg, #212121 0%, #161616 100%)' // Градиент обводки
                     }}
                   >
-                        <span className={`text-[10px] font-bold leading-none ${isActive ? 'text-white' : 'text-[#616171]'}`}>
-                            {dayOfWeek}
-                        </span>
-                        <span className={`text-[16px] font-bold leading-none ${isActive ? 'text-white' : 'text-white'}`}>
-                            {dayNumber}
-                        </span>
+                      <div 
+                        className="w-full h-full rounded-[12px] flex flex-col items-center justify-center gap-0.5"
+                        style={{
+                            background: isActive 
+                                ? '#00B2FF' 
+                                : 'linear-gradient(180deg, #1B1A1E 0%, #161616 100%)' // Градиент заливки
+                        }}
+                      >
+                            <span className={`text-[9px] font-bold leading-none ${isActive ? 'text-white' : 'text-[#616171]'}`}>
+                                {dayOfWeek}
+                            </span>
+                            <span className={`text-[15px] font-bold leading-none ${isActive ? 'text-white' : 'text-white'}`}>
+                                {dayNumber}
+                            </span>
+                      </div>
                   </div>
-              </div>
-            </button>
-          );
-        })}
+                </button>
+              );
+            })}
+         </div>
+
+         {/* Правая стрелка */}
+         <button 
+            onClick={() => changeWeek('next')} 
+            className="w-8 h-10 flex flex-shrink-0 items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition rounded-lg hover:bg-white/5"
+         >
+            <ChevronRight />
+         </button>
       </div>
 
-      {/* 3. МОДАЛКА КАЛЕНДАРЯ */}
+      {/* 3. МОДАЛКА КАЛЕНДАРЯ (Стиль как в Турнирах) */}
       <AnimatePresence>
         {isCalendarOpen && (
+            // Контейнер фиксирован на весь экран, z-50 поверх всего
             <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-                {/* Backdrop */}
+                
+                {/* Затемнение фона */}
                 <motion.div 
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
                     onClick={() => setIsCalendarOpen(false)} 
                     className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
                 />
                 
-                {/* Modal Content */}
+                {/* Само окно календаря */}
                 <motion.div 
                     initial={{ scale: 0.9, opacity: 0, y: 20 }} 
                     animate={{ scale: 1, opacity: 1, y: 0 }} 
                     exit={{ scale: 0.9, opacity: 0, y: 20 }} 
-                    className="relative w-full max-w-[320px] bg-[#1C1C1E] border border-white/10 rounded-[32px] p-5 shadow-2xl z-10 overflow-hidden"
+                    className="relative w-full max-w-[320px] bg-[#1C1C1E] border border-white/10 rounded-[32px] p-5 shadow-2xl z-50 overflow-hidden"
                 >
                     {/* Header Модалки */}
                     <div className="flex justify-between items-center mb-6">
@@ -205,8 +200,8 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
                                         setIsCalendarOpen(false);
                                     }}
                                     className={`
-                                        aspect-square rounded-full flex items-center justify-center text-sm font-bold
-                                        ${isSelected ? 'bg-[#00B2FF] text-white' : 'text-white hover:bg-white/10'}
+                                        aspect-square rounded-full flex items-center justify-center text-sm font-bold transition-all
+                                        ${isSelected ? 'bg-[#00B2FF] text-white shadow-lg' : 'text-white hover:bg-white/10'}
                                         ${isToday && !isSelected ? 'border border-[#00B2FF] text-[#00B2FF]' : ''}
                                     `}
                                 >
@@ -219,7 +214,7 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
                     <button 
                         onClick={() => {
                             impact('medium');
-                            onSelect(new Date()); // Выбрать сегодня
+                            onSelect(new Date()); 
                             setIsCalendarOpen(false);
                         }}
                         className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-[16px] text-sm font-bold text-[#00B2FF]"
@@ -239,9 +234,9 @@ function getDaysInMonth(date: Date) {
     const year = date.getFullYear();
     const month = date.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDayOfWeek = new Date(year, month, 1).getDay(); // 0 = Sun, 1 = Mon
+    const firstDayOfWeek = new Date(year, month, 1).getDay(); 
     
-    // Корректируем, чтобы неделя начиналась с ПН (0 = Пн, 6 = Вс)
+    // ПН=0 ... ВС=6
     const startOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
 
     const days = [];
