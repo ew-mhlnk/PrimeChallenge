@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // <--- Импортируем Портал
 import { motion, AnimatePresence } from 'framer-motion';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 
@@ -28,6 +29,11 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
   const [weekStart, setWeekStart] = useState<Date>(getMonday(selectedDate));
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [pickerDate, setPickerDate] = useState<Date>(new Date(selectedDate));
+  const [mounted, setMounted] = useState(false); // Для портала
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setWeekStart(getMonday(selectedDate));
@@ -65,7 +71,7 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
   return (
     <div className="flex flex-col gap-3 mb-6 w-full">
       
-      {/* 1. HEADER: Месяц + Кнопка Календаря */}
+      {/* HEADER */}
       <div className="flex items-center justify-between px-2">
          <h3 className="text-[17px] font-bold text-white capitalize tracking-tight">
             {title}
@@ -78,18 +84,12 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
          </button>
       </div>
 
-      {/* 2. ЛЕНТА: Стрелка < [ДНИ] > Стрелка */}
+      {/* ЛЕНТА */}
       <div className="flex items-center justify-between gap-1 w-full">
-         
-         {/* Левая стрелка */}
-         <button 
-            onClick={() => changeWeek('prev')} 
-            className="w-8 h-10 flex flex-shrink-0 items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition rounded-lg hover:bg-white/5"
-         >
+         <button onClick={() => changeWeek('prev')} className="w-8 h-10 flex flex-shrink-0 items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition rounded-lg hover:bg-white/5">
             <ChevronLeft />
          </button>
 
-         {/* Сетка дней (растягивается) */}
          <div className="grid grid-cols-7 gap-1.5 flex-1">
             {weekDays.map((date, idx) => {
               const isActive = isSameDay(date, selectedDate);
@@ -116,7 +116,7 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
                     style={{
                         background: isActive 
                             ? '#00B2FF' 
-                            : 'linear-gradient(90deg, #212121 0%, #161616 100%)' // Градиент обводки
+                            : 'linear-gradient(90deg, #212121 0%, #161616 100%)' 
                     }}
                   >
                       <div 
@@ -124,7 +124,7 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
                         style={{
                             background: isActive 
                                 ? '#00B2FF' 
-                                : 'linear-gradient(180deg, #1B1A1E 0%, #161616 100%)' // Градиент заливки
+                                : 'linear-gradient(90deg, #1B1A1E 0%, #161616 100%)' 
                         }}
                       >
                             <span className={`text-[9px] font-bold leading-none ${isActive ? 'text-white' : 'text-[#616171]'}`}>
@@ -140,36 +140,29 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
             })}
          </div>
 
-         {/* Правая стрелка */}
-         <button 
-            onClick={() => changeWeek('next')} 
-            className="w-8 h-10 flex flex-shrink-0 items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition rounded-lg hover:bg-white/5"
-         >
+         <button onClick={() => changeWeek('next')} className="w-8 h-10 flex flex-shrink-0 items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition rounded-lg hover:bg-white/5">
             <ChevronRight />
          </button>
       </div>
 
-      {/* 3. МОДАЛКА КАЛЕНДАРЯ (Стиль как в Турнирах) */}
+      {/* МОДАЛКА ЧЕРЕЗ ПОРТАЛ (Чтобы быть поверх всего) */}
       <AnimatePresence>
-        {isCalendarOpen && (
-            // Контейнер фиксирован на весь экран, z-50 поверх всего
-            <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-                
-                {/* Затемнение фона */}
+        {isCalendarOpen && mounted && createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+                {/* Backdrop */}
                 <motion.div 
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
                     onClick={() => setIsCalendarOpen(false)} 
                     className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
                 />
                 
-                {/* Само окно календаря */}
+                {/* Modal */}
                 <motion.div 
                     initial={{ scale: 0.9, opacity: 0, y: 20 }} 
                     animate={{ scale: 1, opacity: 1, y: 0 }} 
                     exit={{ scale: 0.9, opacity: 0, y: 20 }} 
-                    className="relative w-full max-w-[320px] bg-[#1C1C1E] border border-white/10 rounded-[32px] p-5 shadow-2xl z-50 overflow-hidden"
+                    className="relative w-full max-w-[320px] bg-[#1C1C1E] border border-white/10 rounded-[32px] p-5 shadow-2xl overflow-hidden"
                 >
-                    {/* Header Модалки */}
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-2">
                              <button onClick={() => setPickerDate(new Date(pickerDate.setMonth(pickerDate.getMonth() - 1)))} className="p-2 hover:bg-white/5 rounded-full"><ChevronLeft /></button>
@@ -181,7 +174,6 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
                         <button onClick={() => setIsCalendarOpen(false)} className="p-2 text-[#8E8E93] hover:text-white"><CloseIcon /></button>
                     </div>
 
-                    {/* Сетка дней месяца */}
                     <div className="grid grid-cols-7 gap-2 mb-4">
                         {['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС'].map(d => (
                             <span key={d} className="text-center text-[11px] text-[#616171] font-bold">{d}</span>
@@ -211,34 +203,25 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
                         })}
                     </div>
                     
-                    <button 
-                        onClick={() => {
-                            impact('medium');
-                            onSelect(new Date()); 
-                            setIsCalendarOpen(false);
-                        }}
-                        className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-[16px] text-sm font-bold text-[#00B2FF]"
-                    >
+                    <button onClick={() => { impact('medium'); onSelect(new Date()); setIsCalendarOpen(false); }} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-[16px] text-sm font-bold text-[#00B2FF]">
                         Вернуться к Сегодня
                     </button>
                 </motion.div>
-            </div>
+            </div>,
+            document.body
         )}
       </AnimatePresence>
     </div>
   );
 };
 
-// --- Helpers для календаря ---
+// --- Helpers ---
 function getDaysInMonth(date: Date) {
     const year = date.getFullYear();
     const month = date.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const firstDayOfWeek = new Date(year, month, 1).getDay(); 
-    
-    // ПН=0 ... ВС=6
     const startOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-
     const days = [];
     for (let i = 0; i < startOffset; i++) days.push(null);
     for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
