@@ -1,8 +1,21 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
+
+// --- ИКОНКИ ---
+const ChevronLeft = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18L9 12L15 6"/></svg>;
+const ChevronRight = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18L15 12L9 6"/></svg>;
+const CalendarIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00B2FF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+    <line x1="16" y1="2" x2="16" y2="6"></line>
+    <line x1="8" y1="2" x2="8" y2="6"></line>
+    <line x1="3" y1="10" x2="21" y2="10"></line>
+  </svg>
+);
+const CloseIcon = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
 
 interface Props {
   selectedDate: Date;
@@ -10,60 +23,87 @@ interface Props {
 }
 
 export const DateSelector = ({ selectedDate, onSelect }: Props) => {
-  const { selection } = useHapticFeedback();
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const { impact, selection } = useHapticFeedback();
+  
+  // Дата начала текущей видимой недели (Понедельник)
+  const [weekStart, setWeekStart] = useState<Date>(getMonday(selectedDate));
+  
+  // Состояние модалки календаря
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  
+  // Для календаря в модалке (выбор года/месяца)
+  const [pickerDate, setPickerDate] = useState<Date>(new Date(selectedDate));
 
-  // Генерируем дни (например, 2 недели: неделю назад и неделю вперед)
-  const days = [];
-  for (let i = -7; i <= 7; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    days.push(d);
+  // Обновляем неделю, если извне пришла новая дата (например, после выбора в модалке)
+  useEffect(() => {
+    setWeekStart(getMonday(selectedDate));
+  }, [selectedDate]);
+
+  // --- ЛОГИКА НЕДЕЛЬ ---
+  function getMonday(d: Date) {
+    const date = new Date(d);
+    const day = date.getDay(); 
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+    return new Date(date.setDate(diff));
   }
 
-  // Скролл к выбранной дате при загрузке
-  useEffect(() => {
-    if (scrollRef.current) {
-      // Находим активный элемент (простая логика центрирования)
-      const centerIndex = 7; // "Сегодня" находится в середине массива
-      const itemWidth = 45; // Ширина элемента + отступ
-      scrollRef.current.scrollLeft = (centerIndex * itemWidth) - (window.innerWidth / 2) + (itemWidth / 2);
-    }
-  }, []);
+  const changeWeek = (direction: 'prev' | 'next') => {
+    selection();
+    const newStart = new Date(weekStart);
+    newStart.setDate(weekStart.getDate() + (direction === 'next' ? 7 : -7));
+    setWeekStart(newStart);
+  };
+
+  // Генерируем 7 дней для текущего view
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    return d;
+  });
 
   const isSameDay = (d1: Date, d2: Date) => 
-    d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth();
+    d1.getDate() === d2.getDate() && 
+    d1.getMonth() === d2.getMonth() && 
+    d1.getFullYear() === d2.getFullYear();
 
-  // Форматирование месяца и года для заголовка
-  const monthName = selectedDate.toLocaleString('ru-RU', { month: 'long' });
-  const year = selectedDate.getFullYear();
-  const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+  // Заголовок текущей недели
+  const monthName = weekStart.toLocaleString('ru-RU', { month: 'long' });
+  const yearName = weekStart.getFullYear();
+  const title = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${yearName}`;
 
   return (
-    <div className="flex flex-col gap-4 mb-6">
+    <div className="flex flex-col gap-5 mb-6">
       
-      {/* Месяц и Год + Иконка календаря */}
+      {/* 1. HEADER: Месяц + Стрелки + Календарь */}
       <div className="flex items-center justify-between px-1">
-        <h3 className="text-[15px] font-medium text-white capitalize">
-          {capitalizedMonth} <span className="text-[#616171]">{year}</span>
-        </h3>
-        {/* Иконка календаря (визуальная) */}
-        <button className="w-8 h-8 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/5 active:scale-95 transition-transform">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00B2FF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="16" y1="2" x2="16" y2="6"></line>
-                <line x1="8" y1="2" x2="8" y2="6"></line>
-                <line x1="3" y1="10" x2="21" y2="10"></line>
-            </svg>
+        
+        {/* Левая часть: Стрелки и Дата */}
+        <div className="flex items-center gap-3">
+             <div className="flex gap-1 bg-[#1C1C1E] rounded-lg p-0.5 border border-white/5">
+                <button onClick={() => changeWeek('prev')} className="w-7 h-7 flex items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition">
+                    <ChevronLeft />
+                </button>
+                <button onClick={() => changeWeek('next')} className="w-7 h-7 flex items-center justify-center text-[#8E8E93] hover:text-white active:scale-90 transition">
+                    <ChevronRight />
+                </button>
+             </div>
+             <h3 className="text-[16px] font-bold text-white capitalize tracking-tight">
+                {title}
+             </h3>
+        </div>
+
+        {/* Правая часть: Календарь */}
+        <button 
+            onClick={() => { impact('light'); setPickerDate(selectedDate); setIsCalendarOpen(true); }}
+            className="w-9 h-9 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/5 active:scale-95 transition-transform"
+        >
+            <CalendarIcon />
         </button>
       </div>
 
-      {/* Лента дней */}
-      <div 
-        ref={scrollRef}
-        className="flex gap-2.5 overflow-x-auto scrollbar-hide -mx-4 px-4 snap-x"
-      >
-        {days.map((date, idx) => {
+      {/* 2. ЛЕНТА ДНЕЙ (Строго 7) */}
+      <div className="grid grid-cols-7 gap-2">
+        {weekDays.map((date, idx) => {
           const isActive = isSameDay(date, selectedDate);
           const dayOfWeek = date.toLocaleString('ru-RU', { weekday: 'short' }).toUpperCase().replace('.', '');
           const dayNumber = date.getDate();
@@ -73,53 +113,139 @@ export const DateSelector = ({ selectedDate, onSelect }: Props) => {
               key={idx}
               onClick={() => {
                 if (!isActive) {
-                  selection();
+                  impact('light');
                   onSelect(date);
                 }
               }}
-              className="relative group snap-center"
+              className="relative group flex flex-col items-center"
             >
-              {/* КОНТЕЙНЕР (Воссоздаем дизайн Figma) */}
-              <motion.div
-                layout
-                initial={false}
-                animate={{
-                  backgroundColor: isActive ? '#00B2FF' : 'transparent',
-                }}
+              {/* КОНТЕЙНЕР ЯЧЕЙКИ */}
+              {/* Используем trick с padding для градиентной обводки */}
+              <div 
                 className={`
-                   w-[35px] h-[55px] rounded-[13px] 
-                   flex flex-col items-center justify-center gap-1
-                   transition-all duration-300 relative overflow-hidden
+                   relative w-full aspect-[35/55] min-w-[38px] max-w-[50px]
+                   rounded-[13px] p-[1px] transition-all duration-300
+                   ${isActive ? 'shadow-[0_0_15px_rgba(0,178,255,0.4)] scale-105 z-10' : 'hover:opacity-80'}
                 `}
                 style={{
-                   // Если не активен, задаем градиент как в Figma
-                   background: isActive 
-                     ? '#00B2FF' 
-                     : 'linear-gradient(180deg, #1B1A1E 0%, #161616 100%)'
+                    // Градиент обводки (задний фон родителя)
+                    background: isActive 
+                        ? '#00B2FF' // Активная обводка сплошная (или можно градиент)
+                        : 'linear-gradient(90deg, #212121 0%, #161616 100%)'
                 }}
               >
-                {/* Бордер (через абсолютный div, чтобы повторить градиент прозрачности) */}
-                {!isActive && (
-                    <div className="absolute inset-0 rounded-[13px] border border-white/10 pointer-events-none" />
-                )}
-                
-                {/* Текст */}
-                <span className={`text-[9px] font-bold leading-none ${isActive ? 'text-white' : 'text-[#616171]'}`}>
-                    {dayOfWeek}
-                </span>
-                <span className={`text-[15px] font-bold leading-none ${isActive ? 'text-white' : 'text-white'}`}>
-                    {dayNumber}
-                </span>
-
-                {/* Блик сверху (как в Figma stroke gradient) */}
-                {!isActive && (
-                    <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-                )}
-              </motion.div>
+                  {/* ВНУТРЕННЯЯ ЧАСТЬ (Заливка) */}
+                  <div 
+                    className="w-full h-full rounded-[12px] flex flex-col items-center justify-center gap-0.5"
+                    style={{
+                        background: isActive 
+                            ? '#00B2FF' // Активный фон
+                            : 'linear-gradient(90deg, #1B1A1E 0%, #161616 100%)' // Твой градиент
+                    }}
+                  >
+                        <span className={`text-[10px] font-bold leading-none ${isActive ? 'text-white' : 'text-[#616171]'}`}>
+                            {dayOfWeek}
+                        </span>
+                        <span className={`text-[16px] font-bold leading-none ${isActive ? 'text-white' : 'text-white'}`}>
+                            {dayNumber}
+                        </span>
+                  </div>
+              </div>
             </button>
           );
         })}
       </div>
+
+      {/* 3. МОДАЛКА КАЛЕНДАРЯ */}
+      <AnimatePresence>
+        {isCalendarOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+                {/* Backdrop */}
+                <motion.div 
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+                    onClick={() => setIsCalendarOpen(false)} 
+                    className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
+                />
+                
+                {/* Modal Content */}
+                <motion.div 
+                    initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+                    animate={{ scale: 1, opacity: 1, y: 0 }} 
+                    exit={{ scale: 0.9, opacity: 0, y: 20 }} 
+                    className="relative w-full max-w-[320px] bg-[#1C1C1E] border border-white/10 rounded-[32px] p-5 shadow-2xl z-10 overflow-hidden"
+                >
+                    {/* Header Модалки */}
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-2">
+                             <button onClick={() => setPickerDate(new Date(pickerDate.setMonth(pickerDate.getMonth() - 1)))} className="p-2 hover:bg-white/5 rounded-full"><ChevronLeft /></button>
+                             <span className="text-lg font-bold text-white capitalize">
+                                {pickerDate.toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}
+                             </span>
+                             <button onClick={() => setPickerDate(new Date(pickerDate.setMonth(pickerDate.getMonth() + 1)))} className="p-2 hover:bg-white/5 rounded-full"><ChevronRight /></button>
+                        </div>
+                        <button onClick={() => setIsCalendarOpen(false)} className="p-2 text-[#8E8E93] hover:text-white"><CloseIcon /></button>
+                    </div>
+
+                    {/* Сетка дней месяца */}
+                    <div className="grid grid-cols-7 gap-2 mb-4">
+                        {['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС'].map(d => (
+                            <span key={d} className="text-center text-[11px] text-[#616171] font-bold">{d}</span>
+                        ))}
+                        {getDaysInMonth(pickerDate).map((dateObj, i) => {
+                            if (!dateObj) return <div key={`empty-${i}`} />;
+                            const isSelected = isSameDay(dateObj, selectedDate);
+                            const isToday = isSameDay(dateObj, new Date());
+                            
+                            return (
+                                <button
+                                    key={i}
+                                    onClick={() => {
+                                        impact('medium');
+                                        onSelect(dateObj);
+                                        setIsCalendarOpen(false);
+                                    }}
+                                    className={`
+                                        aspect-square rounded-full flex items-center justify-center text-sm font-bold
+                                        ${isSelected ? 'bg-[#00B2FF] text-white' : 'text-white hover:bg-white/10'}
+                                        ${isToday && !isSelected ? 'border border-[#00B2FF] text-[#00B2FF]' : ''}
+                                    `}
+                                >
+                                    {dateObj.getDate()}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    
+                    <button 
+                        onClick={() => {
+                            impact('medium');
+                            onSelect(new Date()); // Выбрать сегодня
+                            setIsCalendarOpen(false);
+                        }}
+                        className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-[16px] text-sm font-bold text-[#00B2FF]"
+                    >
+                        Вернуться к Сегодня
+                    </button>
+                </motion.div>
+            </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
+
+// --- Helpers для календаря ---
+function getDaysInMonth(date: Date) {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOfWeek = new Date(year, month, 1).getDay(); // 0 = Sun, 1 = Mon
+    
+    // Корректируем, чтобы неделя начиналась с ПН (0 = Пн, 6 = Вс)
+    const startOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+
+    const days = [];
+    for (let i = 0; i < startOffset; i++) days.push(null);
+    for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
+    return days;
+}
