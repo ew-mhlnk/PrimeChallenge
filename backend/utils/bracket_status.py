@@ -96,9 +96,22 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
 
     rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F", "Champion"]
     
+    # --- FIX: ОПРЕДЕЛЯЕМ ПЕРВЫЙ РАУНД ---
+    # Находим самый ранний раунд, который есть в сетке (обычно R32 или R64)
+    # Для этого раунда мы НЕ будем красить ячейки в зеленый/красный, так как это стартовая позиция.
+    start_round_name = None
+    for r in rounds_order:
+        if r in bracket and len(bracket[r]) > 0:
+            start_round_name = r
+            break
+    # ------------------------------------
+
     for r_name in rounds_order:
         if r_name not in bracket: continue
         
+        # Флаг: является ли этот раунд стартовым
+        is_start_round = (r_name == start_round_name)
+
         for match in bracket[r_name]:
             match_key = f"{r_name}_{match['match_number']}"
             
@@ -121,13 +134,18 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
                 if u_norm == "tbd": return "PENDING"
                 if u_norm == "bye": return "CORRECT"
                 
-                # 1. Если совпало с реальностью в этом слоте
+                # --- FIX: Если это первый раунд, статус всегда НЕЙТРАЛЬНЫЙ ---
+                # (Frontend отрисует его синим, если это выбор юзера, или серым)
+                if is_start_round: return "PENDING"
+                # -------------------------------------------------------------
+
+                # 1. Если совпало с реальностью в этом слоте (игрок прошел сюда)
                 if u_norm == r_norm: return "CORRECT"
                 
-                # 2. ВАЖНО: Если игрок УЖЕ ВЫЛЕТЕЛ (в любом прошлом матче)
+                # 2. Если игрок УЖЕ ВЫЛЕТЕЛ (в любом прошлом матче)
                 if u_norm in eliminated_players: return "INCORRECT"
                 
-                # 3. Если в реальности тут пусто (TBD), и игрок еще жив -> Ждем
+                # 3. Если в реальности тут пусто, а игрок жив -> Ждем
                 if r_norm == "tbd": return "PENDING"
                 
                 # 4. Если в реальности тут стоит КТО-ТО ДРУГОЙ -> Неверно
@@ -137,6 +155,7 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
             p2_stat = get_status(up2_norm, rp2_norm)
 
             # --- СТАТУС МАТЧА (ГАЛОЧКА) ---
+            # Галочку оставляем работать даже в первом раунде (угадал победителя или нет)
             m_stat = "PENDING"
             if pick_norm == "tbd": m_stat = "NO_PICK"
             elif pick_norm == "bye": m_stat = "CORRECT"
@@ -144,15 +163,15 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
                 if pick_norm == real_winner_norm: m_stat = "CORRECT"
                 else: m_stat = "INCORRECT"
             else:
-                # Матч не завершен. Но если наш избранник вылетел, то прогноз мертв.
                 if pick_norm in eliminated_players:
                     m_stat = "INCORRECT"
                 else:
-                    # Проверяем по слоту (на случай если он не в eliminated, но просто не попал сюда)
                     target_stat = "PENDING"
                     if pick_norm == up1_norm: target_stat = p1_stat
                     elif pick_norm == up2_norm: target_stat = p2_stat
                     
+                    # Если в первом раунде статус PENDING (из-за фикса выше), 
+                    # то статус матча тоже PENDING пока матч не сыгран.
                     if target_stat == "INCORRECT": m_stat = "INCORRECT"
                     else: m_stat = "PENDING"
 
@@ -161,8 +180,6 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
             match["real_player1"] = real_data[2]
             match["real_player2"] = real_data[3]
             match["status"] = m_stat
-            
-            # is_eliminated = True, если прогноз уже точно неверен
             match["is_eliminated"] = (m_stat == "INCORRECT")
 
     return bracket
