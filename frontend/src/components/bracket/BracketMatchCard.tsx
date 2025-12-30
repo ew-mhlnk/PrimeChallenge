@@ -6,10 +6,36 @@ import { Player } from '@/types';
 const CheckIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="#00B2FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>);
 const TrophyIcon = () => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>);
 
+// --- ХЕЛПЕР ДЛЯ ОТОБРАЖЕНИЯ СЧЕТА ---
+// Превращает "7(6)" в визуальную структуру с верхним индексом
+const ScoreDigit = ({ value, colorClass }: { value: string, colorClass: string }) => {
+  // Проверяем, есть ли скобки, например "6(8)" или "7(5)"
+  const match = value.match(/^(\d+)\((\d+)\)$/);
+
+  if (match) {
+    const mainScore = match[1]; // "6"
+    const tieBreak = match[2];  // "8"
+    return (
+      <span className={`font-mono text-[13px] font-bold w-5 flex justify-center items-start leading-none ${colorClass}`}>
+        {mainScore}
+        {/* Тай-брейк: маленький шрифт, сдвиг вверх */}
+        <span className="text-[9px] -mt-1 ml-[1px] opacity-80">{tieBreak}</span>
+      </span>
+    );
+  }
+
+  // Обычный счет
+  return (
+    <span className={`font-mono text-[13px] font-bold w-4 text-center ${colorClass}`}>
+      {value}
+    </span>
+  );
+};
+
 interface PlayerRowProps {
   player: Player | { name: string; seed?: number } | null;
   status: 'default' | 'selected' | 'correct' | 'incorrect' | 'tbd';
-  scores?: string[]; // Массив очков ТОЛЬКО этого игрока (['6', '6'])
+  scores?: string[];
   onClick?: () => void;
   showCheck?: boolean;
   showTrophy?: boolean;
@@ -25,38 +51,40 @@ const PlayerRow = ({ player, status, scores, onClick, showCheck, showTrophy, hin
   else if (status === 'correct') rowClass += ` ${styles.correct}`;
   else if (status === 'incorrect') rowClass += ` ${styles.incorrect}`;
 
-  // Определяем цвет цифр счета
   const scoreColor = (status === 'selected' || status === 'correct') ? 'text-white' : 'text-[#8E8E93]';
 
   return (
-    <div className={rowClass} onClick={onClick}>
+    <div 
+        className={rowClass} 
+        onClick={onClick}
+        // ВАЖНО: Принудительно убираем зачеркивание с контейнера, чтобы оно не лезло на Hint
+        style={{ textDecoration: 'none' }} 
+    >
       <div className={styles.playerInfo}>
-        {/* ИМЯ */}
-        <span className={styles.playerName}>{name}</span>
+        {/* ИМЯ: Зачеркиваем только его, если статус incorrect */}
+        <span 
+            className={styles.playerName}
+            style={{ textDecoration: status === 'incorrect' ? 'line-through' : 'none' }}
+        >
+            {name}
+        </span>
         
-        {/* SEED */}
         {player?.seed && status !== 'tbd' && status !== 'incorrect' && (
             <span className={styles.playerSeed}>[{player.seed}]</span>
         )}
 
-        {/* ПОДСКАЗКА (Правильное имя, если ошиблись) */}
-        {/* Важно: e.stopPropagation, чтобы клик по подсказке не считался кликом по игроку */}
+        {/* ПОДСКАЗКА: Обычный текст без зачеркивания */}
         {status === 'incorrect' && hintName && (
-            <span className="text-[#8E8E93] text-[11px] ml-2 font-normal whitespace-nowrap opacity-80" style={{ textDecoration: 'none' }}>
-               → {hintName}
+            <span className="text-[#8E8E93] text-[11px] ml-2 font-normal whitespace-nowrap opacity-100 no-underline">
+               → <span className="text-[#bfbfbf]">{hintName}</span>
             </span>
         )}
       </div>
       
-      {/* СЧЕТ (Справа, в ряд) */}
-      <div className="flex items-center justify-end gap-2 pr-2">
+      {/* СЧЕТ */}
+      <div className="flex items-center gap-1 pr-2">
           {scores && scores.map((score, idx) => (
-              <span 
-                key={idx} 
-                className={`font-mono text-[13px] font-bold w-4 text-center ${scoreColor}`}
-              >
-                  {score}
-              </span>
+              <ScoreDigit key={idx} value={score} colorClass={scoreColor} />
           ))}
       </div>
 
@@ -69,7 +97,7 @@ const PlayerRow = ({ player, status, scores, onClick, showCheck, showTrophy, hin
 interface BracketMatchCardProps {
   player1: any;
   player2: any;
-  scores?: string[]; // Приходит общий счет ["6-4", "6-3"]
+  scores?: string[];
   p1Status?: 'default' | 'selected' | 'correct' | 'incorrect' | 'tbd';
   p2Status?: 'default' | 'selected' | 'correct' | 'incorrect' | 'tbd';
   onP1Click?: () => void;
@@ -91,26 +119,20 @@ export const BracketMatchCard = ({
   showConnector = true
 }: BracketMatchCardProps) => {
 
-  // --- ЛОГИКА РАЗБИЕНИЯ СЧЕТА ---
-  // На входе: ["6-4", "7(7)-6(5)"]
-  // Нам нужно: P1 -> ["6", "7(7)"], P2 -> ["4", "6(5)"]
-  
+  // Парсинг счета: "6(8)-0" -> P1="6(8)", P2="0"
   const getPlayerScores = (allScores: string[], playerIndex: 0 | 1) => {
       if (!allScores || allScores.length === 0) return [];
       return allScores.map(setScore => {
-          if (!setScore || !setScore.includes('-')) return '';
-          // Разбиваем строку "6-4" по тире
-          // Если тай-брейк "7(7)-6(5)", split тоже сработает корректно по первому разделителю?
-          // Нет, split('-') разобьет всё. Надежнее найти разделитель посередине.
-          // Но для тенниса обычно формат строгий.
+          if (!setScore) return '';
+          // Проверяем наличие тире (разделителя очков игроков)
+          if (!setScore.includes('-')) return '';
           
-          // Простой вариант (если формат строго "X-Y" или "X(N)-Y(M)")
-          // Внимание: если счет 6-4, то parts[0]=6, parts[1]=4.
           const parts = setScore.split('-');
-          // Если вдруг формат сложный, берем первый и последний элемент
+          // Обработка сложных случаев, если вдруг в тай-брейке тоже есть тире (редко, но бывает)
+          // Берем первое число для P1 и последнее для P2
           if (parts.length >= 2) {
-             if (playerIndex === 0) return parts[0]; // Счет первого
-             return parts[parts.length - 1];         // Счет второго
+             if (playerIndex === 0) return parts[0]; 
+             return parts[parts.length - 1];         
           }
           return '';
       });
@@ -141,7 +163,7 @@ export const BracketMatchCard = ({
             <PlayerRow 
                 player={player1} 
                 status={p1Status} 
-                scores={p1Scores} // ["6", "6"]
+                scores={p1Scores}
                 onClick={onP1Click}
                 showCheck={showChecks && p1Status === 'selected'}
                 hintName={p1Hint}
@@ -149,7 +171,7 @@ export const BracketMatchCard = ({
             <PlayerRow 
                 player={player2} 
                 status={p2Status} 
-                scores={p2Scores} // ["4", "3"]
+                scores={p2Scores}
                 onClick={onP2Click}
                 showCheck={showChecks && p2Status === 'selected'}
                 hintName={p2Hint}
