@@ -9,7 +9,7 @@ from datetime import datetime
 import pytz
 import re
 
-# Импортируем ВСЕ модели, включая новые для Daily Challenge
+# Импортируем модели
 from database.db import SessionLocal
 from database.models import (
     Tournament, TrueDraw, UserPick, UserScore, Leaderboard, User,
@@ -29,12 +29,28 @@ def get_google_sheets_client():
     return gspread.authorize(credentials)
 
 def parse_datetime(date_str: str):
+    """
+    Парсит дату из строки.
+    Считает, что входная дата в часовом поясе Москвы (Europe/Moscow).
+    Возвращает дату в UTC.
+    """
     if not date_str: return None
     date_str = date_str.strip()
     formats = ["%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y", "%Y-%m-%d %H:%M:%S"]
+    
+    # Задаем явно Московское время
+    msk_tz = pytz.timezone('Europe/Moscow')
+    
     for fmt in formats:
         try:
-            return datetime.strptime(date_str, fmt).replace(tzinfo=pytz.UTC)
+            # 1. Парсим "наивную" дату (без зоны)
+            dt_naive = datetime.strptime(date_str, fmt)
+            
+            # 2. Говорим питону: "Это Московское время"
+            dt_msk = msk_tz.localize(dt_naive)
+            
+            # 3. Переводим в UTC для базы данных
+            return dt_msk.astimezone(pytz.UTC)
         except ValueError:
             continue
     return None
@@ -78,7 +94,7 @@ def get_match_rows(round_name: str, draw_size: int):
         indices.append(start_idx + (i * step))
     return indices
 
-# --- СТАРАЯ ФУНКЦИЯ (ТУРНИРЫ) ---
+# --- ФУНКЦИЯ 1: ТУРНИРЫ (BRACKET) ---
 async def sync_google_sheets_with_db(engine: Engine) -> None:
     print("--- STARTING TOURNAMENTS SYNC ---")
     try:
@@ -110,10 +126,20 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     start_dt = parse_datetime(start)
                     close_dt = parse_datetime(close)
                     
-                    if status == "COMPLETED": pass
-                    elif close_dt and now >= close_dt: status = "CLOSED"
-                    elif start_dt and now >= start_dt and sheet_name and sheet_name.strip(): status = "ACTIVE"
-                    else: status = "PLANNED"
+                    # --- ЛОГИКА СТАТУСОВ (ИСПРАВЛЕННАЯ) ---
+                    # 1. Если статус выставлен вручную как FINAL state (CLOSED/COMPLETED) - не трогаем
+                    if status in ["COMPLETED", "CLOSED"]:
+                        pass 
+                    # 2. Если время закрытия прошло -> CLOSED
+                    elif close_dt and now >= close_dt:
+                        status = "CLOSED"
+                    # 3. Если время старта прошло (и не закрыто) -> ACTIVE
+                    elif start_dt and now >= start_dt and sheet_name and sheet_name.strip():
+                        status = "ACTIVE"
+                    # 4. Иначе -> PLANNED
+                    else:
+                        status = "PLANNED"
+                    # --------------------------------------
 
                     conn.execute(text("""
                         INSERT INTO tournaments (
@@ -144,15 +170,15 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     if "1000" in t_type_lower: draw_size = 64
                     elif "slam" in t_type_lower or "тбш" in tag.lower(): draw_size = 128
                     
+                    # Парсим сетку только если статус не PLANNED
                     if status != "PLANNED":
                         tournaments_to_sync.append((tid, sheet_name, draw_size))
                 except Exception as e:
                     logger.error(f"Row parsing error ID={row[0] if row else '?'}: {e}")
         conn.commit()
 
-        # 2. MATCHES (Brackets)
+        # 2. MATCHES (Brackets logic)
         for tid, sheet_name, draw_size in tournaments_to_sync:
-             # print(f"Syncing Matches for T{tid} ({sheet_name}) - Draw {draw_size}...")
              try:
                 with conn.begin_nested():
                     try:
@@ -239,7 +265,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         conn.commit()
         print("--- TOURNAMENTS SYNC FINISHED ---")
 
-# --- НОВАЯ ФУНКЦИЯ (DAILY CHALLENGE) ---
+# --- ФУНКЦИЯ 2: DAILY CHALLENGE ---
 async def sync_daily_challenge(engine: Engine) -> None:
     """
     Синхронизация листа DAILY_MATCHES с БД.
@@ -268,7 +294,7 @@ async def sync_daily_challenge(engine: Engine) -> None:
     session = SessionLocal()
     
     try:
-        # Пропускаем заголовок (начинаем с индекса 2 в перечислении, так как rows[1:])
+        # Пропускаем заголовок
         for row_idx, row in enumerate(rows[1:], start=2):
             if len(row) < 9: row += [""] * (9 - len(row))
             
@@ -285,13 +311,14 @@ async def sync_daily_challenge(engine: Engine) -> None:
             score_text = row[7].strip()
             winner_raw = row[8].strip()
 
+            # Используем новую функцию парсинга (с учетом Москвы)
             match_date = parse_datetime(time_str)
             
             winner_val = None
             if winner_raw == "1": winner_val = 1
             elif winner_raw == "2": winner_val = 2
             
-            # Если победитель проставлен, статус должен быть COMPLETED
+            # Если победитель проставлен, форсируем статус COMPLETED
             if winner_val is not None:
                 status_raw = "COMPLETED"
 
