@@ -183,9 +183,9 @@
 /* 3. CORRECT (Правильная - Зеленоватая) */
 .correct {
   background-image: 
-    linear-gradient(90deg, #1D1F1A 0%, #161616 100%),
-    linear-gradient(90deg, #212121 0%, #161616 100%);
-  color: #CBCBCB;
+    linear-gradient(90deg, #242B1B 0%, #161616 100%), /* Твой новый градиент */
+    linear-gradient(90deg, #212121 0%, #161616 100%); /* Градиент обводки (оставляем старый или меняем, если нужно) */
+  color: #5B7E60; /* Новый цвет текста */
 }
 
 /* 4. INCORRECT (Неправильная - Красная) */
