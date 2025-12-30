@@ -8,7 +8,9 @@ type BracketRoundMap = { [roundName: string]: BracketMatch[]; };
 
 const waitForTelegram = async () => {
     for (let i = 0; i < 20; i++) {
-        if (window.Telegram?.WebApp?.initData) return window.Telegram.WebApp.initData;
+        if (typeof window !== 'undefined' && window.Telegram?.WebApp?.initData) {
+            return window.Telegram.WebApp.initData;
+        }
         await new Promise(r => setTimeout(r, 100));
     }
     return null;
@@ -23,19 +25,17 @@ export function useClosedTournament(id: string) {
   const [trueBracket, setTrueBracket] = useState<BracketRoundMap>({});
   const [hasPicks, setHasPicks] = useState(false);
   const [isLoading, setIsLoading] = useState(!cached);
-  const [selectedRound, setSelectedRound] = useState<string | null>(cached?.starting_round || cached?.rounds?.[0] || null);
+  const [selectedRound, setSelectedRound] = useState<string | null>(null);
   const [rounds, setRounds] = useState<string[]>(cached?.rounds || []);
 
   const isProcessed = useRef(false);
 
-  // --- ИСПРАВЛЕННАЯ ФУНКЦИЯ ---
-  // Строит полную структуру сетки для зрителей
+  // Строит полную структуру сетки для зрителей (скелет)
   const buildTrueBracket = useCallback((data: Tournament): BracketRoundMap => {
       const tb: BracketRoundMap = {};
       const rList = data.rounds || [];
       const draws = data.true_draws || [];
       
-      // Конфигурация размеров сетки
       const matchCounts: Record<string, number> = {
           "R128": 64, "R64": 32, "R32": 16, "R16": 8, 
           "QF": 4, "SF": 2, "F": 1, "Champion": 1
@@ -81,11 +81,25 @@ export function useClosedTournament(id: string) {
       console.log("[CLOSED] Loading Backend Bracket...");
       
       setTournament(data);
-      setRounds(data.rounds || []);
-      setSelectedRound(prev => prev || data.starting_round || data.rounds?.[0] || null);
+      const rList = data.rounds || [];
+      setRounds(rList);
       
       const userHasPicks = !!data.has_picks;
       setHasPicks(userHasPicks);
+
+      // --- ЛОГИКА ВЫБОРА СТАРТОВОГО РАУНДА (НОВАЯ ФИЧА) ---
+      // По умолчанию берем стартовый раунд (например, R32)
+      let targetRound = data.starting_round || rList[0] || null;
+
+      // Если у юзера ЕСТЬ прогнозы и в турнире больше 1 раунда -> прыгаем на следующий (R16)
+      // Это нужно, чтобы сразу показать "мясо", а не первый круг
+      if (userHasPicks && rList.length > 1) {
+          targetRound = rList[1]; // Индекс 1 = второй раунд
+      }
+
+      // Устанавливаем раунд (prev || targetRound нужен, чтобы не сбрасывать выбор, если хук перезапустился)
+      setSelectedRound(prev => prev || targetRound);
+      // -----------------------------------------------------
 
       // 1. User Bracket (Фантазия) - берем готовую с бэкенда
       if (data.bracket) {
