@@ -35,7 +35,9 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
   if (isLoading) return <div className="flex justify-center pt-20 text-[#5F6067]">Загрузка...</div>;
   if (!selectedRound) return null;
 
-  // Логика победителя для Completed
+  // Определяем, является ли текущий раунд самым первым (стартовым)
+  const isFirstRound = rounds.length > 0 && selectedRound === rounds[0];
+
   let winnerName: string | null = null;
   if (tournament.status === 'COMPLETED' && trueBracket['Champion']?.[0]) {
       winnerName = trueBracket['Champion'][0].player1?.name || null;
@@ -57,7 +59,6 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
     else if (info.offset.x > 50 && idx > 0) changeRound(rounds[idx - 1]);
   };
 
-  // Какую сетку отображаем? Если есть пики - юзера, иначе реальную.
   const displayBracket = hasPicks ? userBracket : trueBracket;
 
   return (
@@ -85,9 +86,8 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
               {displayBracket[selectedRound]?.length > 0 ? (
                 displayBracket[selectedRound].map((match: BracketMatch) => {
                   
-                  // ВАЖНО: Ищем реальный матч, чтобы взять оттуда счет
                   const trueMatch = trueBracket[selectedRound]?.find(m => m.match_number === match.match_number);
-                  const scores = trueMatch?.scores || []; // ["6-4", "6-3"]
+                  const scores = trueMatch?.scores || []; 
 
                   const uP1 = match.player1;
                   const uP2 = match.player2;
@@ -96,18 +96,25 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
                       const safeName = playerName || 'TBD';
                       const cleanName = clean(safeName);
                       
-                      // Если пиков нет - просто показываем дефолт
                       if (!hasPicks) {
                           if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
                           return 'default';
                       }
                       
                       if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
+                      
+                      // Статусы (Зеленый/Красный) имеют приоритет
                       if (slotStatus === 'CORRECT') return 'correct';
                       if (slotStatus === 'INCORRECT') return 'incorrect';
-                      if (isUserPick) return 'selected';
                       
-                      return 'default'; // Если игрок есть, но это не мой пик и он не вылетел (в рамках моей фантазии)
+                      // --- ИСПРАВЛЕНИЕ ТУТ ---
+                      // Если это мой пик, НО мы в первом раунде -> показываем default (серый)
+                      // Если это не первый раунд -> показываем selected (синий)
+                      if (isUserPick) {
+                          return isFirstRound ? 'default' : 'selected';
+                      }
+                      
+                      return 'default'; 
                   };
 
                   const myPick = match.predicted_winner;
@@ -117,10 +124,7 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
                   const p1Stat = getStatus(uP1.name, match.player1_status, p1IsPick);
                   const p2Stat = getStatus(uP2.name, match.player2_status, p2IsPick);
 
-                  // Функция получения подсказки (Кто там на самом деле)
                   const getHint = (status: string, realName?: string) => {
-                      // Показываем подсказку только если статус INCORRECT (зачеркнут)
-                      // и реальное имя известно и не совпадает с тем, что написано
                       if (status === 'incorrect' && realName && clean(realName) !== 'tbd' && clean(realName) !== 'bye') {
                           return realName;
                       }
@@ -147,7 +151,7 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
                       <BracketMatchCard 
                           player1={uP1} 
                           player2={uP2} 
-                          scores={scores} // <-- Передаем массив счетов
+                          scores={scores} 
                           
                           p1Status={p1Stat as any} 
                           p2Status={p2Stat as any} 
