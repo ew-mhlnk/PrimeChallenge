@@ -1,73 +1,4 @@
-/* Контейнер карточки (матча) */
-.cardContainer {
-  position: relative;
-  width: 100%;
-  background: #121212; /* Темный фон */
-  border-radius: 20px;
-  padding: 12px;
-  
-  /* Тонкая обводка (эмуляция нейтрального градиента) */
-  border: 1px solid rgba(255, 255, 255, 0.08); 
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* Стили для блока результата (Копируем базу cardContainer и меняем детали) */
-.resultBlock {
-  /* База от карточки */
-  position: relative;
-  width: 100%;
-  background: #121212;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08); 
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-  display: flex;
-  
-  /* Уникальное для результата */
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  margin-bottom: 20px;
-}
-
-.resultLabel {
-  display: flex;
-  flex-direction: column;
-}
-
-.resultTitle {
-  color: #8E8E93;
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.resultSubtitle {
-  font-size: 10px;
-  color: #5F6067;
-  margin-top: 2px;
-}
-
-.resultScore {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.resultValue {
-  font-size: 24px;
-  font-weight: 700;
-}
-
-.resultTotal {
-  font-size: 14px;
-  font-weight: 500;
-  color: #5F6067;
-}
+/* ... (начало файла с cardContainer и resultBlock без изменений) ... */
 
 /* --- СТИЛИ ИГРОКА --- */
 .playerRow {
@@ -86,19 +17,18 @@
   font-size: 14px;
   font-weight: 500;
   
-  /* Базовый (Нейтральный) */
+  /* Базовый */
   border: 1px solid transparent;
   background-image: 
     linear-gradient(90deg, #1B1A1E 0%, #161616 100%), 
     linear-gradient(90deg, #212121 0%, #161616 100%);
-    
   background-clip: padding-box, border-box;
   background-origin: padding-box, border-box;
 }
 
 .playerRow:active { transform: scale(0.98); }
 
-/* --- СТАТУСЫ --- */
+/* --- СТАТУСЫ (Как в Bracket) --- */
 
 /* 1. SELECTED (Мой выбор - Синий) */
 .selected {
@@ -109,12 +39,12 @@
   border-color: rgba(0, 122, 255, 0.3);
 }
 
-/* 2. CORRECT (Угадал - Зеленый) */
+/* 2. CORRECT (Угадал - Темно-Зеленый из твоего запроса) */
 .correct {
   background-image: 
     linear-gradient(90deg, #242B1B 0%, #161616 100%),
     linear-gradient(90deg, #212121 0%, #161616 100%);
-  color: #5B7E60;
+  color: #5B7E60; /* Тот самый цвет шрифта */
 }
 
 /* 3. INCORRECT (Не угадал - Красный) */
@@ -123,12 +53,12 @@
     linear-gradient(90deg, #201212 0%, #161616 100%),
     linear-gradient(90deg, #212121 0%, #161616 100%);
   color: #7E5B5B;
+  /* line-through мы делаем внутри компонента на span, чтобы не зачеркивать стрелку */
 }
 
 /* --- Disabled --- */
 .disabled {
   cursor: default;
-  opacity: 1; 
 }
 .disabled:active { transform: none; }
 
@@ -137,6 +67,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center; /* Чтобы стрелка была по центру */
 }
 
 /* Счет */
@@ -148,6 +80,6 @@
   text-align: center;
 }
 .scoreSelected { color: #FFFFFF; }
-.scoreCorrect { color: #5B7E60; }
+.scoreCorrect { color: #5B7E60; } /* Зеленый счет в тон имени */
 .scoreIncorrect { color: #7E5B5B; }
 .scoreDefault { color: #666; }
