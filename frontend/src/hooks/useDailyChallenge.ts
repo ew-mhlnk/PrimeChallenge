@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { DailyMatch } from '@/types';
 
-// Хелпер для Telegram InitData
 const waitForTelegram = async () => {
     for (let i = 0; i < 20; i++) {
         if (typeof window !== 'undefined' && window.Telegram?.WebApp?.initData) {
@@ -20,20 +19,22 @@ export function useDailyChallenge() {
   const [matches, setMatches] = useState<DailyMatch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { impact, notification } = useHapticFeedback();
-
-  // Статус дня: PLANNED (ставки), ACTIVE (лайв), COMPLETED (итоги)
   const [dayStatus, setDayStatus] = useState<'PLANNED' | 'ACTIVE' | 'COMPLETED'>('PLANNED');
-
-  // Выбранная дата (по умолчанию сегодня)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
+  // Используем ref, чтобы понимать, первый это запуск или нет
+  const isFirstLoad = useRef(true);
+
   const fetchMatches = useCallback(async () => {
-      setIsLoading(true);
+      // Показываем спиннер ТОЛЬКО если это первая загрузка или смена даты
+      // Если это фоновое обновление (раз в 30 сек), спиннер не нужен
+      if (isFirstLoad.current) {
+          setIsLoading(true);
+      }
+
       try {
           const initData = await waitForTelegram();
           
-          // Форматируем дату в YYYY-MM-DD для API
-          // Используем локальные методы getFullYear/Month/Date, чтобы получить дату пользователя
           const year = selectedDate.getFullYear();
           const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
           const day = String(selectedDate.getDate()).padStart(2, '0');
@@ -49,7 +50,6 @@ export function useDailyChallenge() {
           const data: DailyMatch[] = await res.json();
           setMatches(data);
 
-          // Логика переключения статуса страницы
           const hasLive = data.some(m => m.status === 'LIVE');
           const allFinished = data.length > 0 && data.every(m => m.status === 'COMPLETED');
           
@@ -59,21 +59,34 @@ export function useDailyChallenge() {
 
       } catch (e) {
           console.error(e);
-          toast.error('Ошибка загрузки матчей');
+          // Не спамим ошибками в тостах при фоновом обновлении
+          if (isFirstLoad.current) {
+              toast.error('Ошибка загрузки матчей');
+          }
       } finally {
           setIsLoading(false);
+          isFirstLoad.current = false; // Первая загрузка прошла
       }
-  }, [selectedDate]); // <-- Перезапрос при смене даты
+  }, [selectedDate]);
 
-  // Первичная загрузка
+  // ЭФФЕКТ: Загрузка + Автообновление
   useEffect(() => {
+      // 1. Загружаем сразу
+      isFirstLoad.current = true; // Сбрасываем флаг при смене даты
       fetchMatches();
+
+      // 2. Ставим таймер на обновление каждые 30 секунд
+      const intervalId = setInterval(() => {
+          fetchMatches();
+      }, 30000); // 30000 мс = 30 секунд
+
+      // 3. Очищаем таймер, если ушли со страницы
+      return () => clearInterval(intervalId);
   }, [fetchMatches]);
 
   const makePick = async (matchId: string, winner: 1 | 2) => {
       impact('medium');
       
-      // Оптимистичное обновление UI
       const previousMatches = [...matches];
       setMatches(prev => prev.map(m => 
           m.id === matchId ? { ...m, my_pick: winner } : m
@@ -94,13 +107,10 @@ export function useDailyChallenge() {
               const err = await res.json();
               throw new Error(err.detail || 'Too late');
           }
-          
           notification('success');
       } catch (e: any) {
           notification('error');
           toast.error(e.message === 'Too late' ? 'Прием ставок закрыт' : 'Ошибка сохранения');
-          
-          // Откат при ошибке
           setMatches(previousMatches);
           fetchMatches(); 
       }
@@ -112,7 +122,7 @@ export function useDailyChallenge() {
       isLoading, 
       makePick, 
       refresh: fetchMatches,
-      selectedDate,      // Экспортируем дату
-      setSelectedDate    // Экспортируем сеттер даты
+      selectedDate,
+      setSelectedDate
   };
 }
