@@ -9,13 +9,14 @@ from datetime import datetime
 import pytz
 import re
 
-# Импортируем модели
 from database.db import SessionLocal
 from database.models import (
     Tournament, TrueDraw, UserPick, UserScore, Leaderboard, User,
     DailyMatch, DailyPick, DailyLeaderboard 
 )
 from utils.score_calculator import update_tournament_leaderboard
+# ИМПОРТ НОВОГО КАЛЬКУЛЯТОРА
+from utils.daily_calculator import process_match_results
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,27 +30,14 @@ def get_google_sheets_client():
     return gspread.authorize(credentials)
 
 def parse_datetime(date_str: str):
-    """
-    Парсит дату из строки.
-    Считает, что входная дата в часовом поясе Москвы (Europe/Moscow).
-    Возвращает дату в UTC.
-    """
     if not date_str: return None
     date_str = date_str.strip()
     formats = ["%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y", "%Y-%m-%d %H:%M:%S"]
-    
-    # Задаем явно Московское время
     msk_tz = pytz.timezone('Europe/Moscow')
-    
     for fmt in formats:
         try:
-            # 1. Парсим "наивную" дату (без зоны)
             dt_naive = datetime.strptime(date_str, fmt)
-            
-            # 2. Говорим питону: "Это Московское время"
             dt_msk = msk_tz.localize(dt_naive)
-            
-            # 3. Переводим в UTC для базы данных
             return dt_msk.astimezone(pytz.UTC)
         except ValueError:
             continue
@@ -94,7 +82,7 @@ def get_match_rows(round_name: str, draw_size: int):
         indices.append(start_idx + (i * step))
     return indices
 
-# --- ФУНКЦИЯ 1: ТУРНИРЫ (BRACKET) ---
+# --- SYNC TOURNAMENTS ---
 async def sync_google_sheets_with_db(engine: Engine) -> None:
     print("--- STARTING TOURNAMENTS SYNC ---")
     try:
@@ -105,7 +93,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         return
 
     with engine.connect() as conn:
-        # 1. TOURNAMENTS
         try:
             rows = sheet.worksheet("tournaments").get_all_values()
         except: return
@@ -126,20 +113,10 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     start_dt = parse_datetime(start)
                     close_dt = parse_datetime(close)
                     
-                    # --- ЛОГИКА СТАТУСОВ (ИСПРАВЛЕННАЯ) ---
-                    # 1. Если статус выставлен вручную как FINAL state (CLOSED/COMPLETED) - не трогаем
-                    if status in ["COMPLETED", "CLOSED"]:
-                        pass 
-                    # 2. Если время закрытия прошло -> CLOSED
-                    elif close_dt and now >= close_dt:
-                        status = "CLOSED"
-                    # 3. Если время старта прошло (и не закрыто) -> ACTIVE
-                    elif start_dt and now >= start_dt and sheet_name and sheet_name.strip():
-                        status = "ACTIVE"
-                    # 4. Иначе -> PLANNED
-                    else:
-                        status = "PLANNED"
-                    # --------------------------------------
+                    if status in ["COMPLETED", "CLOSED"]: pass 
+                    elif close_dt and now >= close_dt: status = "CLOSED"
+                    elif start_dt and now >= start_dt and sheet_name and sheet_name.strip(): status = "ACTIVE"
+                    else: status = "PLANNED"
 
                     conn.execute(text("""
                         INSERT INTO tournaments (
@@ -170,22 +147,20 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     if "1000" in t_type_lower: draw_size = 64
                     elif "slam" in t_type_lower or "тбш" in tag.lower(): draw_size = 128
                     
-                    # Парсим сетку только если статус не PLANNED
                     if status != "PLANNED":
                         tournaments_to_sync.append((tid, sheet_name, draw_size))
                 except Exception as e:
                     logger.error(f"Row parsing error ID={row[0] if row else '?'}: {e}")
         conn.commit()
 
-        # 2. MATCHES (Brackets logic)
+        # Matches logic (Brackets)
         for tid, sheet_name, draw_size in tournaments_to_sync:
              try:
                 with conn.begin_nested():
                     try:
                         ws = sheet.worksheet(sheet_name)
                         data = ws.get_all_values()
-                    except: 
-                        continue
+                    except: continue
                     if len(data) < 2: continue
                     headers = data[0]
                     cols = {h.strip(): i for i, h in enumerate(headers) if h.strip()}
@@ -265,25 +240,17 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         conn.commit()
         print("--- TOURNAMENTS SYNC FINISHED ---")
 
-# --- ФУНКЦИЯ 2: DAILY CHALLENGE ---
+# --- SYNC DAILY CHALLENGE ---
 async def sync_daily_challenge(engine: Engine) -> None:
-    """
-    Синхронизация листа DAILY_MATCHES с БД.
-    Колонки:
-    0: ID, 1: Tournament, 2: Status, 3: Round, 4: Time, 
-    5: Player-1, 6: Player-2, 7: Score, 8: Winner
-    """
     print("--- STARTING DAILY CHALLENGE SYNC ---")
-    
     try:
         client = get_google_sheets_client()
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
         try:
             ws = sheet.worksheet("DAILY_MATCHES")
         except gspread.WorksheetNotFound:
-            print("Лист DAILY_MATCHES не найден! Пропускаем.")
+            print("Лист DAILY_MATCHES не найден!")
             return
-            
         rows = ws.get_all_values()
     except Exception as e:
         logger.error(f"Google Sheet connection error: {e}")
@@ -294,16 +261,14 @@ async def sync_daily_challenge(engine: Engine) -> None:
     session = SessionLocal()
     
     try:
-        # Пропускаем заголовок
         for row_idx, row in enumerate(rows[1:], start=2):
             if len(row) < 9: row += [""] * (9 - len(row))
             
-            # 1. Распаковка
             m_id = row[0].strip()
             if not m_id: continue 
             
             tour_name = row[1].strip()
-            status_raw = row[2].strip().upper() # PLANNED, LIVE, COMPLETED
+            status_raw = row[2].strip().upper()
             round_name = row[3].strip()
             time_str = row[4].strip()
             p1 = row[5].strip()
@@ -311,18 +276,16 @@ async def sync_daily_challenge(engine: Engine) -> None:
             score_text = row[7].strip()
             winner_raw = row[8].strip()
 
-            # Используем новую функцию парсинга (с учетом Москвы)
             match_date = parse_datetime(time_str)
             
             winner_val = None
             if winner_raw == "1": winner_val = 1
             elif winner_raw == "2": winner_val = 2
             
-            # Если победитель проставлен, форсируем статус COMPLETED
             if winner_val is not None:
                 status_raw = "COMPLETED"
 
-            # 2. UPSERT MATCH
+            # 1. UPSERT MATCH
             match = session.query(DailyMatch).filter(DailyMatch.id == m_id).first()
             
             if not match:
@@ -343,33 +306,9 @@ async def sync_daily_challenge(engine: Engine) -> None:
             
             session.flush()
 
-            # 3. РАСЧЕТ ОЧКОВ
+            # 2. РАСЧЕТ ОЧКОВ (ВЫЗОВ НОВОЙ ФУНКЦИИ)
             if match.status == "COMPLETED" and match.winner is not None:
-                pending_picks = session.query(DailyPick).filter(
-                    DailyPick.match_id == m_id,
-                    DailyPick.is_correct.is_(None)
-                ).all()
-                
-                if pending_picks:
-                    print(f"Calculating scores for match {m_id}. Found {len(pending_picks)} picks.")
-                    
-                    for pick in pending_picks:
-                        is_win = (pick.predicted_winner == match.winner)
-                        pick.is_correct = is_win
-                        pick.points = 1 if is_win else 0
-                        
-                        lb = session.query(DailyLeaderboard).filter(
-                            DailyLeaderboard.user_id == pick.user_id
-                        ).first()
-                        
-                        if not lb:
-                            lb = DailyLeaderboard(user_id=pick.user_id, total_points=0, correct_picks=0, total_picks=0)
-                            session.add(lb)
-                        
-                        lb.total_picks += 1
-                        if is_win:
-                            lb.total_points += 1
-                            lb.correct_picks += 1
+                process_match_results(match.id, session) # <--- ВАЖНО: Используем калькулятор
         
         session.commit()
         print("Daily Challenge Sync Finished.")
