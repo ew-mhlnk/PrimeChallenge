@@ -10,14 +10,15 @@ interface Props {
   disabled?: boolean;
 }
 
-// Хелпер парсинга счета
 const parseScores = (scoreStr?: string) => {
     if (!scoreStr) return { p1: [], p2: [] };
+    // Чистим от лишних пробелов и разбиваем
     const sets = scoreStr.split(',').map(s => s.trim());
     const p1Scores: string[] = [];
     const p2Scores: string[] = [];
 
     sets.forEach(set => {
+        // Разделитель может быть дефисом или длинным тире
         const parts = set.split('-');
         if (parts.length >= 2) {
             p1Scores.push(parts[0]);
@@ -27,11 +28,10 @@ const parseScores = (scoreStr?: string) => {
     return { p1: p1Scores, p2: p2Scores };
 };
 
-// Хелпер отображения цифры (с тай-брейком)
 const ScoreDigit = ({ value, colorClass }: { value: string, colorClass: string }) => {
     const match = value.match(/^(\d+)\s*\((.+)\)$/);
     if (match) {
-      const isLong = match[2].length > 2; // Если там текст типа "Ret."
+      const isLong = match[2].length > 2;
       return (
         <span className={`${styles.scoreDigit} ${colorClass} flex justify-center items-start leading-none !w-6`}>
           {match[1]}
@@ -51,43 +51,51 @@ export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
   const { id, player1, player2, start_time, tournament, status, my_pick, winner, score } = match;
   const { p1: p1Scores, p2: p2Scores } = parseScores(score);
 
-  // --- ЛОГИКА ОПРЕДЕЛЕНИЯ СТАТУСА (Как в Bracket) ---
-  
-  // Функция получения статуса для конкретного игрока (1 или 2)
+  // Приводим к единому формату (на всякий случай)
+  const safeStatus = status?.toUpperCase() || 'PLANNED';
+  const myPickNum = Number(my_pick);
+  const winnerNum = Number(winner);
+
+  // --- ЛОГИКА СТАТУСОВ (1 в 1 как в Bracket) ---
   const getPlayerStatus = (playerNum: 1 | 2) => {
-      // 1. Если я выбрал этого игрока
-      const isSelected = my_pick === playerNum;
+      // Я выбрал этого?
+      const isSelected = myPickNum === playerNum;
       
-      if (status === 'COMPLETED' && winner) {
-          // Если я выбрал его и он победил -> CORRECT (Зеленый)
-          if (isSelected && winner === playerNum) return 'correct';
-          // Если я выбрал его, но он проиграл -> INCORRECT (Красный)
-          if (isSelected && winner !== playerNum) return 'incorrect';
-          // Если я НЕ выбирал его, но он победил -> Просто показываем (можно добавить стиль winner, но пока default)
-          if (!isSelected && winner === playerNum) return 'default';
+      // Если матч завершен
+      if (safeStatus === 'COMPLETED' && winnerNum) {
+          // 1. Угадал (Зеленый)
+          if (isSelected && winnerNum === playerNum) return 'correct';
+          // 2. Ошибся (Красный)
+          if (isSelected && winnerNum !== playerNum) return 'incorrect';
+          // 3. Не выбирал, но это победитель (Показываем зеленым для наглядности? Или серым?)
+          // По твоей просьбе "не участвовал - никакое" -> оставляем default
+          // Но если хочешь видеть кто победил, можно раскомментировать:
+          // if (!isSelected && winnerNum === playerNum) return 'correct'; 
+          return 'default';
       }
       
-      // Если матч не закончен, но я выбрал -> SELECTED (Синий)
+      // Если матч идет или планируется
       if (isSelected) return 'selected';
       
       return 'default';
   };
 
-  const p1Status = getPlayerStatus(1);
-  const p2Status = getPlayerStatus(2);
+  const p1Stat = getPlayerStatus(1);
+  const p2Stat = getPlayerStatus(2);
 
-  // Определение классов CSS на основе статуса
+  // Сборка классов CSS
   const getRowClass = (st: string) => {
       let cls = styles.playerRow;
       if (st === 'selected') cls += ` ${styles.selected}`;
       if (st === 'correct') cls += ` ${styles.correct}`;
       if (st === 'incorrect') cls += ` ${styles.incorrect}`;
-      if (disabled && st === 'default') cls += ` ${styles.disabled}`; // Дизейбл только для невыбранных
+      // Дизейбл визуальный только если мы не выбрали эту ячейку, а выбор уже сделан (или матч идет)
+      if (disabled && st === 'default') cls += ` ${styles.disabled}`;
       return cls;
   };
 
   const getScoreColor = (st: string) => {
-      if (st === 'correct') return styles.scoreCorrect; // Зеленый текст (или белый на зеленом фоне)
+      if (st === 'correct') return styles.scoreCorrect;
       if (st === 'incorrect') return styles.scoreIncorrect;
       if (st === 'selected') return styles.scoreSelected;
       return styles.scoreDefault;
@@ -107,57 +115,55 @@ export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
             </span>
           </div>
           
-          {status === 'LIVE' && (
+          {safeStatus === 'LIVE' && (
               <span className="text-[9px] text-red-500 font-bold bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 animate-pulse">
                   LIVE
               </span>
           )}
-          {status === 'COMPLETED' && (
+          {safeStatus === 'COMPLETED' && (
               <span className="text-[9px] text-[#5F6067] font-bold uppercase">Завершен</span>
           )}
       </div>
 
       {/* ИГРОК 1 */}
       <div 
-        className={getRowClass(p1Status)} 
+        className={getRowClass(p1Stat)} 
         onClick={() => !disabled && onPick(id, 1)}
-        // Убираем зачеркивание с контейнера
         style={{ textDecoration: 'none' }}
       >
           <div className={styles.playerName}>
-              {/* Зачеркиваем только имя */}
-              <span style={{ textDecoration: p1Status === 'incorrect' ? 'line-through' : 'none' }}>
+              <span style={{ textDecoration: p1Stat === 'incorrect' ? 'line-through' : 'none' }}>
                   {player1}
               </span>
-              {/* Подсказка если ошибся */}
-              {p1Status === 'incorrect' && (
+              {/* Подсказка: Если я выбрал П1, а выиграл П2 */}
+              {p1Stat === 'incorrect' && winnerNum === 2 && (
                   <span className="text-[#8E8E93] text-[10px] ml-2 no-underline opacity-80">→ {player2}</span>
               )}
           </div>
           
           <div className="flex items-center gap-1">
-              {p1Scores.map((s, i) => <ScoreDigit key={i} value={s} colorClass={getScoreColor(p1Status)} />)}
+              {p1Scores.map((s, i) => <ScoreDigit key={i} value={s} colorClass={getScoreColor(p1Stat)} />)}
           </div>
       </div>
 
       {/* ИГРОК 2 */}
       <div 
-        className={getRowClass(p2Status)} 
+        className={getRowClass(p2Stat)} 
         onClick={() => !disabled && onPick(id, 2)}
         style={{ textDecoration: 'none' }}
       >
           <div className={styles.playerName}>
-              <span style={{ textDecoration: p2Status === 'incorrect' ? 'line-through' : 'none' }}>
+              <span style={{ textDecoration: p2Stat === 'incorrect' ? 'line-through' : 'none' }}>
                   {player2}
               </span>
-              {/* Подсказка */}
-              {p2Status === 'incorrect' && (
+              {/* Подсказка: Если я выбрал П2, а выиграл П1 */}
+              {p2Stat === 'incorrect' && winnerNum === 1 && (
                   <span className="text-[#8E8E93] text-[10px] ml-2 no-underline opacity-80">→ {player1}</span>
               )}
           </div>
 
           <div className="flex items-center gap-1">
-              {p2Scores.map((s, i) => <ScoreDigit key={i} value={s} colorClass={getScoreColor(p2Status)} />)}
+              {p2Scores.map((s, i) => <ScoreDigit key={i} value={s} colorClass={getScoreColor(p2Stat)} />)}
           </div>
       </div>
 
