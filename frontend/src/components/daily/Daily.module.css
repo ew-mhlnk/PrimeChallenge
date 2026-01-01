@@ -1,0 +1,98 @@
+/* Контейнер карточки */
+.cardContainer {
+  position: relative;
+  width: 100%;
+  background: #121212; /* Темный фон */
+  border-radius: 20px;
+  padding: 12px;
+  
+  /* Тонкая обводка (эмуляция нейтрального градиента) */
+  border: 1px solid rgba(255, 255, 255, 0.08); 
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* --- СТИЛИ ИГРОКА (Скопированы из Bracket) --- */
+.playerRow {
+  height: 48px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* Имя слева, счет справа */
+  padding: 0 16px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  
+  border-radius: 12px;
+  color: #8E8E93;
+  font-size: 14px;
+  font-weight: 500;
+  
+  /* Базовый (Нейтральный) */
+  border: 1px solid transparent;
+  background-image: 
+    linear-gradient(90deg, #1B1A1E 0%, #161616 100%), 
+    linear-gradient(90deg, #212121 0%, #161616 100%);
+    
+  background-clip: padding-box, border-box;
+  background-origin: padding-box, border-box;
+}
+
+.playerRow:active { transform: scale(0.98); }
+
+/* --- СТАТУСЫ --- */
+
+/* 1. SELECTED (Мой выбор - Синий) */
+.selected {
+  background-image: 
+    linear-gradient(90deg, #132941 0%, #131F2A 50%, #141414 100%),
+    linear-gradient(90deg, #212121 0%, #161616 100%);
+  color: #FFFFFF;
+  border-color: rgba(0, 122, 255, 0.3);
+}
+
+/* 2. CORRECT (Угадал - Зеленый) */
+.correct {
+  background-image: 
+    linear-gradient(90deg, #242B1B 0%, #161616 100%),
+    linear-gradient(90deg, #212121 0%, #161616 100%);
+  color: #5B7E60;
+}
+
+/* 3. INCORRECT (Не угадал - Красный) */
+.incorrect {
+  background-image: 
+    linear-gradient(90deg, #201212 0%, #161616 100%),
+    linear-gradient(90deg, #212121 0%, #161616 100%);
+  color: #7E5B5B;
+}
+
+/* --- Disabled (когда нельзя кликать) --- */
+.disabled {
+  cursor: default;
+  opacity: 1; /* Не делаем прозрачным, чтобы было видно результат */
+}
+.disabled:active { transform: none; }
+
+/* Имя игрока */
+.playerName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Счет */
+.scoreDigit {
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 700;
+  width: 20px;
+  text-align: center;
+}
+.scoreSelected { color: #FFFFFF; }
+.scoreCorrect { color: #5B7E60; }
+.scoreIncorrect { color: #7E5B5B; }
+.scoreDefault { color: #666; }

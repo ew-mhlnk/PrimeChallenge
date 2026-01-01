@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { DailyMatch } from '@/types';
+import styles from './Daily.module.css';
 
 interface Props {
   match: DailyMatch;
@@ -9,93 +10,143 @@ interface Props {
   disabled?: boolean;
 }
 
+// Хелпер для парсинга счета "6-4, 2-6" -> ["6", "2"], ["4", "6"]
+const parseScores = (scoreStr?: string) => {
+    if (!scoreStr) return { p1: [], p2: [] };
+    
+    // Разбиваем по запятой или пробелу (защита от разных форматов)
+    // Flashscore дает "6-4, 6-3"
+    const sets = scoreStr.split(',').map(s => s.trim());
+    
+    const p1Scores: string[] = [];
+    const p2Scores: string[] = [];
+
+    sets.forEach(set => {
+        // Ищем паттерн "Цифра(опц)-Цифра(опц)"
+        // Пример: "6-4" или "7(7)-6(5)"
+        // Разбиваем по последнему тире, если их несколько (тайбрейк)
+        // Но простой split('-') обычно работает для тенниса ок
+        const parts = set.split('-');
+        if (parts.length >= 2) {
+            p1Scores.push(parts[0]);
+            // Если там есть тайбрейк, он будет внутри строки, например "7(7)"
+            p2Scores.push(parts[parts.length - 1]);
+        }
+    });
+
+    return { p1: p1Scores, p2: p2Scores };
+};
+
+// Хелпер для отображения цифры (с поддержкой тайбрейка 7(5))
+const ScoreDigit = ({ value, colorClass }: { value: string, colorClass: string }) => {
+    const match = value.match(/^(\d+)\s*\((.+)\)$/);
+    if (match) {
+      return (
+        <span className={`${styles.scoreDigit} ${colorClass} flex justify-center items-start leading-none !w-6`}>
+          {match[1]}
+          <span className="text-[8px] -mt-0.5 ml-[1px] opacity-80">{match[2]}</span>
+        </span>
+      );
+    }
+    return <span className={`${styles.scoreDigit} ${colorClass}`}>{value}</span>;
+};
+
 export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
   const { id, player1, player2, start_time, tournament, status, my_pick, winner, score } = match;
 
-  // Функция для стилизации кнопок
-  const getBtnStyle = (playerNum: 1 | 2) => {
-    const isSelected = my_pick === playerNum;
-    const isWinner = winner === playerNum;
+  // Парсим счет
+  const { p1: p1Scores, p2: p2Scores } = parseScores(score);
 
-    // Базовые стили: шрифт, скругление, отступы
-    let cls = "relative flex-1 py-3 px-3 rounded-[16px] text-[13px] font-bold transition-all border overflow-hidden ";
+  // Определяем стили для Игрока 1
+  let p1Status = styles.playerRow;
+  if (my_pick === 1) p1Status += ` ${styles.selected}`; // Я выбрал
+  if (status === 'COMPLETED' && winner) {
+      if (my_pick === 1 && winner === 1) p1Status += ` ${styles.correct}`; // Угадал
+      if (my_pick === 1 && winner !== 1) p1Status += ` ${styles.incorrect}`; // Ошибся
+  }
+  if (disabled) p1Status += ` ${styles.disabled}`;
 
-    // 1. Если матч ЗАВЕРШЕН (Показываем результат)
-    if (status === 'COMPLETED' && winner) {
-        if (isSelected && isWinner) return cls + "bg-[#32D74B]/20 border-[#32D74B] text-[#32D74B] shadow-[0_0_10px_rgba(50,215,75,0.2)]"; // Победа (Зеленый)
-        if (isSelected && !isWinner) return cls + "bg-[#FF453A]/20 border-[#FF453A] text-[#FF453A] line-through decoration-2 opacity-80"; // Проигрыш (Красный)
-        if (!isSelected && isWinner) return cls + "bg-white/10 border-white/20 text-white/60"; // Победитель (не мой выбор)
-        return cls + "bg-[#1C1C1E] border-transparent text-white/20 opacity-40"; // Проигравший (не мой выбор)
-    }
+  // Определяем стили для Игрока 2
+  let p2Status = styles.playerRow;
+  if (my_pick === 2) p2Status += ` ${styles.selected}`;
+  if (status === 'COMPLETED' && winner) {
+      if (my_pick === 2 && winner === 2) p2Status += ` ${styles.correct}`;
+      if (my_pick === 2 && winner !== 2) p2Status += ` ${styles.incorrect}`;
+  }
+  if (disabled) p2Status += ` ${styles.disabled}`;
 
-    // 2. Если ВЫБРАН (Подсветка синим)
-    if (isSelected) return cls + "bg-[#007AFF] border-[#007AFF] text-white shadow-[0_4px_12px_rgba(0,122,255,0.3)] scale-[1.02]";
-    
-    // 3. Если ЗАБЛОКИРОВАН (Live или просто disabled)
-    if (disabled) return cls + "bg-[#1C1C1E] border-white/5 text-white/30 cursor-not-allowed";
-    
-    // 4. Обычное состояние (Можно кликать)
-    return cls + "bg-[#1C1C1E] border-white/10 text-white hover:bg-[#2C2C2E] active:scale-95 hover:border-white/20";
+  // Цвет цифр счета
+  const getScoreColor = (rowStatus: string) => {
+      if (rowStatus.includes(styles.correct)) return styles.scoreCorrect;
+      if (rowStatus.includes(styles.incorrect)) return styles.scoreIncorrect;
+      if (rowStatus.includes(styles.selected)) return styles.scoreSelected;
+      return styles.scoreDefault;
   };
 
   return (
-    <motion.div 
-        layout
-        className="bg-[#121212] rounded-[24px] p-4 border border-white/10 w-full shadow-sm"
-    >
-      {/* --- ШАПКА КАРТОЧКИ --- */}
-      <div className="flex justify-between items-center mb-3.5 px-1">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <span className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-wider bg-white/5 px-2 py-0.5 rounded text-nowrap max-w-[120px] truncate">
+    <motion.div layout className={styles.cardContainer}>
+      
+      {/* HEADER: Турнир + Статус */}
+      <div className="flex justify-between items-center px-1">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-wider bg-white/5 px-2 py-0.5 rounded text-nowrap truncate max-w-[200px]">
                 {tournament}
             </span>
-            <span className="text-[11px] font-medium text-[#5F6067] whitespace-nowrap">{start_time}</span>
+            <span className="text-[11px] font-medium text-[#5F6067] whitespace-nowrap">
+                {start_time}
+            </span>
           </div>
           
-          {/* Индикаторы статуса */}
           {status === 'LIVE' && (
-              <div className="flex items-center gap-1.5 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
-                  <div className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
-                  </div>
-                  <span className="text-[9px] text-red-500 font-bold tracking-wide">LIVE</span>
-              </div>
+              <span className="text-[9px] text-red-500 font-bold bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 animate-pulse">
+                  LIVE
+              </span>
           )}
-          {status === 'COMPLETED' && <span className="text-[10px] text-[#5F6067] font-bold uppercase tracking-wide">Завершен</span>}
+          {status === 'COMPLETED' && (
+              <span className="text-[9px] text-[#5F6067] font-bold uppercase">Завершен</span>
+          )}
       </div>
 
-      {/* --- ИГРОКИ И СЧЕТ --- */}
-      <div className="flex items-stretch gap-2.5">
-          {/* Игрок 1 */}
-          <button onClick={() => !disabled && onPick(id, 1)} className={getBtnStyle(1)} disabled={disabled}>
-             <span className="truncate w-full block text-center leading-tight">{player1}</span>
-          </button>
+      {/* ИГРОК 1 */}
+      <div 
+        className={p1Status} 
+        onClick={() => !disabled && onPick(id, 1)}
+      >
+          <div className={styles.playerName}>
+              <span style={{ textDecoration: p1Status.includes(styles.incorrect) ? 'line-through' : 'none' }}>
+                  {player1}
+              </span>
+              {/* Подсказка если ошибся */}
+              {status === 'COMPLETED' && my_pick === 1 && winner !== 1 && (
+                  <span className="text-[#8E8E93] text-[10px] ml-2 no-underline">→ {player2}</span>
+              )}
+          </div>
+          
+          <div className="flex items-center gap-1">
+              {p1Scores.map((s, i) => <ScoreDigit key={i} value={s} colorClass={getScoreColor(p1Status)} />)}
+          </div>
+      </div>
 
-          {/* Центр: VS или Счет */}
-          <div className="flex flex-col items-center justify-center min-w-[50px] shrink-0">
-              {status === 'PLANNED' ? (
-                  <span className="text-[12px] text-[#5F6067] font-bold italic opacity-50">VS</span>
-              ) : (
-                  <div className="flex flex-col items-center gap-0.5">
-                     <span className="text-[13px] text-white font-mono font-bold tracking-widest leading-none">
-                        {score ? score.split(' ').slice(0, 2).join(' ') : "0-0"}
-                     </span>
-                     {/* Если есть доп. инфо в скобках (15-40), показываем мелко */}
-                     {score && score.includes('(') && (
-                         <span className="text-[10px] text-[#00B2FF] font-mono font-medium">
-                            {score.match(/\((.*?)\)/)?.[0]}
-                         </span>
-                     )}
-                  </div>
+      {/* ИГРОК 2 */}
+      <div 
+        className={p2Status} 
+        onClick={() => !disabled && onPick(id, 2)}
+      >
+          <div className={styles.playerName}>
+              <span style={{ textDecoration: p2Status.includes(styles.incorrect) ? 'line-through' : 'none' }}>
+                  {player2}
+              </span>
+              {/* Подсказка если ошибся */}
+              {status === 'COMPLETED' && my_pick === 2 && winner !== 2 && (
+                  <span className="text-[#8E8E93] text-[10px] ml-2 no-underline">→ {player1}</span>
               )}
           </div>
 
-          {/* Игрок 2 */}
-          <button onClick={() => !disabled && onPick(id, 2)} className={getBtnStyle(2)} disabled={disabled}>
-             <span className="truncate w-full block text-center leading-tight">{player2}</span>
-          </button>
+          <div className="flex items-center gap-1">
+              {p2Scores.map((s, i) => <ScoreDigit key={i} value={s} colorClass={getScoreColor(p2Status)} />)}
+          </div>
       </div>
+
     </motion.div>
   );
 };
