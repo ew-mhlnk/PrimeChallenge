@@ -1,6 +1,47 @@
-/* ... (начало файла с cardContainer и resultBlock без изменений) ... */
+/* --- КОНТЕЙНЕР КАРТОЧКИ --- */
+.cardContainer {
+  position: relative;
+  width: 100%;
+  background: #121212;
+  border-radius: 20px;
+  padding: 12px;
+  
+  /* Тонкая рамка */
+  border: 1px solid rgba(255, 255, 255, 0.08); 
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  
+  /* Важно для расположения элементов друг под другом */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
-/* --- СТИЛИ ИГРОКА --- */
+/* --- КОНТЕЙНЕР РЕЗУЛЬТАТА --- */
+.resultBlock {
+  position: relative;
+  width: 100%;
+  background: #121212;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08); 
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  
+  /* В ряд */
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.resultLabel { display: flex; flex-direction: column; }
+.resultTitle { color: #8E8E93; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+.resultSubtitle { font-size: 10px; color: #5F6067; margin-top: 2px; }
+.resultScore { display: flex; align-items: baseline; gap: 4px; }
+.resultValue { font-size: 24px; font-weight: 700; }
+.resultTotal { font-size: 14px; font-weight: 500; color: #5F6067; }
+
+/* --- ИГРОК (СТРОКА) --- */
 .playerRow {
   height: 48px;
   width: 100%;
@@ -17,8 +58,8 @@
   font-size: 14px;
   font-weight: 500;
   
-  /* Базовый */
   border: 1px solid transparent;
+  /* Градиент по умолчанию (Серый) */
   background-image: 
     linear-gradient(90deg, #1B1A1E 0%, #161616 100%), 
     linear-gradient(90deg, #212121 0%, #161616 100%);
@@ -28,9 +69,9 @@
 
 .playerRow:active { transform: scale(0.98); }
 
-/* --- СТАТУСЫ (Как в Bracket) --- */
+/* --- СТАТУСЫ (ЦВЕТА) --- */
 
-/* 1. SELECTED (Мой выбор - Синий) */
+/* Синий (Выбрано) */
 .selected {
   background-image: 
     linear-gradient(90deg, #132941 0%, #131F2A 50%, #141414 100%),
@@ -39,28 +80,24 @@
   border-color: rgba(0, 122, 255, 0.3);
 }
 
-/* 2. CORRECT (Угадал - Темно-Зеленый из твоего запроса) */
+/* Зеленый (Верно) */
 .correct {
   background-image: 
     linear-gradient(90deg, #242B1B 0%, #161616 100%),
     linear-gradient(90deg, #212121 0%, #161616 100%);
-  color: #5B7E60; /* Тот самый цвет шрифта */
+  color: #5B7E60;
 }
 
-/* 3. INCORRECT (Не угадал - Красный) */
+/* Красный (Ошибка) */
 .incorrect {
   background-image: 
     linear-gradient(90deg, #201212 0%, #161616 100%),
     linear-gradient(90deg, #212121 0%, #161616 100%);
   color: #7E5B5B;
-  /* line-through мы делаем внутри компонента на span, чтобы не зачеркивать стрелку */
 }
 
-/* --- Disabled --- */
-.disabled {
-  cursor: default;
-}
-.disabled:active { transform: none; }
+/* Заблокировано */
+.disabled { cursor: default; }
 
 /* Текст */
 .playerName {
@@ -68,10 +105,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   display: flex;
-  align-items: center; /* Чтобы стрелка была по центру */
+  align-items: center;
 }
 
-/* Счет */
+/* Цифры счета */
 .scoreDigit {
   font-family: monospace;
   font-size: 13px;
@@ -80,6 +117,6 @@
   text-align: center;
 }
 .scoreSelected { color: #FFFFFF; }
-.scoreCorrect { color: #5B7E60; } /* Зеленый счет в тон имени */
+.scoreCorrect { color: #5B7E60; }
 .scoreIncorrect { color: #7E5B5B; }
 .scoreDefault { color: #666; }

@@ -12,13 +12,11 @@ interface Props {
 
 const parseScores = (scoreStr?: string) => {
     if (!scoreStr) return { p1: [], p2: [] };
-    // Чистим от лишних пробелов и разбиваем
     const sets = scoreStr.split(',').map(s => s.trim());
     const p1Scores: string[] = [];
     const p2Scores: string[] = [];
 
     sets.forEach(set => {
-        // Разделитель может быть дефисом или длинным тире
         const parts = set.split('-');
         if (parts.length >= 2) {
             p1Scores.push(parts[0]);
@@ -51,30 +49,26 @@ export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
   const { id, player1, player2, start_time, tournament, status, my_pick, winner, score } = match;
   const { p1: p1Scores, p2: p2Scores } = parseScores(score);
 
-  // Приводим к единому формату (на всякий случай)
+  // --- ЛОГИРОВАНИЕ (Смотреть в F12 -> Console) ---
+  console.log(`[Card ${id}] Status: ${status}, MyPick: ${my_pick}, Winner: ${winner}`);
+
+  // Приводим данные к безопасному виду
   const safeStatus = status?.toUpperCase() || 'PLANNED';
   const myPickNum = Number(my_pick);
   const winnerNum = Number(winner);
 
-  // --- ЛОГИКА СТАТУСОВ (1 в 1 как в Bracket) ---
+  // --- ЛОГИКА СТАТУСОВ ---
   const getPlayerStatus = (playerNum: 1 | 2) => {
-      // Я выбрал этого?
       const isSelected = myPickNum === playerNum;
       
-      // Если матч завершен
-      if (safeStatus === 'COMPLETED' && winnerNum) {
-          // 1. Угадал (Зеленый)
-          if (isSelected && winnerNum === playerNum) return 'correct';
-          // 2. Ошибся (Красный)
-          if (isSelected && winnerNum !== playerNum) return 'incorrect';
-          // 3. Не выбирал, но это победитель (Показываем зеленым для наглядности? Или серым?)
-          // По твоей просьбе "не участвовал - никакое" -> оставляем default
-          // Но если хочешь видеть кто победил, можно раскомментировать:
-          // if (!isSelected && winnerNum === playerNum) return 'correct'; 
+      // Если матч ЗАВЕРШЕН и победитель ИЗВЕСТЕН
+      if (safeStatus === 'COMPLETED' && winnerNum > 0) {
+          if (isSelected && winnerNum === playerNum) return 'correct';   // Угадал
+          if (isSelected && winnerNum !== playerNum) return 'incorrect'; // Ошибся
           return 'default';
       }
       
-      // Если матч идет или планируется
+      // Если матч еще не завершен (PLANNED или LIVE)
       if (isSelected) return 'selected';
       
       return 'default';
@@ -89,7 +83,6 @@ export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
       if (st === 'selected') cls += ` ${styles.selected}`;
       if (st === 'correct') cls += ` ${styles.correct}`;
       if (st === 'incorrect') cls += ` ${styles.incorrect}`;
-      // Дизейбл визуальный только если мы не выбрали эту ячейку, а выбор уже сделан (или матч идет)
       if (disabled && st === 'default') cls += ` ${styles.disabled}`;
       return cls;
   };
@@ -135,7 +128,7 @@ export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
               <span style={{ textDecoration: p1Stat === 'incorrect' ? 'line-through' : 'none' }}>
                   {player1}
               </span>
-              {/* Подсказка: Если я выбрал П1, а выиграл П2 */}
+              {/* Подсказка */}
               {p1Stat === 'incorrect' && winnerNum === 2 && (
                   <span className="text-[#8E8E93] text-[10px] ml-2 no-underline opacity-80">→ {player2}</span>
               )}
@@ -156,7 +149,7 @@ export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
               <span style={{ textDecoration: p2Stat === 'incorrect' ? 'line-through' : 'none' }}>
                   {player2}
               </span>
-              {/* Подсказка: Если я выбрал П2, а выиграл П1 */}
+              {/* Подсказка */}
               {p2Stat === 'incorrect' && winnerNum === 1 && (
                   <span className="text-[#8E8E93] text-[10px] ml-2 no-underline opacity-80">→ {player1}</span>
               )}
