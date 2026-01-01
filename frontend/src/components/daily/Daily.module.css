@@ -1,4 +1,4 @@
-/* Контейнер карточки */
+/* Контейнер карточки (матча) */
 .cardContainer {
   position: relative;
   width: 100%;
@@ -14,13 +14,68 @@
   gap: 8px;
 }
 
-/* --- СТИЛИ ИГРОКА (Скопированы из Bracket) --- */
+/* Стили для блока результата (Копируем базу cardContainer и меняем детали) */
+.resultBlock {
+  /* База от карточки */
+  position: relative;
+  width: 100%;
+  background: #121212;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08); 
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  display: flex;
+  
+  /* Уникальное для результата */
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.resultLabel {
+  display: flex;
+  flex-direction: column;
+}
+
+.resultTitle {
+  color: #8E8E93;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.resultSubtitle {
+  font-size: 10px;
+  color: #5F6067;
+  margin-top: 2px;
+}
+
+.resultScore {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.resultValue {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.resultTotal {
+  font-size: 14px;
+  font-weight: 500;
+  color: #5F6067;
+}
+
+/* --- СТИЛИ ИГРОКА --- */
 .playerRow {
   height: 48px;
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between; /* Имя слева, счет справа */
+  justify-content: space-between;
   padding: 0 16px;
   cursor: pointer;
   position: relative;
@@ -70,14 +125,14 @@
   color: #7E5B5B;
 }
 
-/* --- Disabled (когда нельзя кликать) --- */
+/* --- Disabled --- */
 .disabled {
   cursor: default;
-  opacity: 1; /* Не делаем прозрачным, чтобы было видно результат */
+  opacity: 1; 
 }
 .disabled:active { transform: none; }
 
-/* Имя игрока */
+/* Текст */
 .playerName {
   overflow: hidden;
   text-overflow: ellipsis;
