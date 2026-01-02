@@ -10,9 +10,30 @@ interface Props {
   disabled?: boolean;
 }
 
+// Хелпер: парсит строку вида "6-4, 2-1 (15-40)"
 const parseScores = (scoreStr?: string) => {
-    if (!scoreStr) return { p1: [], p2: [] };
-    const sets = scoreStr.split(',').map(s => s.trim());
+    if (!scoreStr) return { p1: [], p2: [], p1Point: '', p2Point: '' };
+    
+    let mainScore = scoreStr;
+    let p1Point = '';
+    let p2Point = '';
+
+    // 1. Ищем лайв-очки в скобках в конце строки: "(15-40)"
+    // Regex: ищем что-то в скобках в самом конце
+    const pointsMatch = scoreStr.match(/\s*\(([^)]+)\)$/);
+    
+    if (pointsMatch) {
+        const pointsParts = pointsMatch[1].split('-'); // "15-40" -> ["15", "40"]
+        if (pointsParts.length >= 2) {
+            p1Point = pointsParts[0];
+            p2Point = pointsParts[1];
+        }
+        // Убираем очки из основной строки, чтобы остались только сеты
+        mainScore = scoreStr.replace(pointsMatch[0], '');
+    }
+
+    // 2. Разбиваем сеты
+    const sets = mainScore.split(',').map(s => s.trim()).filter(Boolean);
     const p1Scores: string[] = [];
     const p2Scores: string[] = [];
 
@@ -23,22 +44,29 @@ const parseScores = (scoreStr?: string) => {
             p2Scores.push(parts[parts.length - 1]);
         }
     });
-    return { p1: p1Scores, p2: p2Scores };
+
+    return { p1: p1Scores, p2: p2Scores, p1Point, p2Point };
 };
 
-const ScoreDigit = ({ value, colorClass }: { value: string, colorClass: string }) => {
+// Компонент цифры
+const ScoreDigit = ({ value, colorClass, isPoint = false }: { value: string, colorClass: string, isPoint?: boolean }) => {
+    // Обработка тай-брейка 7(5)
     const match = value.match(/^(\d+)\s*\((.+)\)$/);
+    
+    // Стиль для очков (15, 30, 40)
+    if (isPoint) {
+        return (
+            <span className="font-mono text-[11px] font-bold w-6 text-center text-[#00B2FF] animate-pulse">
+                {value}
+            </span>
+        );
+    }
+
     if (match) {
-      const isLong = match[2].length > 2;
       return (
         <span className={`${styles.scoreDigit} ${colorClass} flex justify-center items-start leading-none !w-6`}>
           {match[1]}
-          <span className={`
-            ml-[1px] opacity-80 whitespace-nowrap
-            ${isLong ? 'text-[7px] -mt-0.5 tracking-tighter' : 'text-[8px] -mt-0.5'}
-          `}>
-            {match[2]}
-          </span>
+          <span className="text-[8px] -mt-0.5 ml-[1px] opacity-80">{match[2]}</span>
         </span>
       );
     }
@@ -47,12 +75,10 @@ const ScoreDigit = ({ value, colorClass }: { value: string, colorClass: string }
 
 export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
   const { id, player1, player2, start_time, tournament, status, my_pick, winner, score } = match;
-  const { p1: p1Scores, p2: p2Scores } = parseScores(score);
+  
+  // Распаковываем сеты и очки
+  const { p1: p1Scores, p2: p2Scores, p1Point, p2Point } = parseScores(score);
 
-  // --- ЛОГИРОВАНИЕ (Смотреть в F12 -> Console) ---
-  console.log(`[Card ${id}] Status: ${status}, MyPick: ${my_pick}, Winner: ${winner}`);
-
-  // Приводим данные к безопасному виду
   const safeStatus = status?.toUpperCase() || 'PLANNED';
   const myPickNum = Number(my_pick);
   const winnerNum = Number(winner);
@@ -61,23 +87,18 @@ export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
   const getPlayerStatus = (playerNum: 1 | 2) => {
       const isSelected = myPickNum === playerNum;
       
-      // Если матч ЗАВЕРШЕН и победитель ИЗВЕСТЕН
       if (safeStatus === 'COMPLETED' && winnerNum > 0) {
-          if (isSelected && winnerNum === playerNum) return 'correct';   // Угадал
-          if (isSelected && winnerNum !== playerNum) return 'incorrect'; // Ошибся
+          if (isSelected && winnerNum === playerNum) return 'correct';
+          if (isSelected && winnerNum !== playerNum) return 'incorrect';
           return 'default';
       }
-      
-      // Если матч еще не завершен (PLANNED или LIVE)
       if (isSelected) return 'selected';
-      
       return 'default';
   };
 
   const p1Stat = getPlayerStatus(1);
   const p2Stat = getPlayerStatus(2);
 
-  // Сборка классов CSS
   const getRowClass = (st: string) => {
       let cls = styles.playerRow;
       if (st === 'selected') cls += ` ${styles.selected}`;
@@ -94,6 +115,12 @@ export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
       return styles.scoreDefault;
   };
 
+  // Красивое отображение времени (если 12:00 и статус LIVE/COMPLETED - скрываем или пишем статус)
+  let displayTime = start_time;
+  if (start_time.includes("12:00") && (safeStatus === 'LIVE' || safeStatus === 'COMPLETED')) {
+      displayTime = ""; // Скрываем "фейковое" время 12:00
+  }
+
   return (
     <motion.div layout className={styles.cardContainer}>
       
@@ -104,7 +131,7 @@ export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
                 {tournament}
             </span>
             <span className="text-[11px] font-medium text-[#5F6067] whitespace-nowrap">
-                {start_time}
+                {displayTime}
             </span>
           </div>
           
@@ -128,14 +155,16 @@ export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
               <span style={{ textDecoration: p1Stat === 'incorrect' ? 'line-through' : 'none' }}>
                   {player1}
               </span>
-              {/* Подсказка */}
               {p1Stat === 'incorrect' && winnerNum === 2 && (
                   <span className="text-[#8E8E93] text-[10px] ml-2 no-underline opacity-80">→ {player2}</span>
               )}
           </div>
           
           <div className="flex items-center gap-1">
+              {/* Сеты */}
               {p1Scores.map((s, i) => <ScoreDigit key={i} value={s} colorClass={getScoreColor(p1Stat)} />)}
+              {/* Очки (если есть) */}
+              {p1Point && <ScoreDigit value={p1Point} colorClass="" isPoint={true} />}
           </div>
       </div>
 
@@ -149,14 +178,16 @@ export const DailyMatchCard = ({ match, onPick, disabled }: Props) => {
               <span style={{ textDecoration: p2Stat === 'incorrect' ? 'line-through' : 'none' }}>
                   {player2}
               </span>
-              {/* Подсказка */}
               {p2Stat === 'incorrect' && winnerNum === 1 && (
                   <span className="text-[#8E8E93] text-[10px] ml-2 no-underline opacity-80">→ {player1}</span>
               )}
           </div>
 
           <div className="flex items-center gap-1">
+              {/* Сеты */}
               {p2Scores.map((s, i) => <ScoreDigit key={i} value={s} colorClass={getScoreColor(p2Stat)} />)}
+              {/* Очки (если есть) */}
+              {p2Point && <ScoreDigit value={p2Point} colorClass="" isPoint={true} />}
           </div>
       </div>
 
