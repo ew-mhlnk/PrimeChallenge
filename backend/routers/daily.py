@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc # <--- Добавили desc для сортировки
+from sqlalchemy import func, desc
 from typing import List, Optional
 from datetime import datetime, date
 
@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 router = APIRouter()
 
-# --- Pydantic Schemas (Формат данных для Фронта) ---
+# --- Pydantic Schemas ---
 
 class DailyPickRequest(BaseModel):
     match_id: str
@@ -20,7 +20,7 @@ class DailyPickRequest(BaseModel):
 class DailyMatchResponse(BaseModel):
     id: str
     tournament: str
-    start_time: str      
+    start_time: Optional[str] # Теперь это строка ISO или None
     status: str          
     player1: str
     player2: str
@@ -28,7 +28,6 @@ class DailyMatchResponse(BaseModel):
     winner: Optional[int] = None
     my_pick: Optional[int] = None 
 
-# Новый формат для строки лидерборда
 class DailyLeaderboardEntry(BaseModel):
     rank: int
     user_id: int
@@ -45,13 +44,14 @@ async def get_daily_matches(
     user: dict = Depends(get_current_user)
 ):
     """
-    Возвращает матчи. Если есть target_date - фильтрует по ней.
+    Возвращает матчи. Время отдается в ISO формате (UTC).
     """
     user_id = user["id"]
     
     query = db.query(models.DailyMatch)
     
     if target_date:
+        # Фильтр по дате
         query = query.filter(func.date(models.DailyMatch.start_time) == target_date)
     
     matches = query.order_by(models.DailyMatch.start_time).all()
@@ -66,12 +66,19 @@ async def get_daily_matches(
     
     result = []
     for m in matches:
-        time_str = m.start_time.strftime("%H:%M") if m.start_time else "--:--"
-        
+        # --- ФОРМИРОВАНИЕ ВРЕМЕНИ ДЛЯ ФРОНТА ---
+        time_iso = None
+        if m.start_time:
+            # Превращаем объект datetime в строку ISO 8601
+            time_iso = m.start_time.isoformat()
+            # Если нет зоны, добавляем Z (чтобы фронт знал, что это UTC)
+            if not time_iso.endswith("Z") and "+" not in time_iso:
+                time_iso += "Z"
+
         result.append({
             "id": m.id,
             "tournament": m.tournament,
-            "start_time": time_str,
+            "start_time": time_iso, 
             "status": m.status,
             "player1": m.player1,
             "player2": m.player2,
@@ -88,9 +95,6 @@ async def make_daily_pick(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user)
 ):
-    """
-    Сохраняет прогноз. Только если PLANNED.
-    """
     user_id = user["id"]
     
     match = db.query(models.DailyMatch).filter(models.DailyMatch.id == pick_data.match_id).first()
@@ -120,10 +124,6 @@ async def make_daily_pick(
 
 @router.get("/leaderboard", response_model=List[DailyLeaderboardEntry])
 async def get_daily_leaderboard(db: Session = Depends(get_db)):
-    """
-    Возвращает Топ-100 игроков Daily Challenge.
-    """
-    # Запрос к таблице daily_leaderboard, присоединяем User для имени
     results = db.query(models.DailyLeaderboard).join(models.User)\
         .order_by(desc(models.DailyLeaderboard.total_points), desc(models.DailyLeaderboard.correct_picks))\
         .limit(100)\
@@ -131,9 +131,7 @@ async def get_daily_leaderboard(db: Session = Depends(get_db)):
     
     leaderboard = []
     for idx, entry in enumerate(results):
-        # Собираем красивое имя (username или имя+фамилия)
         name = entry.user.username if entry.user.username else f"{entry.user.first_name} {entry.user.last_name or ''}".strip()
-        
         leaderboard.append({
             "rank": idx + 1,
             "user_id": entry.user_id,
