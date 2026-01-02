@@ -20,7 +20,7 @@ class DailyPickRequest(BaseModel):
 class DailyMatchResponse(BaseModel):
     id: str
     tournament: str
-    start_time: Optional[str] # Теперь это строка ISO или None
+    start_time: str # Просто строка времени "HH:MM"
     status: str          
     player1: str
     player2: str
@@ -43,15 +43,10 @@ async def get_daily_matches(
     db: Session = Depends(get_db), 
     user: dict = Depends(get_current_user)
 ):
-    """
-    Возвращает матчи. Время отдается в ISO формате (UTC).
-    """
     user_id = user["id"]
-    
     query = db.query(models.DailyMatch)
     
     if target_date:
-        # Фильтр по дате
         query = query.filter(func.date(models.DailyMatch.start_time) == target_date)
     
     matches = query.order_by(models.DailyMatch.start_time).all()
@@ -66,19 +61,17 @@ async def get_daily_matches(
     
     result = []
     for m in matches:
-        # --- ФОРМИРОВАНИЕ ВРЕМЕНИ ДЛЯ ФРОНТА ---
-        time_iso = None
+        # --- ИСПРАВЛЕНИЕ ВРЕМЕНИ ---
+        # Мы больше не конвертируем в ISO и не добавляем Z.
+        # Мы просто берем часы и минуты из базы как есть.
+        time_str = "--:--"
         if m.start_time:
-            # Превращаем объект datetime в строку ISO 8601
-            time_iso = m.start_time.isoformat()
-            # Если нет зоны, добавляем Z (чтобы фронт знал, что это UTC)
-            if not time_iso.endswith("Z") and "+" not in time_iso:
-                time_iso += "Z"
+            time_str = m.start_time.strftime("%H:%M")
 
         result.append({
             "id": m.id,
             "tournament": m.tournament,
-            "start_time": time_iso, 
+            "start_time": time_str, # Отдаем "14:30"
             "status": m.status,
             "player1": m.player1,
             "player2": m.player2,
@@ -96,7 +89,6 @@ async def make_daily_pick(
     user: dict = Depends(get_current_user)
 ):
     user_id = user["id"]
-    
     match = db.query(models.DailyMatch).filter(models.DailyMatch.id == pick_data.match_id).first()
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
@@ -139,5 +131,4 @@ async def get_daily_leaderboard(db: Session = Depends(get_db)):
             "total_points": entry.total_points,
             "correct_picks": entry.correct_picks
         })
-        
     return leaderboard
