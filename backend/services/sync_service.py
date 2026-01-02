@@ -15,7 +15,6 @@ from database.models import (
     DailyMatch, DailyPick, DailyLeaderboard 
 )
 from utils.score_calculator import update_tournament_leaderboard
-# ИМПОРТ НОВОГО КАЛЬКУЛЯТОРА
 from utils.daily_calculator import process_match_results
 
 logging.basicConfig(level=logging.INFO)
@@ -46,17 +45,21 @@ def parse_datetime(date_str: str):
 def normalize_name(name: str) -> str:
     if not name: return ""
     name = re.sub(r'\s*\(.*?\)', '', name)
-    clean = re.sub(r'[^a-zA-Z]', '', name).strip().lower()
+    # Оставляем буквы и цифры (поддерживает кириллицу)
+    clean = re.sub(r'[^\w]', '', name).strip().lower()
     return clean
 
+# --- ВОТ ЭТА ФУНКЦИЯ БЫЛА ПОТЕРЯНА, ВОЗВРАЩАЕМ ЕЁ ---
 def is_same_player(p1_raw, p2_raw):
     n1 = normalize_name(p1_raw)
     n2 = normalize_name(p2_raw)
     if not n1 or not n2: return False
     if n1 == n2: return True
+    # Нечеткое сравнение (если одно имя входит в другое)
     if len(n1) > 3 and len(n2) > 3:
         if n1 in n2 or n2 in n1: return True
     return False
+# -----------------------------------------------------
 
 def get_match_rows(round_name: str, draw_size: int):
     rounds_order = ["F", "SF", "QF", "R16", "R32", "R64", "R128"]
@@ -82,7 +85,7 @@ def get_match_rows(round_name: str, draw_size: int):
         indices.append(start_idx + (i * step))
     return indices
 
-# --- SYNC TOURNAMENTS ---
+# --- SYNC TOURNAMENTS (BRACKET) ---
 async def sync_google_sheets_with_db(engine: Engine) -> None:
     print("--- STARTING TOURNAMENTS SYNC ---")
     try:
@@ -278,14 +281,22 @@ async def sync_daily_challenge(engine: Engine) -> None:
 
             match_date = parse_datetime(time_str)
             
+            # --- ЛОГИКА ПОБЕДИТЕЛЯ (1, 2 или Имя) ---
             winner_val = None
             if winner_raw == "1": winner_val = 1
             elif winner_raw == "2": winner_val = 2
+            elif winner_raw:
+                # Ручной ввод имени
+                w_norm = normalize_name(winner_raw)
+                p1_norm = normalize_name(p1)
+                p2_norm = normalize_name(p2)
+                if w_norm == p1_norm: winner_val = 1
+                elif w_norm == p2_norm: winner_val = 2
             
             if winner_val is not None:
                 status_raw = "COMPLETED"
 
-            # 1. UPSERT MATCH
+            # UPSERT MATCH
             match = session.query(DailyMatch).filter(DailyMatch.id == m_id).first()
             
             if not match:
@@ -306,9 +317,9 @@ async def sync_daily_challenge(engine: Engine) -> None:
             
             session.flush()
 
-            # 2. РАСЧЕТ ОЧКОВ (ВЫЗОВ НОВОЙ ФУНКЦИИ)
+            # РАСЧЕТ ОЧКОВ
             if match.status == "COMPLETED" and match.winner is not None:
-                process_match_results(match.id, session) # <--- ВАЖНО: Используем калькулятор
+                process_match_results(match.id, session)
         
         session.commit()
         print("Daily Challenge Sync Finished.")
