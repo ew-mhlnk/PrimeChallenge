@@ -6,7 +6,6 @@ from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-import pytz
 import re
 
 from database.db import SessionLocal
@@ -28,16 +27,18 @@ def get_google_sheets_client():
     credentials = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(credentials_json), scope)
     return gspread.authorize(credentials)
 
+# --- ИСПРАВЛЕННАЯ ФУНКЦИЯ ВРЕМЕНИ ---
+# Больше никаких Timezones. Просто парсим цифры.
 def parse_datetime(date_str: str):
     if not date_str: return None
     date_str = date_str.strip()
     formats = ["%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y", "%Y-%m-%d %H:%M:%S"]
-    msk_tz = pytz.timezone('Europe/Moscow')
+    
     for fmt in formats:
         try:
-            dt_naive = datetime.strptime(date_str, fmt)
-            dt_msk = msk_tz.localize(dt_naive)
-            return dt_msk.astimezone(pytz.UTC)
+            # Просто создаем объект даты. Он будет "Naive" (без пояса).
+            # База данных сохранит его "как есть".
+            return datetime.strptime(date_str, fmt)
         except ValueError:
             continue
     return None
@@ -45,21 +46,17 @@ def parse_datetime(date_str: str):
 def normalize_name(name: str) -> str:
     if not name: return ""
     name = re.sub(r'\s*\(.*?\)', '', name)
-    # Оставляем буквы и цифры (поддерживает кириллицу)
     clean = re.sub(r'[^\w]', '', name).strip().lower()
     return clean
 
-# --- ВОТ ЭТА ФУНКЦИЯ БЫЛА ПОТЕРЯНА, ВОЗВРАЩАЕМ ЕЁ ---
 def is_same_player(p1_raw, p2_raw):
     n1 = normalize_name(p1_raw)
     n2 = normalize_name(p2_raw)
     if not n1 or not n2: return False
     if n1 == n2: return True
-    # Нечеткое сравнение (если одно имя входит в другое)
     if len(n1) > 3 and len(n2) > 3:
         if n1 in n2 or n2 in n1: return True
     return False
-# -----------------------------------------------------
 
 def get_match_rows(round_name: str, draw_size: int):
     rounds_order = ["F", "SF", "QF", "R16", "R32", "R64", "R128"]
@@ -85,8 +82,9 @@ def get_match_rows(round_name: str, draw_size: int):
         indices.append(start_idx + (i * step))
     return indices
 
-# --- SYNC TOURNAMENTS (BRACKET) ---
+# --- SYNC TOURNAMENTS ---
 async def sync_google_sheets_with_db(engine: Engine) -> None:
+    # (Код для турниров оставляем без изменений, он использует обновленный parse_datetime, что тоже хорошо)
     print("--- STARTING TOURNAMENTS SYNC ---")
     try:
         client = get_google_sheets_client()
@@ -101,7 +99,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         except: return
 
         tournaments_to_sync = []
-        now = datetime.now(pytz.UTC)
+        now = datetime.now() # Naive time
 
         for row in rows[1:]:
             if len(row) < 1 or not row[0] or not row[0].strip().isdigit():
@@ -279,14 +277,13 @@ async def sync_daily_challenge(engine: Engine) -> None:
             score_text = row[7].strip()
             winner_raw = row[8].strip()
 
+            # Парсим время БЕЗ таймзон. Просто цифры.
             match_date = parse_datetime(time_str)
             
-            # --- ЛОГИКА ПОБЕДИТЕЛЯ (1, 2 или Имя) ---
             winner_val = None
             if winner_raw == "1": winner_val = 1
             elif winner_raw == "2": winner_val = 2
             elif winner_raw:
-                # Ручной ввод имени
                 w_norm = normalize_name(winner_raw)
                 p1_norm = normalize_name(p1)
                 p2_norm = normalize_name(p2)
@@ -296,7 +293,7 @@ async def sync_daily_challenge(engine: Engine) -> None:
             if winner_val is not None:
                 status_raw = "COMPLETED"
 
-            # UPSERT MATCH
+            # 1. UPSERT MATCH
             match = session.query(DailyMatch).filter(DailyMatch.id == m_id).first()
             
             if not match:
@@ -317,7 +314,7 @@ async def sync_daily_challenge(engine: Engine) -> None:
             
             session.flush()
 
-            # РАСЧЕТ ОЧКОВ
+            # 2. РАСЧЕТ ОЧКОВ
             if match.status == "COMPLETED" and match.winner is not None:
                 process_match_results(match.id, session)
         
