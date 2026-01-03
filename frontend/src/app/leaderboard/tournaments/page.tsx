@@ -4,41 +4,63 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import useTournaments from '@/hooks/useTournaments';
+import { useProfileContext } from '@/context/ProfileContext'; // <--- Импортируем профиль для рангов
 import Link from 'next/link';
 import { Tournament } from '@/types';
 
-// Вспомогательная карточка
-const LeaderboardTournamentCard = ({ tournament }: { tournament: Tournament }) => {
+// Хелпер для цветов тегов
+const getTagColor = (tag?: string) => {
+    const t = tag?.toUpperCase() || '';
+    if (t === 'WTA') return 'bg-[#7B00FF]/20 text-[#D0bcff] border-[#7B00FF]/30'; // Фиолетовый
+    if (t === 'ATP') return 'bg-[#002BFF]/20 text-[#8E8E93] border-[#002BFF]/30'; // Синий (чуть спокойнее)
+    if (t === 'ТБШ' || t.includes('SLAM')) return 'bg-[#FFD700]/10 text-[#FFD700] border-[#FFD700]/20'; // Золотой
+    return 'bg-white/10 text-white/70 border-white/5'; // Дефолт
+};
+
+const LeaderboardTournamentCard = ({ 
+    tournament, 
+    rankData 
+}: { 
+    tournament: Tournament, 
+    rankData?: { rank: number, total: number } 
+}) => {
     const { impact } = useHapticFeedback();
     
-    // Определяем цвет статуса для красоты
-    const isLive = tournament.status === 'ACTIVE';
+    // Определяем цвет плашки по ТЕГУ (ATP/WTA), а текст берем из ТИПА (ATP-250)
+    const badgeStyle = getTagColor(tournament.tag);
     
+    // Формируем текст ранга
+    const rankText = rankData 
+        ? <><span className="text-[#00B2FF] font-bold">{rankData.rank}</span><span className="text-[#5F6067]">/{rankData.total}</span></>
+        : <span className="text-[#5F6067] text-[10px]">нет участия</span>;
+
     return (
         <Link href={`/leaderboard/tournaments/${tournament.id}`} onClick={() => impact('light')}>
             <motion.div 
                 whileTap={{ scale: 0.98 }} 
-                className={`
-                    p-4 rounded-[24px] border flex justify-between items-center mb-3 transition-colors
-                    ${isLive ? 'bg-[#1C1C1E] border-[#32D74B]/30' : 'bg-[#1C1C1E] border-white/5'}
-                `}
+                className="bg-[#1C1C1E] p-4 rounded-[24px] border border-white/5 flex justify-between items-center mb-3 transition-colors active:bg-[#2C2C2E]"
             >
+                {/* ЛЕВАЯ ЧАСТЬ */}
                 <div>
-                    <div className="flex items-center gap-2">
-                         <h3 className="font-bold text-white text-[15px]">{tournament.name}</h3>
-                         {isLive && (
-                             <span className="bg-[#32D74B] text-black text-[9px] font-bold px-1.5 py-0.5 rounded animate-pulse">
-                                LIVE
-                             </span>
-                         )}
+                    <div className="flex items-center gap-2 mb-1.5">
+                         <h3 className="font-bold text-white text-[15px] leading-tight">{tournament.name}</h3>
                     </div>
-                    <div className="flex gap-2 text-xs text-[#8E8E93] mt-1">
-                        <span className="bg-white/10 px-1.5 rounded text-white/70">{tournament.type || 'ATP'}</span>
-                        <span>{tournament.dates}</span>
+                    
+                    <div className="flex gap-2 text-xs items-center">
+                        {/* ТЕГ: Берем tournament.type (ATP-250), красим по tournament.tag */}
+                        <span className={`px-1.5 py-0.5 rounded-[6px] text-[10px] font-bold uppercase border ${badgeStyle}`}>
+                            {tournament.type || tournament.tag || 'ATP'}
+                        </span>
+                        <span className="text-[#8E8E93] text-[11px]">{tournament.dates}</span>
                     </div>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5F6067" strokeWidth="2"><path d="M9 18L15 12L9 6"/></svg>
+
+                {/* ПРАВАЯ ЧАСТЬ (Ранг) */}
+                <div className="flex flex-col items-end justify-center pl-4">
+                    <div className="bg-[#141414] rounded-[12px] px-3 py-1.5 border border-white/5 flex items-center gap-1 text-sm font-mono">
+                        {rankText}
+                    </div>
+                    <span className="text-[9px] text-[#5F6067] mt-1 pr-1">ваше место</span>
                 </div>
             </motion.div>
         </Link>
@@ -48,12 +70,12 @@ const LeaderboardTournamentCard = ({ tournament }: { tournament: Tournament }) =
 export default function TournamentListLeaderboard() {
   const router = useRouter();
   const { tournaments, isLoading } = useTournaments();
+  const { stats } = useProfileContext(); // <--- Берем статистику юзера
   const { impact } = useHapticFeedback();
 
-  // --- ФИЛЬТРАЦИЯ ---
-  // Оставляем только ACTIVE и COMPLETED (исключаем PLANNED)
+  // Фильтрация: ACTIVE, COMPLETED, CLOSED
   const visibleTournaments = tournaments.filter(t => 
-      t.status === 'ACTIVE' || t.status === 'COMPLETED' || t.status === 'CLOSED'
+      ['ACTIVE', 'COMPLETED', 'CLOSED'].includes(t.status)
   );
 
   return (
@@ -76,12 +98,27 @@ export default function TournamentListLeaderboard() {
         ) : (
             <div className="flex flex-col">
                 {visibleTournaments.length > 0 ? (
-                    visibleTournaments.map(t => (
-                        <LeaderboardTournamentCard key={t.id} tournament={t} />
-                    ))
+                    visibleTournaments.map(t => {
+                        // Ищем статистику для этого турнира в профиле
+                        // stats.history содержит массив TournamentHistoryRow
+                        const myStat = stats?.history?.find(h => h.tournament_id === t.id);
+                        
+                        const rankData = myStat ? {
+                            rank: myStat.rank,
+                            total: myStat.total_participants
+                        } : undefined;
+
+                        return (
+                            <LeaderboardTournamentCard 
+                                key={t.id} 
+                                tournament={t} 
+                                rankData={rankData}
+                            />
+                        );
+                    })
                 ) : (
                     <div className="text-center mt-20 opacity-50 text-sm">
-                        Нет завершенных или активных турниров
+                        Нет доступных турниров
                     </div>
                 )}
             </div>
