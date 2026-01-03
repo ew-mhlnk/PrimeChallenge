@@ -1,118 +1,80 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { LeaderboardEntry } from '@/types';
+import { motion } from 'framer-motion';
+import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 
-const waitForTelegram = async () => {
-    let attempts = 0;
-    while (!window.Telegram?.WebApp?.initData && attempts < 20) {
-        await new Promise(r => setTimeout(r, 100));
-        attempts++;
-    }
-    return window.Telegram?.WebApp?.initData;
-};
+// Иконки
+const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 19L8 12L15 5"/></svg>);
+const CupIcon = () => (<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>);
+const FireIcon = () => (<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF453A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2c0 0-3 3.5-3 6 0 1.5 1 3 1 3s-3-1-3-4c0 0-3 2-3 6 0 4.418 3.582 8 8 8s8-3.582 8-8c0-4-3-6-3-6s0 3 0 4c0 0 1-1.5 1-3 0-2.5-3-6-3-6z" /></svg>);
 
-export default function Leaderboard() {
+export default function LeaderboardHub() {
   const router = useRouter();
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { impact } = useHapticFeedback();
 
-  useEffect(() => {
-    const fetchLeaderboard = async () => {
-      try {
-        const initData = await waitForTelegram();
-        // Заглушка, если нет тг
-        if (!initData && typeof window !== 'undefined') {}
-
-        const headers: Record<string, string> = {};
-        if (initData) headers['Authorization'] = initData;
-
-        const response = await fetch('/api/leaderboard/', { headers });
-        
-        if (!response.ok) throw new Error('Ошибка загрузки');
-        const data = await response.json();
-        setLeaderboard(data);
-      } catch (err) {
-        console.error(err);
-        setError('Не удалось загрузить');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLeaderboard();
-  }, []);
+  const handleNav = (path: string) => {
+      impact('light');
+      router.push(path);
+  };
 
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col pb-32">
       
-      <header className="px-6 pt-8 pb-6 flex flex-col gap-4">
-        {/* Кнопка Назад */}
+      {/* HEADER */}
+      <header className="px-6 pt-8 pb-4 flex items-center justify-between relative">
         <button 
-          onClick={() => router.back()} 
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/10 active:scale-90 transition-transform"
+          onClick={() => { impact('light'); router.back(); }} 
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/10 active:scale-90 transition-transform z-10"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M15 19L8 12L15 5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <BackIcon />
         </button>
-
-        <div>
-            <h1 className="text-3xl font-bold text-white">Лидерборд</h1>
-            <p className="text-[#8E8E93] text-sm mt-1">Топ игроков сезона 2025</p>
-        </div>
+        
+        <h1 className="absolute left-0 right-0 text-center text-[20px] font-bold text-white">
+            Лидерборды
+        </h1>
+        <div className="w-10" /> {/* Spacer */}
       </header>
 
-      <main className="px-4">
-        {loading ? (
-            <p className="text-[#5F6067] text-center mt-10">Загрузка...</p>
-        ) : error ? (
-            <p className="text-red-500 text-center mt-10">{error}</p>
-        ) : leaderboard.length === 0 ? (
-            <p className="text-[#5F6067] text-center mt-10">Лидерборд пуст</p>
-        ) : (
-            <div className="bg-[#1C1C1E] rounded-[24px] border border-white/5 overflow-hidden shadow-xl">
-                {leaderboard.map((entry, index) => {
-                    let rankStyle = "text-[#8E8E93] font-medium";
-                    let rowBg = "hover:bg-white/5";
-                    
-                    if (index === 0) { rankStyle = "text-[#FFD700] font-bold text-lg"; rowBg = "bg-[#FFD700]/10"; } 
-                    if (index === 1) { rankStyle = "text-[#C0C0C0] font-bold text-lg"; rowBg = "bg-[#C0C0C0]/10"; } 
-                    if (index === 2) { rankStyle = "text-[#CD7F32] font-bold text-lg"; rowBg = "bg-[#CD7F32]/10"; } 
+      {/* BENTO GRID */}
+      <main className="px-4 mt-6 flex flex-col gap-4">
+          
+          {/* 1. TOURNAMENTS CARD */}
+          <motion.div 
+            whileTap={{ scale: 0.98 }}
+            onClick={() => handleNav('/leaderboard/tournaments')}
+            className="w-full bg-[#1C1C1E] rounded-[32px] p-6 border border-white/5 relative overflow-hidden h-[200px] flex flex-col justify-between cursor-pointer"
+          >
+              <div className="relative z-10">
+                  <div className="w-14 h-14 rounded-2xl bg-[#FFD700]/10 flex items-center justify-center mb-4">
+                      <CupIcon />
+                  </div>
+                  <h2 className="text-2xl font-bold text-white leading-none">По турнирам</h2>
+                  <p className="text-[#8E8E93] text-sm mt-2">Рейтинги всех прошедших и активных турниров</p>
+              </div>
+              
+              {/* Decor */}
+              <div className="absolute right-[-20px] bottom-[-20px] w-32 h-32 bg-[#FFD700] blur-[80px] opacity-10 rounded-full" />
+          </motion.div>
 
-                    return (
-                        <div 
-                            key={entry.user_id} 
-                            className={`flex items-center justify-between p-4 border-b border-white/5 last:border-0 transition ${rowBg}`}
-                        >
-                            <div className="flex items-center gap-4">
-                                <span className={`w-8 text-center ${rankStyle}`}>
-                                    {index + 1}
-                                </span>
-                                <div className="flex flex-col">
-                                    <span className="font-bold text-[15px] text-white">
-                                        {entry.username || `User ${entry.user_id}`}
-                                    </span>
-                                    <span className="text-[12px] text-[#5F6067]">
-                                        {entry.correct_picks} побед
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <span className="block text-[16px] font-bold text-[#32D74B]">
-                                    {entry.score}
-                                </span>
-                                <span className="text-[10px] text-[#5F6067] uppercase tracking-wide">
-                                    PTS
-                                </span>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        )}
+          {/* 2. DAILY CARD */}
+          <motion.div 
+            whileTap={{ scale: 0.98 }}
+            onClick={() => handleNav('/leaderboard/daily')}
+            className="w-full bg-[#1C1C1E] rounded-[32px] p-6 border border-white/5 relative overflow-hidden h-[200px] flex flex-col justify-between cursor-pointer"
+          >
+              <div className="relative z-10">
+                  <div className="w-14 h-14 rounded-2xl bg-[#FF453A]/10 flex items-center justify-center mb-4">
+                      <FireIcon />
+                  </div>
+                  <h2 className="text-2xl font-bold text-white leading-none">Дейли Челлендж</h2>
+                  <p className="text-[#8E8E93] text-sm mt-2">Ежедневный рейтинг прогнозистов</p>
+              </div>
+
+              {/* Decor */}
+              <div className="absolute right-[-20px] bottom-[-20px] w-32 h-32 bg-[#FF453A] blur-[80px] opacity-10 rounded-full" />
+          </motion.div>
+
       </main>
     </div>
   );

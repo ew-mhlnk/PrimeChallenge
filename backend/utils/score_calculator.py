@@ -6,8 +6,25 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-ROUND_WEIGHTS = {
-    "R128": 1, "R64": 2, "R32": 4, "R16": 8, "QF": 16, "SF": 32, "F": 64, "Champion": 128
+# --- КОНФИГУРАЦИЯ ОЧКОВ ПО ТИПАМ ТУРНИРОВ ---
+# Формат: { "ТИП": { "РАУНД": ОЧКИ } }
+SCORING_SYSTEM = {
+    "GRAND_SLAM": {
+        "R128": 1, "R64": 2, "R32": 4, "R16": 8, "QF": 12, "SF": 16, "F": 20, "Champion": 20
+    },
+    "ATP_1000": {
+        "R128": 1, "R64": 1, "R32": 2, "R16": 4, "QF": 8, "SF": 12, "F": 16, "Champion": 16
+    },
+    "ATP_500": {
+        "R64": 1, "R48": 1, "R32": 1, "R16": 2, "QF": 4, "SF": 8, "F": 12, "Champion": 12
+    },
+    "ATP_250": {
+        "R64": 0, "R32": 1, "R16": 2, "QF": 3, "SF": 4, "F": 6, "Champion": 6
+    },
+    # Дефолт (если тип не определен) - берем как 250
+    "DEFAULT": {
+        "R128": 1, "R64": 1, "R32": 1, "R16": 2, "QF": 3, "SF": 4, "F": 6, "Champion": 6
+    }
 }
 
 def normalize_name(name: str) -> str:
@@ -15,7 +32,35 @@ def normalize_name(name: str) -> str:
     name = re.sub(r'\s*\(.*?\)$', '', name)
     return re.sub(r'[^\w\s]', '', name).strip().lower()
 
-def calculate_score_for_user(user_picks, true_draws_map):
+def get_tournament_weights(tournament: models.Tournament) -> dict:
+    """
+    Определяет набор весов на основе типа турнира и тега.
+    """
+    if not tournament:
+        return SCORING_SYSTEM["DEFAULT"]
+
+    t_type = (tournament.type or "").upper()
+    t_tag = (tournament.tag or "").upper()
+    
+    # 1. Grand Slam (ТБШ)
+    if "SLAM" in t_type or "ТБШ" in t_tag or "GRAND" in t_type:
+        return SCORING_SYSTEM["GRAND_SLAM"]
+    
+    # 2. Masters 1000
+    if "1000" in t_type:
+        return SCORING_SYSTEM["ATP_1000"]
+    
+    # 3. ATP/WTA 500
+    if "500" in t_type:
+        return SCORING_SYSTEM["ATP_500"]
+    
+    # 4. ATP/WTA 250 (и остальные)
+    if "250" in t_type:
+        return SCORING_SYSTEM["ATP_250"]
+        
+    return SCORING_SYSTEM["DEFAULT"]
+
+def calculate_score_for_user(user_picks, true_draws_map, weights):
     score = 0
     correct = 0
     
@@ -27,17 +72,14 @@ def calculate_score_for_user(user_picks, true_draws_map):
         if not match or not match.winner:
             continue
             
-        # Логика сравнения
         pick_name = normalize_name(pick.predicted_winner)
         winner_name = normalize_name(match.winner)
         
-        # Учитываем BYE: Если соперник BYE, то победа зачисляется автоматически,
-        # если юзер выбрал того, кто не BYE.
-        # Но в true_draws winner уже записан sync_service-ом корректно (как прошедший игрок).
-        # Так что просто сравниваем winner.
-        
+        # Если прогноз совпал
         if pick_name == winner_name:
-            score += ROUND_WEIGHTS.get(pick.round, 0)
+            # Берем очки из переданных весов
+            points = weights.get(pick.round, 0)
+            score += points
             correct += 1
             
     return score, correct
@@ -45,17 +87,24 @@ def calculate_score_for_user(user_picks, true_draws_map):
 def update_tournament_leaderboard(tournament_id: int, db: Session):
     """
     Пересчитывает очки ВСЕХ пользователей для турнира и обновляет Leaderboard.
-    Вызывается после синхронизации.
     """
     logger.info(f"Updating leaderboard for tournament {tournament_id}...")
     
-    # 1. Получаем правильные результаты (True Draw)
+    # 1. Получаем турнир, чтобы определить веса
+    tournament = db.query(models.Tournament).filter(models.Tournament.id == tournament_id).first()
+    if not tournament:
+        logger.error(f"Tournament {tournament_id} not found")
+        return
+
+    # Определяем схему очков
+    weights = get_tournament_weights(tournament)
+    logger.info(f"Using weights for T{tournament_id} ({tournament.type}): {weights}")
+
+    # 2. Получаем правильные результаты (True Draw)
     true_draws = db.query(models.TrueDraw).filter_by(tournament_id=tournament_id).all()
-    # Создаем карту для быстрого поиска: (round, match_num) -> MatchObj
     true_draws_map = {(m.round, m.match_number): m for m in true_draws}
     
-    # 2. Получаем все пики всех юзеров для этого турнира
-    # Группируем их по user_id
+    # 3. Получаем все пики всех юзеров
     picks = db.query(models.UserPick).filter_by(tournament_id=tournament_id).all()
     
     user_picks_map = {}
@@ -64,13 +113,14 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
             user_picks_map[p.user_id] = []
         user_picks_map[p.user_id].append(p)
         
-    # 3. Считаем очки для каждого
+    # 4. Считаем очки
     leaderboard_entries = []
     
     for user_id, user_picks in user_picks_map.items():
-        score, correct = calculate_score_for_user(user_picks, true_draws_map)
+        # Передаем веса в функцию
+        score, correct = calculate_score_for_user(user_picks, true_draws_map, weights)
         
-        # Сохраняем/Обновляем в UserScore (для профиля)
+        # Обновляем UserScore
         user_score_entry = db.query(models.UserScore).filter_by(user_id=user_id, tournament_id=tournament_id).first()
         if not user_score_entry:
             user_score_entry = models.UserScore(user_id=user_id, tournament_id=tournament_id)
@@ -85,11 +135,9 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
             "correct_picks": correct
         })
     
-    # 4. Сортируем по очкам (desc), затем по кол-ву верных (desc)
+    # 5. Сортировка и Сохранение
     leaderboard_entries.sort(key=lambda x: (x["score"], x["correct_picks"]), reverse=True)
     
-    # 5. Обновляем таблицу Leaderboard
-    # Сначала удаляем старые записи для этого турнира (проще перезаписать)
     db.query(models.Leaderboard).filter_by(tournament_id=tournament_id).delete()
     
     for rank, entry in enumerate(leaderboard_entries, 1):
@@ -104,52 +152,3 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
         
     db.commit()
     logger.info(f"Leaderboard updated. {len(leaderboard_entries)} users ranked.")
-
-# --- Старая функция для одиночного просмотра (оставляем для совместимости) ---
-def compute_comparison_and_scores(tournament: models.Tournament, user_id: int, db: Session) -> dict:
-    # Эта функция нужна только для визуализации "Comparison" на фронте.
-    # Очки мы теперь берем из UserScore, который обновлен выше.
-    
-    user_picks = db.query(models.UserPick).filter(
-        models.UserPick.tournament_id == tournament.id,
-        models.UserPick.user_id == user_id
-    ).all()
-    true_draws = db.query(models.TrueDraw).filter_by(tournament_id=tournament.id).all()
-    
-    comparison = []
-    
-    # Просто берем уже посчитанные очки из базы
-    user_score_obj = db.query(models.UserScore).filter_by(user_id=user_id, tournament_id=tournament.id).first()
-    total_score = user_score_obj.score if user_score_obj else 0
-    correct_count = user_score_obj.correct_picks if user_score_obj else 0
-
-    # Генерируем сравнение для фронта
-    for match in true_draws:
-        pick = next((p for p in user_picks if p.round == match.round and p.match_number == match.match_number), None)
-        
-        is_correct = False
-        if pick and match.winner and pick.predicted_winner:
-            if normalize_name(pick.predicted_winner) == normalize_name(match.winner):
-                is_correct = True
-        
-        # Специальная логика BYE для визуализации
-        is_bye = (match.player2 and match.player2.lower() == "bye") or (match.player1 and match.player1.lower() == "bye")
-        if is_bye and pick:
-             real_player = match.player1 if match.player2.lower() == "bye" else match.player2
-             if normalize_name(pick.predicted_winner) == normalize_name(real_player):
-                 is_correct = True
-
-        sets = [s for s in [match.set1, match.set2, match.set3, match.set4, match.set5] if s]
-
-        comparison.append({
-            "round": match.round,
-            "match_number": match.match_number,
-            "player1": match.player1 or "TBD",
-            "player2": match.player2 or "TBD",
-            "predicted_winner": pick.predicted_winner if pick else "-",
-            "actual_winner": match.winner or "-",
-            "scores": sets,
-            "correct": is_correct
-        })
-        
-    return {"comparison": comparison, "score": total_score, "correct_picks": correct_count}
