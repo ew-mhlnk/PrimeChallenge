@@ -1,6 +1,5 @@
 {
-    "rewrites": [
-      { "source": "/tournament/:id(.*)", "destination": "/tournament/[id]" },
-      { "source": "/(.*)", "destination": "/index.html" }
-    ]
-  }
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://primechallenge.onrender.com/:path*" }
+  ]
+}
