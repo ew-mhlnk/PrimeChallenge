@@ -19,7 +19,7 @@ const clean = (name: string | undefined | null) => {
     if (!name || name === 'TBD') return "tbd";
     if (name.toLowerCase() === 'bye') return "bye";
     let n = name.replace(/\s*\(.*?\)/g, '');
-    n = n.replace(/[^a-zA-Z]/g, '').toLowerCase();
+    n = n.replace(/[^a-zA-Z]/g, '').toLowerCase(); // Старая простая очистка (раз флагов нет)
     return n || "tbd";
 };
 
@@ -34,9 +34,6 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
 
   if (isLoading) return <div className="flex justify-center pt-20 text-[#5F6067]">Загрузка...</div>;
   if (!selectedRound) return null;
-
-  // Определяем, является ли текущий раунд самым первым (стартовым)
-  const isFirstRound = rounds.length > 0 && selectedRound === rounds[0];
 
   let winnerName: string | null = null;
   if (tournament.status === 'COMPLETED' && trueBracket['Champion']?.[0]) {
@@ -63,18 +60,14 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
 
   return (
     <div className={styles.container}>
-      
-      {/* 1. ШАПКА */}
       <TournamentHero tournament={tournament} winnerName={winnerName} />
-
-      {/* 2. ТАБЫ */}
+      
       <div className={styles.roundsContainer}>
         {rounds.map((round) => (
           <button key={round} onClick={() => changeRound(round)} className={`${styles.roundButton} ${selectedRound === round ? styles.activeRound : ''}`}>{round}</button>
         ))}
       </div>
 
-      {/* 3. СЕТКА */}
       <div className={`${styles.bracketWindow} ${['SF', 'F', 'Champion'].includes(selectedRound) ? styles.bracketWindowCompact : styles.bracketWindowFull}`}>
         <div className={styles.scrollArea}>
           <AnimatePresence initial={false} custom={direction} mode="popLayout">
@@ -92,9 +85,9 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
                   const uP1 = match.player1;
                   const uP2 = match.player2;
 
+                  // --- ВОТ ТУТ БЫЛА ОШИБКА. ВЕРНУЛИ КАК БЫЛО ---
                   const getStatus = (playerName: string | null | undefined, slotStatus: string | undefined, isUserPick: boolean) => {
-                      const safeName = playerName || 'TBD';
-                      const cleanName = clean(safeName);
+                      const cleanName = clean(playerName);
                       
                       if (!hasPicks) {
                           if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
@@ -103,19 +96,14 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
                       
                       if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
                       
-                      // Статусы (Зеленый/Красный) имеют приоритет
+                      // Просто отдаем статус как есть. Без проверок на первый раунд.
                       if (slotStatus === 'CORRECT') return 'correct';
                       if (slotStatus === 'INCORRECT') return 'incorrect';
-                      
-                      // --- ИСПРАВЛЕНИЕ ТУТ ---
-                      // Если это мой пик, НО мы в первом раунде -> показываем default (серый)
-                      // Если это не первый раунд -> показываем selected (синий)
-                      if (isUserPick) {
-                          return isFirstRound ? 'default' : 'selected';
-                      }
+                      if (isUserPick) return 'selected';
                       
                       return 'default'; 
                   };
+                  // ----------------------------------------------
 
                   const myPick = match.predicted_winner;
                   const p1IsPick = clean(myPick) === clean(uP1.name);
@@ -152,13 +140,10 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
                           player1={uP1} 
                           player2={uP2} 
                           scores={scores} 
-                          
                           p1Status={p1Stat as any} 
                           p2Status={p2Stat as any} 
-                          
                           p1Hint={getHint(p1Stat, match.real_player1)} 
                           p2Hint={getHint(p2Stat, match.real_player2)}
-                          
                           showChecks={false} 
                           showConnector={selectedRound !== 'F'}
                       />
