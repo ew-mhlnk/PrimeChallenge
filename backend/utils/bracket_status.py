@@ -2,28 +2,15 @@ import re
 import logging
 from typing import Dict, Set, List, Any
 
-# Используем print для гарантированного вывода в логи Render
-def debug_log(msg):
-    print(f"[DEBUG_BRACKET] {msg}", flush=True)
-
 def normalize_name(name: str) -> str:
-    """
-    Агрессивная нормализация для сравнения.
-    """
     if not name: return "tbd"
-    # Приводим к нижнему регистру и убираем пробелы по краям
     lower_name = name.lower().strip()
     if lower_name == "tbd": return "tbd"
     if lower_name == "bye": return "bye"
     
-    # 1. Убираем скобки (1), (WC), (Q) и все что внутри
+    # Очистка от мусора
     n = re.sub(r'\s*\(.*?\)', '', lower_name)
-    
-    # 2. Оставляем ТОЛЬКО буквы (включая Unicode/кириллицу) и цифры.
-    # [^\w] удаляет все символы, которые НЕ являются буквами, цифрами или подчеркиванием.
-    # Эмодзи (флаги) сюда НЕ входят, поэтому они удалятся.
     n = re.sub(r'[^\w]', '', n)
-    
     return n if n else "tbd"
 
 def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List) -> Dict[str, List[Dict]]:
@@ -40,12 +27,9 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
             
             if r_idx > 0:
                 prev_round = rounds_order[r_idx - 1]
-                source_1 = (m_num * 2) - 1
-                source_2 = (m_num * 2)
-                
-                fp1 = fantasy_winners.get((prev_round, source_1))
-                fp2 = fantasy_winners.get((prev_round, source_2))
-                
+                s1, s2 = (m_num * 2) - 1, m_num * 2
+                fp1 = fantasy_winners.get((prev_round, s1))
+                fp2 = fantasy_winners.get((prev_round, s2))
                 if fp1: match['player1']['name'] = fp1
                 if fp2: match['player2']['name'] = fp2
 
@@ -54,8 +38,8 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
             p1 = match['player1']['name']
             p2 = match['player2']['name']
             if not predicted:
-                if p2 and p2.lower() == "bye" and p1 != "TBD": predicted = p1
-                elif p1 and p1.lower() == "bye" and p2 != "TBD": predicted = p2
+                if p2 and "bye" in p2.lower() and p1 != "TBD": predicted = p1
+                elif p1 and "bye" in p1.lower() and p2 != "TBD": predicted = p2
             
             if predicted:
                 fantasy_winners[(r_name, m_num)] = predicted
@@ -81,24 +65,16 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
 
         if w_norm not in ["tbd", "bye"]:
             real_winners_map[key] = w_norm
-            if p1_norm not in ["tbd", "bye"] and p1_norm != w_norm: eliminated_players.add(p1_norm)
-            if p2_norm not in ["tbd", "bye"] and p2_norm != w_norm: eliminated_players.add(p2_norm)
+            if p1_norm and p1_norm not in ["tbd", "bye"] and p1_norm != w_norm: eliminated_players.add(p1_norm)
+            if p2_norm and p2_norm not in ["tbd", "bye"] and p2_norm != w_norm: eliminated_players.add(p2_norm)
         
-        real_match_players[key] = [p1_norm, p2_norm, td.player1 or "TBD", td.player2 or "TBD"]
+        real_match_players[key] = [p1_norm, p2_norm, td.player1, td.player2]
 
     rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F", "Champion"]
     
-    # Определяем первый раунд
-    start_round_name = None
-    for r in rounds_order:
-        if r in bracket and len(bracket[r]) > 0:
-            start_round_name = r
-            break
-
     for r_name in rounds_order:
         if r_name not in bracket: continue
-        is_start_round = (r_name == start_round_name)
-
+        
         for match in bracket[r_name]:
             match_key = f"{r_name}_{match['match_number']}"
             
@@ -114,24 +90,29 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
             rp1_norm, rp2_norm = real_data[0], real_data[1]
             real_winner_norm = real_winners_map.get(match_key, "tbd")
 
-            def get_status(u_norm, r_norm):
-                if u_norm == "tbd": return "PENDING"
-                if u_norm == "bye": return "CORRECT"
+            # --- СТАТУС СЛОТОВ ---
+            def get_slot_status(u_norm, r_norm):
+                if u_norm in ["tbd", "bye", ""]: return "PENDING"
                 
-                # В первом раунде цвет нейтральный
-                if is_start_round: return "PENDING"
-
+                # УДАЛИЛИ ПРОВЕРКУ ПЕРВОГО РАУНДА ТУТ!
+                
+                # 1. Совпадение (Зеленый)
                 if u_norm == r_norm: return "CORRECT"
+                
+                # 2. Вылетел (Красный)
                 if u_norm in eliminated_players: return "INCORRECT"
+                
+                # 3. Еще не ясно (Серый)
                 if r_norm == "tbd": return "PENDING"
+                
+                # 4. Тут стоит кто-то другой (Красный)
                 return "INCORRECT"
 
-            p1_stat = get_status(up1_norm, rp1_norm)
-            p2_stat = get_status(up2_norm, rp2_norm)
+            p1_stat = get_slot_status(up1_norm, rp1_norm)
+            p2_stat = get_slot_status(up2_norm, rp2_norm)
 
             m_stat = "PENDING"
-            if pick_norm == "tbd": m_stat = "NO_PICK"
-            elif pick_norm == "bye": m_stat = "CORRECT"
+            if pick_norm in ["tbd", "", "bye"]: m_stat = "NO_PICK"
             elif real_winner_norm != "tbd":
                 if pick_norm == real_winner_norm: m_stat = "CORRECT"
                 else: m_stat = "INCORRECT"
