@@ -21,16 +21,24 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ==========================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (HELPER FUNCTIONS)
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ==========================================
 
 def clean_sheet_value(value):
-    """Очищает значение ячейки, игнорируя ошибки Google Sheets (#ERROR!)."""
+    """
+    Очищает значение ячейки.
+    1. Игнорирует ошибки Google Sheets (#ERROR, #N/A).
+    2. Игнорирует текст 'Загрузка...' (русский и английский).
+    Возвращает None, если данные 'битые'.
+    """
     if not value: return None
     v = str(value).strip()
-    # Игнорируем ошибки формул Гугла
-    if v.startswith("#") or "LOADING" in v.upper() or "ERROR" in v.upper():
+    upper_v = v.upper()
+    
+    # Фильтр мусора
+    if v.startswith("#") or "LOADING" in upper_v or "ERROR" in upper_v or "ЗАГРУЗКА" in upper_v:
         return None
+    
     return v
 
 def get_google_sheets_client():
@@ -42,15 +50,10 @@ def get_google_sheets_client():
     return gspread.authorize(credentials)
 
 def parse_datetime(date_str: str):
-    """
-    Парсит дату. Возвращает объект datetime с UTC.
-    """
     if not date_str: return None
     date_str = str(date_str).strip()
     formats = ["%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y", "%Y-%m-%d %H:%M:%S"]
-    
     msk_tz = pytz.timezone('Europe/Moscow')
-    
     for fmt in formats:
         try:
             dt_naive = datetime.strptime(date_str, fmt)
@@ -61,25 +64,21 @@ def parse_datetime(date_str: str):
     return None
 
 def normalize_name(name: str) -> str:
-    """Нормализация имени для сравнения (удаляет скобки, оставляет буквы/цифры)."""
     if not name: return ""
     name = re.sub(r'\s*\(.*?\)', '', str(name))
     clean = re.sub(r'[^\w]', '', name).strip().lower()
     return clean
 
 def is_same_player(p1_raw, p2_raw):
-    """Сравнивает два имени."""
     n1 = normalize_name(p1_raw)
     n2 = normalize_name(p2_raw)
     if not n1 or not n2: return False
     if n1 == n2: return True
-    # Проверка на вхождение (для сокращенных имен)
     if len(n1) > 3 and len(n2) > 3:
         if n1 in n2 or n2 in n1: return True
     return False
 
 def get_match_rows(round_name: str, draw_size: int):
-    """Возвращает индексы строк для конкретного раунда."""
     rounds_order = ["F", "SF", "QF", "R16", "R32", "R64", "R128"]
     if round_name not in rounds_order: return []
     
@@ -109,10 +108,9 @@ def get_match_rows(round_name: str, draw_size: int):
     return indices
 
 # ==========================================
-# ОСНОВНЫЕ ФУНКЦИИ СИНХРОНИЗАЦИИ
+# ОСНОВНАЯ ФУНКЦИЯ СИНХРОНИЗАЦИИ
 # ==========================================
 
-# --- SYNC TOURNAMENTS (Сетки) ---
 async def sync_google_sheets_with_db(engine: Engine) -> None:
     print("--- STARTING TOURNAMENTS SYNC ---")
     try:
@@ -205,7 +203,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     logger.error(f"Row parsing error ID={tid_str}: {e}")
         conn.commit()
 
-        # Matches logic
+        # Matches logic (Brackets)
         for tid, sheet_name, draw_size in tournaments_to_sync:
              print(f"Syncing Matches for T{tid} ({sheet_name}) - Draw {draw_size}...")
              try:
@@ -232,6 +230,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                         if round_name not in cols: continue
                         col_idx = cols[round_name]
                         row_indices = get_match_rows(round_name, draw_size)
+                        
                         for i, r_idx in enumerate(row_indices):
                             match_number = i + 1
                             if r_idx + 1 >= len(data): continue
@@ -244,33 +243,33 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             p1 = clean_sheet_value(raw_p1)
                             p2 = clean_sheet_value(raw_p2)
                             
-                            if not p1 and not p2: continue # Если данных нет или ошибка формулы
+                            # --- ВАЖНОЕ ИЗМЕНЕНИЕ ---
+                            # Мы УБРАЛИ строчку `if not p1 and not p2: continue`.
+                            # Теперь код выполнится даже если p1 и p2 пустые.
+                            # Это позволит перезаписать старое "Загрузка..." на пустоту (NULL) в БД.
                             
-                            # Превращаем None в пустую строку
-                            p1 = p1 if p1 else ""
-                            p2 = p2 if p2 else ""
-
                             winner = None
-                            if p2.lower() == "bye": winner = p1
-                            elif p1.lower() == "bye": winner = p2
-                            elif round_name != "F":
-                                curr_r_idx_list = rounds_order.index(round_name)
-                                next_round_name = None
-                                for k in range(curr_r_idx_list + 1, len(rounds_order)):
-                                    if rounds_order[k] in cols: next_round_name = rounds_order[k]; break
-                                if next_round_name:
-                                    next_col = cols[next_round_name]
-                                    next_round_indices = get_match_rows(next_round_name, draw_size)
-                                    target_match_idx = i // 2
-                                    if target_match_idx < len(next_round_indices):
-                                        next_r_start = next_round_indices[target_match_idx]
-                                        candidates = []
-                                        if next_r_start < len(data): candidates.append(clean_sheet_value(data[next_r_start][next_col]))
-                                        if next_r_start + 1 < len(data): candidates.append(clean_sheet_value(data[next_r_start+1][next_col]))
-                                        for cand in candidates:
-                                            if not cand: continue
-                                            if is_same_player(p1, cand): winner = p1; break
-                                            elif is_same_player(p2, cand): winner = p2; break
+                            if p1 and p2: # Логика победителя только если имена есть
+                                if p2.lower() == "bye": winner = p1
+                                elif p1.lower() == "bye": winner = p2
+                                elif round_name != "F":
+                                    curr_r_idx_list = rounds_order.index(round_name)
+                                    next_round_name = None
+                                    for k in range(curr_r_idx_list + 1, len(rounds_order)):
+                                        if rounds_order[k] in cols: next_round_name = rounds_order[k]; break
+                                    if next_round_name:
+                                        next_col = cols[next_round_name]
+                                        next_round_indices = get_match_rows(next_round_name, draw_size)
+                                        target_match_idx = i // 2
+                                        if target_match_idx < len(next_round_indices):
+                                            next_r_start = next_round_indices[target_match_idx]
+                                            candidates = []
+                                            if next_r_start < len(data): candidates.append(clean_sheet_value(data[next_r_start][next_col]))
+                                            if next_r_start + 1 < len(data): candidates.append(clean_sheet_value(data[next_r_start+1][next_col]))
+                                            for cand in candidates:
+                                                if not cand: continue
+                                                if is_same_player(p1, cand): winner = p1; break
+                                                elif is_same_player(p2, cand): winner = p2; break
                             if round_name == "F" and champion:
                                 if is_same_player(p1, champion): winner = p1
                                 elif is_same_player(p2, champion): winner = p2
@@ -292,7 +291,12 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                                 ON CONFLICT (tournament_id, round, match_number) DO UPDATE
                                 SET player1=EXCLUDED.player1, player2=EXCLUDED.player2, winner=EXCLUDED.winner,
                                     set1=EXCLUDED.set1, set2=EXCLUDED.set2, set3=EXCLUDED.set3, set4=EXCLUDED.set4, set5=EXCLUDED.set5
-                            """), {"tid": tid, "rnd": round_name, "mn": match_number, "p1": p1, "p2": p2, "win": winner, "s1": s1, "s2": s2, "s3": s3, "s4": s4, "s5": s5})
+                            """), {
+                                "tid": tid, "rnd": round_name, "mn": match_number, 
+                                "p1": p1, "p2": p2, "win": winner, 
+                                "s1": s1, "s2": s2, "s3": s3, "s4": s4, "s5": s5
+                            })
+                            
                     if champion:
                         conn.execute(text("""
                             INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner)
@@ -301,6 +305,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             SET winner=EXCLUDED.winner, player1=EXCLUDED.player1
                         """), {"tid": tid, "name": champion})
                         conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": tid})
+                
                 conn.commit()
                 db_session = SessionLocal()
                 try: update_tournament_leaderboard(tid, db_session)
@@ -327,16 +332,12 @@ async def sync_daily_challenge(engine: Engine) -> None:
         return
 
     if len(rows) < 2: return
-
     session = SessionLocal()
-    
     try:
         for row_idx, row in enumerate(rows[1:], start=2):
             if len(row) < 9: row += [""] * (9 - len(row))
-            
             m_id = str(row[0]).strip()
             if not m_id: continue 
-            
             tour_name = row[1].strip()
             status_raw = row[2].strip().upper()
             round_name = row[3].strip()
@@ -355,7 +356,6 @@ async def sync_daily_challenge(engine: Engine) -> None:
             if winner_raw == "1": winner_val = 1
             elif winner_raw == "2": winner_val = 2
             elif winner_raw:
-                # ВАЖНО: normalize_name теперь определен в начале файла
                 w_norm = normalize_name(winner_raw)
                 p1_norm = normalize_name(p1)
                 p2_norm = normalize_name(p2)
@@ -366,7 +366,6 @@ async def sync_daily_challenge(engine: Engine) -> None:
                 status_raw = "COMPLETED"
 
             match = session.query(DailyMatch).filter(DailyMatch.id == m_id).first()
-            
             if not match:
                 match = DailyMatch(
                     id=m_id, tournament=tour_name, status=status_raw, round=round_name,
@@ -382,15 +381,11 @@ async def sync_daily_challenge(engine: Engine) -> None:
                 match.player2 = p2
                 match.score = score_text
                 match.winner = winner_val
-            
             session.flush()
-
             if match.status == "COMPLETED" and match.winner is not None:
                 process_match_results(match.id, session)
-        
         session.commit()
         print("Daily Challenge Sync Finished.")
-
     except Exception as e:
         session.rollback()
         logger.error(f"Daily Sync DB Error: {e}")
