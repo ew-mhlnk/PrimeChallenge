@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import re
-import pytz # Возвращаем pytz для турниров, так как там логика закрытия может требовать UTC
+import pytz 
 
 from database.db import SessionLocal
 from database.models import (
@@ -20,6 +20,15 @@ from utils.daily_calculator import process_match_results
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def clean_sheet_value(value):
+    """Очищает значение ячейки, игнорируя ошибки Google Sheets."""
+    if not value: return None
+    v = str(value).strip()
+    # Игнорируем ошибки формул Гугла
+    if v.startswith("#") or "LOADING" in v.upper() or "ERROR" in v.upper():
+        return None
+    return v
+
 def get_google_sheets_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     credentials_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
@@ -31,19 +40,16 @@ def get_google_sheets_client():
 def parse_datetime(date_str: str):
     """
     Парсит дату. Возвращает объект datetime с UTC (для турниров) или naive (для дейли).
-    Для турниров лучше использовать timezone-aware, чтобы корректно работало сравнение с now(UTC).
     """
     if not date_str: return None
     date_str = date_str.strip()
     formats = ["%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y", "%Y-%m-%d %H:%M:%S"]
     
-    # Для турниров нам нужно сравнение с UTC временем сервера
     msk_tz = pytz.timezone('Europe/Moscow')
     
     for fmt in formats:
         try:
             dt_naive = datetime.strptime(date_str, fmt)
-            # Считаем, что в таблице МСК время, переводим в UTC
             dt_msk = msk_tz.localize(dt_naive)
             return dt_msk.astimezone(pytz.UTC)
         except ValueError:
@@ -69,22 +75,17 @@ def get_match_rows(round_name: str, draw_size: int):
     rounds_order = ["F", "SF", "QF", "R16", "R32", "R64", "R128"]
     if round_name not in rounds_order: return []
     
-    # Логика шагов для разных сеток
     if draw_size == 128:
         base_map = {"R128": (1, 4), "R64": (3, 8), "R32": (7, 16), "R16": (15, 32), "QF": (31, 64), "SF": (63, 128), "F": (127, 256)}
     elif draw_size == 64:
-        # Для 64: R64 начинается со 2-й строки (индекс 1), шаг 4 (1, 5, 9...)
-        # Это соответствует твоей схеме: 2G, 3G (блок 1) -> 6G, 7G (блок 2)
         base_map = {"R64": (1, 4), "R32": (3, 8), "R16": (7, 16), "QF": (15, 32), "SF": (31, 64), "F": (63, 128)}
     else: 
-        # Для 32
         base_map = {"R32": (1, 4), "R16": (3, 8), "QF": (7, 16), "SF": (15, 32), "F": (31, 64)}
     
     if round_name not in base_map: return []
     
     start_idx, step = base_map[round_name]
     
-    # Количество матчей в раунде
     if round_name == "F": count = 1
     elif round_name == "SF": count = 2
     elif round_name == "QF": count = 4
@@ -159,24 +160,16 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                         "mc": matches_count, "month": month_val, "img": img_url
                     })
                     
-                    # --- ИСПРАВЛЕННАЯ ЛОГИКА РАЗМЕРА СЕТКИ ---
                     draw_size = 32 # Дефолт
-                    
                     s_round_clean = s_round.strip().upper()
                     
-                    # 1. Приоритет: Что написано в колонке Starting Round
-                    if s_round_clean == "R128":
-                        draw_size = 128
-                    elif s_round_clean == "R64":
-                        draw_size = 64
-                    elif s_round_clean == "R32":
-                        draw_size = 32
+                    if s_round_clean == "R128": draw_size = 128
+                    elif s_round_clean == "R64": draw_size = 64
+                    elif s_round_clean == "R32": draw_size = 32
                     else:
-                        # 2. Фолбэк: Определяем по типу турнира
                         t_type_lower = t_type.lower()
                         if "1000" in t_type_lower: draw_size = 64
                         elif "slam" in t_type_lower or "тбш" in tag.lower(): draw_size = 128
-                    # ------------------------------------------
                     
                     if status != "PLANNED":
                         tournaments_to_sync.append((tid, sheet_name, draw_size))
@@ -214,9 +207,21 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             match_number = i + 1
                             if r_idx + 1 >= len(data): continue
                             row1 = data[r_idx]; row2 = data[r_idx+1]
-                            p1 = row1[col_idx].strip() if col_idx < len(row1) else ""
-                            p2 = row2[col_idx].strip() if col_idx < len(row2) else ""
-                            if not p1 and not p2: continue
+                            
+                            # --- БЕЗОПАСНОЕ ЧТЕНИЕ ---
+                            raw_p1 = row1[col_idx] if col_idx < len(row1) else ""
+                            raw_p2 = row2[col_idx] if col_idx < len(row2) else ""
+                            
+                            p1 = clean_sheet_value(raw_p1)
+                            p2 = clean_sheet_value(raw_p2)
+                            
+                            if not p1 and not p2: continue # Если данные битые - пропускаем матч
+                            
+                            # Превращаем None в строку для дальнейшей логики
+                            p1 = p1 if p1 else ""
+                            p2 = p2 if p2 else ""
+                            # -------------------------
+
                             winner = None
                             if p2.lower() == "bye": winner = p1
                             elif p1.lower() == "bye": winner = p2
@@ -232,8 +237,8 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                                     if target_match_idx < len(next_round_indices):
                                         next_r_start = next_round_indices[target_match_idx]
                                         candidates = []
-                                        if next_r_start < len(data): candidates.append(data[next_r_start][next_col].strip())
-                                        if next_r_start + 1 < len(data): candidates.append(data[next_r_start+1][next_col].strip())
+                                        if next_r_start < len(data): candidates.append(clean_sheet_value(data[next_r_start][next_col]))
+                                        if next_r_start + 1 < len(data): candidates.append(clean_sheet_value(data[next_r_start+1][next_col]))
                                         for cand in candidates:
                                             if not cand: continue
                                             if is_same_player(p1, cand): winner = p1; break
@@ -276,7 +281,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
 
 # --- SYNC DAILY CHALLENGE ---
 async def sync_daily_challenge(engine: Engine) -> None:
-    # (Эта часть остается без изменений, но она включена в файл для целостности)
     print("--- STARTING DAILY CHALLENGE SYNC ---")
     try:
         client = get_google_sheets_client()
@@ -311,7 +315,6 @@ async def sync_daily_challenge(engine: Engine) -> None:
             score_text = row[7].strip()
             winner_raw = row[8].strip()
 
-            # Парсинг времени (здесь оставляем naive для Daily, как договаривались)
             match_date = None
             if time_str:
                 try: match_date = datetime.strptime(time_str, "%d.%m.%Y %H:%M")

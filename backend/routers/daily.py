@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from typing import List, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+import pytz
 
 from database.db import get_db
 from database import models
@@ -90,11 +91,24 @@ async def make_daily_pick(
 ):
     user_id = user["id"]
     match = db.query(models.DailyMatch).filter(models.DailyMatch.id == pick_data.match_id).first()
+    
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
         
+    # --- ЖЕСТКАЯ ПРОВЕРКА ---
+    # 1. Проверка статуса (как раньше)
     if match.status != "PLANNED":
-         raise HTTPException(status_code=400, detail="Too late")
+         raise HTTPException(status_code=400, detail="Match already started (Status)")
+
+    # 2. Проверка ВРЕМЕНИ (Новая защита)
+    # Если время начала матча есть в базе, и оно уже прошло
+    if match.start_time:
+        # Приводим текущее время к naive (без зоны), так как match.start_time в базе для Daily скорее всего naive
+        now = datetime.now() 
+        # Даем фору 1 минуту на рассинхрон
+        if now > (match.start_time + timedelta(minutes=1)):
+             raise HTTPException(status_code=400, detail="Match already started (Time)")
+    # ------------------------
 
     existing_pick = db.query(models.DailyPick).filter(
         models.DailyPick.user_id == user_id,
