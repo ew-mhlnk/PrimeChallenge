@@ -25,20 +25,13 @@ logger = logging.getLogger(__name__)
 # ==========================================
 
 def clean_sheet_value(value):
-    """
-    Очищает значение ячейки.
-    1. Игнорирует ошибки Google Sheets (#ERROR, #N/A).
-    2. Игнорирует текст 'Загрузка...' (русский и английский).
-    Возвращает None, если данные 'битые'.
-    """
+    """Очищает значение ячейки, игнорируя ошибки Google Sheets."""
     if not value: return None
     v = str(value).strip()
+    # Игнорируем ошибки формул Гугла
     upper_v = v.upper()
-    
-    # Фильтр мусора
     if v.startswith("#") or "LOADING" in upper_v or "ERROR" in upper_v or "ЗАГРУЗКА" in upper_v:
         return None
-    
     return v
 
 def get_google_sheets_client():
@@ -81,18 +74,14 @@ def is_same_player(p1_raw, p2_raw):
 def get_match_rows(round_name: str, draw_size: int):
     rounds_order = ["F", "SF", "QF", "R16", "R32", "R64", "R128"]
     if round_name not in rounds_order: return []
-    
     if draw_size == 128:
         base_map = {"R128": (1, 4), "R64": (3, 8), "R32": (7, 16), "R16": (15, 32), "QF": (31, 64), "SF": (63, 128), "F": (127, 256)}
     elif draw_size == 64:
         base_map = {"R64": (1, 4), "R32": (3, 8), "R16": (7, 16), "QF": (15, 32), "SF": (31, 64), "F": (63, 128)}
     else: 
         base_map = {"R32": (1, 4), "R16": (3, 8), "QF": (7, 16), "SF": (15, 32), "F": (31, 64)}
-    
     if round_name not in base_map: return []
-    
     start_idx, step = base_map[round_name]
-    
     if round_name == "F": count = 1
     elif round_name == "SF": count = 2
     elif round_name == "QF": count = 4
@@ -101,16 +90,11 @@ def get_match_rows(round_name: str, draw_size: int):
     elif round_name == "R64": count = 32
     elif round_name == "R128": count = 64
     else: count = 0
-    
     indices = []
-    for i in range(count):
-        indices.append(start_idx + (i * step))
+    for i in range(count): indices.append(start_idx + (i * step))
     return indices
 
-# ==========================================
-# ОСНОВНАЯ ФУНКЦИЯ СИНХРОНИЗАЦИИ
-# ==========================================
-
+# --- SYNC TOURNAMENTS ---
 async def sync_google_sheets_with_db(engine: Engine) -> None:
     print("--- STARTING TOURNAMENTS SYNC ---")
     try:
@@ -132,7 +116,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
             if len(row) < 1: continue
             tid_str = str(row[0]).strip()
             if not tid_str.isdigit(): continue
-            
             row += [""] * (16 - len(row))
 
             with conn.begin_nested():
@@ -168,10 +151,8 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             id, name, dates, status, sheet_name, starting_round, type, start, close, tag,
                             surface, defending_champion, description, matches_count, month, image_url
                         )
-                        VALUES (
-                            :id, :name, :dates, :status, :sheet, :sr, :type, :start, :close, :tag,
-                            :surf, :defend, :desc, :mc, :month, :img
-                        )
+                        VALUES (:id, :name, :dates, :status, :sheet, :sr, :type, :start, :close, :tag,
+                                :surf, :defend, :desc, :mc, :month, :img)
                         ON CONFLICT (id) DO UPDATE SET 
                         name=EXCLUDED.name, dates=EXCLUDED.dates, status=EXCLUDED.status, 
                         sheet_name=EXCLUDED.sheet_name, starting_round=EXCLUDED.starting_round,
@@ -180,11 +161,10 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                         description=EXCLUDED.description, matches_count=EXCLUDED.matches_count,
                         month=EXCLUDED.month, image_url=EXCLUDED.image_url
                     """), {
-                        "id": tid, "name": name, "dates": dates, "status": status, 
-                        "sheet": sheet_name, "sr": s_round, "type": t_type, 
-                        "start": start, "close": close, "tag": tag,
-                        "surf": surface, "defend": defending, "desc": info, 
-                        "mc": matches_count, "month": month_val, "img": img_url
+                        "id": tid, "name": name, "dates": dates, "status": status, "sheet": sheet_name, 
+                        "sr": s_round, "type": t_type, "start": start, "close": close, "tag": tag,
+                        "surf": surface, "defend": defending, "desc": info, "mc": matches_count, 
+                        "month": month_val, "img": img_url
                     })
                     
                     draw_size = 32
@@ -203,7 +183,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     logger.error(f"Row parsing error ID={tid_str}: {e}")
         conn.commit()
 
-        # Matches logic (Brackets)
         for tid, sheet_name, draw_size in tournaments_to_sync:
              print(f"Syncing Matches for T{tid} ({sheet_name}) - Draw {draw_size}...")
              try:
@@ -236,20 +215,17 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             if r_idx + 1 >= len(data): continue
                             row1 = data[r_idx]; row2 = data[r_idx+1]
                             
-                            # Безопасное чтение имен
                             raw_p1 = row1[col_idx] if col_idx < len(row1) else ""
                             raw_p2 = row2[col_idx] if col_idx < len(row2) else ""
-                            
                             p1 = clean_sheet_value(raw_p1)
                             p2 = clean_sheet_value(raw_p2)
                             
-                            # --- ВАЖНОЕ ИЗМЕНЕНИЕ ---
-                            # Мы УБРАЛИ строчку `if not p1 and not p2: continue`.
-                            # Теперь код выполнится даже если p1 и p2 пустые.
-                            # Это позволит перезаписать старое "Загрузка..." на пустоту (NULL) в БД.
-                            
+                            # Пишем NULL если пусто, чтобы стереть ошибки
+                            p1 = p1 if p1 else ""
+                            p2 = p2 if p2 else ""
+
                             winner = None
-                            if p1 and p2: # Логика победителя только если имена есть
+                            if p1 and p2:
                                 if p2.lower() == "bye": winner = p1
                                 elif p1.lower() == "bye": winner = p2
                                 elif round_name != "F":
@@ -296,7 +272,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                                 "p1": p1, "p2": p2, "win": winner, 
                                 "s1": s1, "s2": s2, "s3": s3, "s4": s4, "s5": s5
                             })
-                            
                     if champion:
                         conn.execute(text("""
                             INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner)
@@ -305,7 +280,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             SET winner=EXCLUDED.winner, player1=EXCLUDED.player1
                         """), {"tid": tid, "name": champion})
                         conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": tid})
-                
                 conn.commit()
                 db_session = SessionLocal()
                 try: update_tournament_leaderboard(tid, db_session)
@@ -315,7 +289,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         conn.commit()
         print("--- TOURNAMENTS SYNC FINISHED ---")
 
-# --- SYNC DAILY CHALLENGE ---
+# --- SYNC DAILY CHALLENGE (WITH GHOST CLEANUP) ---
 async def sync_daily_challenge(engine: Engine) -> None:
     print("--- STARTING DAILY CHALLENGE SYNC ---")
     try:
@@ -333,11 +307,18 @@ async def sync_daily_challenge(engine: Engine) -> None:
 
     if len(rows) < 2: return
     session = SessionLocal()
+    
     try:
+        sheet_ids = set()
+        
+        # 1. UPSERT from Sheets to DB
         for row_idx, row in enumerate(rows[1:], start=2):
             if len(row) < 9: row += [""] * (9 - len(row))
             m_id = str(row[0]).strip()
             if not m_id: continue 
+            
+            sheet_ids.add(m_id)
+            
             tour_name = row[1].strip()
             status_raw = row[2].strip().upper()
             round_name = row[3].strip()
@@ -366,6 +347,7 @@ async def sync_daily_challenge(engine: Engine) -> None:
                 status_raw = "COMPLETED"
 
             match = session.query(DailyMatch).filter(DailyMatch.id == m_id).first()
+            
             if not match:
                 match = DailyMatch(
                     id=m_id, tournament=tour_name, status=status_raw, round=round_name,
@@ -381,11 +363,34 @@ async def sync_daily_challenge(engine: Engine) -> None:
                 match.player2 = p2
                 match.score = score_text
                 match.winner = winner_val
+            
             session.flush()
+
             if match.status == "COMPLETED" and match.winner is not None:
                 process_match_results(match.id, session)
+        
+        # 2. GHOST CLEANUP (Очистка)
+        # Получаем все PLANNED матчи из базы
+        db_planned = session.query(DailyMatch).filter(DailyMatch.status == "PLANNED").all()
+        
+        for db_match in db_planned:
+            if db_match.id not in sheet_ids:
+                # Матч есть в базе, но нет в таблице.
+                # Проверяем прогнозы
+                has_picks = session.query(DailyPick).filter(DailyPick.match_id == db_match.id).count() > 0
+                
+                if has_picks:
+                    # Если были ставки -> CANCELLED
+                    db_match.status = "CANCELLED"
+                    logger.info(f"Marked CANCELLED: {db_match.id} (had picks)")
+                else:
+                    # Если ставок нет -> DELETE
+                    session.delete(db_match)
+                    logger.info(f"Deleted ghost match: {db_match.id}")
+
         session.commit()
         print("Daily Challenge Sync Finished.")
+
     except Exception as e:
         session.rollback()
         logger.error(f"Daily Sync DB Error: {e}")
