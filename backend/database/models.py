@@ -5,13 +5,11 @@ from sqlalchemy.schema import UniqueConstraint
 from database.db import Base
 import enum
 
-
 class TournamentStatus(enum.Enum):
-    PLANNED = "PLANNED"  # <--- Новый статус
+    PLANNED = "PLANNED"
     ACTIVE = "ACTIVE"
     CLOSED = "CLOSED"
     COMPLETED = "COMPLETED"
-
 
 class Tournament(Base):
     __tablename__ = "tournaments"
@@ -22,29 +20,20 @@ class Tournament(Base):
     sheet_name = Column(String, nullable=True)
     starting_round = Column(String)
     type = Column(String)
-    
-    # ВРЕМЕННЫЕ МЕТКИ
-    start = Column(String)  # Дата ОТКРЫТИЯ прогнозов
-    close = Column(String)  # Дата ЗАКРЫТИЯ прогнозов (начало матчей)
-    
+    start = Column(String)
+    close = Column(String)
     tag = Column(String, nullable=True)
-    
-    # --- НОВЫЕ ПОЛЯ ---
-    surface = Column(String, nullable=True)           # Hard, Clay...
+    surface = Column(String, nullable=True)
     defending_champion = Column(String, nullable=True)
-    description = Column(String, nullable=True)       # Info
+    description = Column(String, nullable=True)
     matches_count = Column(String, nullable=True)
-    month = Column(String, nullable=True)             # 01.2025
-    
-    # КАРТИНКА
+    month = Column(String, nullable=True)
     image_url = Column(String, nullable=True)
-    # ------------------
 
     true_draws = relationship("TrueDraw", back_populates="tournament")
     user_picks = relationship("UserPick", back_populates="tournament")
     scores = relationship("UserScore", back_populates="tournament")
     leaderboard_entries = relationship("Leaderboard", back_populates="tournament")
-
 
 class TrueDraw(Base):
     __tablename__ = "true_draw"
@@ -55,18 +44,14 @@ class TrueDraw(Base):
     player1 = Column(String)
     player2 = Column(String)
     winner = Column(String, nullable=True)
-    
     set1 = Column(String, nullable=True)
     set2 = Column(String, nullable=True)
     set3 = Column(String, nullable=True)
     set4 = Column(String, nullable=True)
     set5 = Column(String, nullable=True)
 
-    __table_args__ = (
-        UniqueConstraint('tournament_id', 'round', 'match_number', name='unique_match'),
-    )
+    __table_args__ = (UniqueConstraint('tournament_id', 'round', 'match_number', name='unique_match'),)
     tournament = relationship("Tournament", back_populates="true_draws")
-
 
 class User(Base):
     __tablename__ = "users"
@@ -78,7 +63,6 @@ class User(Base):
     user_picks = relationship("UserPick", back_populates="user")
     scores = relationship("UserScore", back_populates="user")
     leaderboard_entries = relationship("Leaderboard", back_populates="user")
-
 
 class UserPick(Base):
     __tablename__ = "user_picks"
@@ -96,7 +80,6 @@ class UserPick(Base):
     user = relationship("User", back_populates="user_picks")
     tournament = relationship("Tournament", back_populates="user_picks")
 
-
 class UserScore(Base):
     __tablename__ = "user_scores"
     id = Column(Integer, primary_key=True, index=True)
@@ -109,7 +92,6 @@ class UserScore(Base):
     user = relationship("User", back_populates="scores")
     tournament = relationship("Tournament", back_populates="scores")
 
-
 class Leaderboard(Base):
     __tablename__ = "leaderboard"
     id = Column(Integer, primary_key=True, index=True)
@@ -118,63 +100,41 @@ class Leaderboard(Base):
     rank = Column(Integer)
     score = Column(Integer)
     correct_picks = Column(Integer)
+    # УБРАЛИ total_picks ЧТОБЫ НЕ ПАДАЛО
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     
     user = relationship("User", back_populates="leaderboard_entries")
     tournament = relationship("Tournament", back_populates="leaderboard_entries")
-    # --- DAILY CHALLENGE MODELS ---
-# Добавляем в самый конец файла models.py
 
 class DailyMatch(Base):
     __tablename__ = "daily_matches"
-
     id = Column(String, primary_key=True, index=True)
-    
-    # Порядок колонок (как в Гугл Таблице)
     tournament = Column(String)
     status = Column(String, default="PLANNED")
     round = Column(String, nullable=True)
     start_time = Column(DateTime)
-    
     player1 = Column(String)
     player2 = Column(String)
-    
     score = Column(String, nullable=True)
-    
-    # Победитель: 1 или 2
     winner = Column(Integer, nullable=True)
-
-    # cascade="all, delete" удалит прогнозы, если удалить матч
     picks = relationship("DailyPick", back_populates="match", cascade="all, delete-orphan")
-
 
 class DailyPick(Base):
     __tablename__ = "daily_picks"
-
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(BigInteger, ForeignKey("users.user_id"), index=True)
-    
     match_id = Column(String, ForeignKey("daily_matches.id"), index=True)
-    
-    predicted_winner = Column(Integer) # 1 или 2
-    
-    # Результаты
+    predicted_winner = Column(Integer)
     is_correct = Column(Boolean, nullable=True)
     points = Column(Integer, default=0)
-
     created_at = Column(DateTime, server_default=func.now())
-
     user = relationship("User")
     match = relationship("DailyMatch", back_populates="picks")
 
-
 class DailyLeaderboard(Base):
     __tablename__ = "daily_leaderboard"
-    
     user_id = Column(BigInteger, ForeignKey("users.user_id"), primary_key=True)
-    
     total_points = Column(Integer, default=0)
     correct_picks = Column(Integer, default=0)
     total_picks = Column(Integer, default=0)
-    
     user = relationship("User")

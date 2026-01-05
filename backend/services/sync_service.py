@@ -20,8 +20,12 @@ from utils.daily_calculator import process_match_results
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ==========================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (HELPER FUNCTIONS)
+# ==========================================
+
 def clean_sheet_value(value):
-    """Очищает значение ячейки, игнорируя ошибки Google Sheets."""
+    """Очищает значение ячейки, игнорируя ошибки Google Sheets (#ERROR!)."""
     if not value: return None
     v = str(value).strip()
     # Игнорируем ошибки формул Гугла
@@ -39,10 +43,10 @@ def get_google_sheets_client():
 
 def parse_datetime(date_str: str):
     """
-    Парсит дату. Возвращает объект datetime с UTC (для турниров) или naive (для дейли).
+    Парсит дату. Возвращает объект datetime с UTC.
     """
     if not date_str: return None
-    date_str = date_str.strip()
+    date_str = str(date_str).strip()
     formats = ["%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y", "%Y-%m-%d %H:%M:%S"]
     
     msk_tz = pytz.timezone('Europe/Moscow')
@@ -57,21 +61,25 @@ def parse_datetime(date_str: str):
     return None
 
 def normalize_name(name: str) -> str:
+    """Нормализация имени для сравнения (удаляет скобки, оставляет буквы/цифры)."""
     if not name: return ""
-    name = re.sub(r'\s*\(.*?\)', '', name)
+    name = re.sub(r'\s*\(.*?\)', '', str(name))
     clean = re.sub(r'[^\w]', '', name).strip().lower()
     return clean
 
 def is_same_player(p1_raw, p2_raw):
+    """Сравнивает два имени."""
     n1 = normalize_name(p1_raw)
     n2 = normalize_name(p2_raw)
     if not n1 or not n2: return False
     if n1 == n2: return True
+    # Проверка на вхождение (для сокращенных имен)
     if len(n1) > 3 and len(n2) > 3:
         if n1 in n2 or n2 in n1: return True
     return False
 
 def get_match_rows(round_name: str, draw_size: int):
+    """Возвращает индексы строк для конкретного раунда."""
     rounds_order = ["F", "SF", "QF", "R16", "R32", "R64", "R128"]
     if round_name not in rounds_order: return []
     
@@ -100,7 +108,11 @@ def get_match_rows(round_name: str, draw_size: int):
         indices.append(start_idx + (i * step))
     return indices
 
-# --- SYNC TOURNAMENTS ---
+# ==========================================
+# ОСНОВНЫЕ ФУНКЦИИ СИНХРОНИЗАЦИИ
+# ==========================================
+
+# --- SYNC TOURNAMENTS (Сетки) ---
 async def sync_google_sheets_with_db(engine: Engine) -> None:
     print("--- STARTING TOURNAMENTS SYNC ---")
     try:
@@ -119,15 +131,32 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         now = datetime.now(pytz.UTC)
 
         for row in rows[1:]:
-            if len(row) < 1 or not row[0] or not row[0].strip().isdigit():
-                continue
+            if len(row) < 1: continue
+            tid_str = str(row[0]).strip()
+            if not tid_str.isdigit(): continue
+            
             row += [""] * (16 - len(row))
 
             with conn.begin_nested():
                 try:
-                    tid_str, name, dates, status_raw, sheet_name, s_round, t_type, start, close, tag, surface, defending, info, matches_count, month_val, img_url = row[:16]
                     tid = int(tid_str)
-                    status = status_raw.upper().strip()
+                    name = row[1]
+                    dates = row[2]
+                    status_raw = str(row[3]).upper().strip()
+                    sheet_name = row[4]
+                    s_round = row[5]
+                    t_type = row[6]
+                    start = row[7]
+                    close = row[8]
+                    tag = row[9]
+                    surface = row[10]
+                    defending = row[11]
+                    info = row[12]
+                    matches_count = row[13]
+                    month_val = row[14]
+                    img_url = row[15]
+
+                    status = status_raw
                     start_dt = parse_datetime(start)
                     close_dt = parse_datetime(close)
                     
@@ -160,9 +189,8 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                         "mc": matches_count, "month": month_val, "img": img_url
                     })
                     
-                    draw_size = 32 # Дефолт
+                    draw_size = 32
                     s_round_clean = s_round.strip().upper()
-                    
                     if s_round_clean == "R128": draw_size = 128
                     elif s_round_clean == "R64": draw_size = 64
                     elif s_round_clean == "R32": draw_size = 32
@@ -174,31 +202,32 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                     if status != "PLANNED":
                         tournaments_to_sync.append((tid, sheet_name, draw_size))
                 except Exception as e:
-                    logger.error(f"Row parsing error ID={row[0] if row else '?'}: {e}")
+                    logger.error(f"Row parsing error ID={tid_str}: {e}")
         conn.commit()
 
-        # Matches logic (Brackets)
+        # Matches logic
         for tid, sheet_name, draw_size in tournaments_to_sync:
              print(f"Syncing Matches for T{tid} ({sheet_name}) - Draw {draw_size}...")
              try:
+                try:
+                    ws = sheet.worksheet(sheet_name)
+                    data = ws.get_all_values()
+                except: 
+                    print(f"Sheet {sheet_name} not found")
+                    continue
+                if len(data) < 2: continue
+                headers = data[0]
+                cols = {h.strip(): i for i, h in enumerate(headers) if h.strip()}
+                rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F"]
+                champion = None
+                if "Champion" in cols and len(data) > 1:
+                    champ_col = cols["Champion"]
+                    for r_idx in range(1, len(data)):
+                        if champ_col < len(data[r_idx]):
+                            val = data[r_idx][champ_col].strip()
+                            if val: champion = val; break
+                
                 with conn.begin_nested():
-                    try:
-                        ws = sheet.worksheet(sheet_name)
-                        data = ws.get_all_values()
-                    except: 
-                        print(f"Sheet {sheet_name} not found")
-                        continue
-                    if len(data) < 2: continue
-                    headers = data[0]
-                    cols = {h.strip(): i for i, h in enumerate(headers) if h.strip()}
-                    rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F"]
-                    champion = None
-                    if "Champion" in cols and len(data) > 1:
-                        champ_col = cols["Champion"]
-                        for r_idx in range(1, len(data)):
-                            if champ_col < len(data[r_idx]):
-                                val = data[r_idx][champ_col].strip()
-                                if val: champion = val; break
                     for round_name in rounds_order:
                         if round_name not in cols: continue
                         col_idx = cols[round_name]
@@ -208,19 +237,18 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             if r_idx + 1 >= len(data): continue
                             row1 = data[r_idx]; row2 = data[r_idx+1]
                             
-                            # --- БЕЗОПАСНОЕ ЧТЕНИЕ ---
+                            # Безопасное чтение имен
                             raw_p1 = row1[col_idx] if col_idx < len(row1) else ""
                             raw_p2 = row2[col_idx] if col_idx < len(row2) else ""
                             
                             p1 = clean_sheet_value(raw_p1)
                             p2 = clean_sheet_value(raw_p2)
                             
-                            if not p1 and not p2: continue # Если данные битые - пропускаем матч
+                            if not p1 and not p2: continue # Если данных нет или ошибка формулы
                             
-                            # Превращаем None в строку для дальнейшей логики
+                            # Превращаем None в пустую строку
                             p1 = p1 if p1 else ""
                             p2 = p2 if p2 else ""
-                            # -------------------------
 
                             winner = None
                             if p2.lower() == "bye": winner = p1
@@ -246,15 +274,18 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             if round_name == "F" and champion:
                                 if is_same_player(p1, champion): winner = p1
                                 elif is_same_player(p2, champion): winner = p2
+                            
                             scores = []
                             for s_off in range(1, 6):
                                 sc_idx = col_idx + s_off
                                 if sc_idx >= len(row1): scores.append(None); continue
                                 if sc_idx < len(headers) and headers[sc_idx].strip() in rounds_order: scores.append(None); continue
-                                s1_val = row1[sc_idx].strip(); s2_val = row2[sc_idx].strip()
+                                s1_val = clean_sheet_value(row1[sc_idx])
+                                s2_val = clean_sheet_value(row2[sc_idx])
                                 if s1_val and s2_val: scores.append(f"{s1_val}-{s2_val}")
                                 else: scores.append(None)
                             s1, s2, s3, s4, s5 = (scores + [None]*5)[:5]
+                            
                             conn.execute(text("""
                                 INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner, set1, set2, set3, set4, set5)
                                 VALUES (:tid, :rnd, :mn, :p1, :p2, :win, :s1, :s2, :s3, :s4, :s5)
@@ -303,7 +334,7 @@ async def sync_daily_challenge(engine: Engine) -> None:
         for row_idx, row in enumerate(rows[1:], start=2):
             if len(row) < 9: row += [""] * (9 - len(row))
             
-            m_id = row[0].strip()
+            m_id = str(row[0]).strip()
             if not m_id: continue 
             
             tour_name = row[1].strip()
@@ -324,6 +355,7 @@ async def sync_daily_challenge(engine: Engine) -> None:
             if winner_raw == "1": winner_val = 1
             elif winner_raw == "2": winner_val = 2
             elif winner_raw:
+                # ВАЖНО: normalize_name теперь определен в начале файла
                 w_norm = normalize_name(winner_raw)
                 p1_norm = normalize_name(p1)
                 p2_norm = normalize_name(p2)

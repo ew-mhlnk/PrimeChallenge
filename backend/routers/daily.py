@@ -62,9 +62,6 @@ async def get_daily_matches(
     
     result = []
     for m in matches:
-        # --- ИСПРАВЛЕНИЕ ВРЕМЕНИ ---
-        # Мы больше не конвертируем в ISO и не добавляем Z.
-        # Мы просто берем часы и минуты из базы как есть.
         time_str = "--:--"
         if m.start_time:
             time_str = m.start_time.strftime("%H:%M")
@@ -72,7 +69,7 @@ async def get_daily_matches(
         result.append({
             "id": m.id,
             "tournament": m.tournament,
-            "start_time": time_str, # Отдаем "14:30"
+            "start_time": time_str, 
             "status": m.status,
             "player1": m.player1,
             "player2": m.player2,
@@ -95,20 +92,23 @@ async def make_daily_pick(
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
         
-    # --- ЖЕСТКАЯ ПРОВЕРКА ---
-    # 1. Проверка статуса (как раньше)
+    # --- ЛОГИКА ПРОВЕРКИ ---
+    # 1. Если статус не PLANNED - точно нельзя
     if match.status != "PLANNED":
-         raise HTTPException(status_code=400, detail="Match already started (Status)")
+         raise HTTPException(status_code=400, detail="Match started")
 
-    # 2. Проверка ВРЕМЕНИ (Новая защита)
-    # Если время начала матча есть в базе, и оно уже прошло
+    # 2. Проверка времени (Smart)
+    # Проверяем время только если оно ЕСТЬ и оно НЕ 00:00 (что означает неизвестное время)
     if match.start_time:
-        # Приводим текущее время к naive (без зоны), так как match.start_time в базе для Daily скорее всего naive
-        now = datetime.now() 
-        # Даем фору 1 минуту на рассинхрон
-        if now > (match.start_time + timedelta(minutes=1)):
-             raise HTTPException(status_code=400, detail="Match already started (Time)")
-    # ------------------------
+        # Проверяем, не является ли время полночью (глюк парсера или неизвестность)
+        is_midnight = (match.start_time.hour == 0 and match.start_time.minute == 0)
+        
+        if not is_midnight:
+            now = datetime.now()
+            # Даем фору 5 минут
+            if now > (match.start_time + timedelta(minutes=5)):
+                 raise HTTPException(status_code=400, detail="Time expired")
+    # -----------------------
 
     existing_pick = db.query(models.DailyPick).filter(
         models.DailyPick.user_id == user_id,
