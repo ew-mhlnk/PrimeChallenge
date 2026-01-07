@@ -10,18 +10,19 @@ from database import models
 from utils.auth import get_current_user
 from pydantic import BaseModel
 
-router = APIRouter()
+# === ВОТ ЭТА СТРОКА ОЧЕНЬ ВАЖНА ===
+router = APIRouter() 
 
 # --- Pydantic Schemas ---
 
 class DailyPickRequest(BaseModel):
     match_id: str
-    winner: int # 1 или 2
+    winner: int 
 
 class DailyMatchResponse(BaseModel):
     id: str
     tournament: str
-    start_time: str # Просто строка времени "HH:MM"
+    start_time: str 
     status: str          
     player1: str
     player2: str
@@ -36,10 +37,10 @@ class DailyLeaderboardEntry(BaseModel):
     total_points: int
     correct_picks: int
 
-# --- Endpoints ---
+# --- Endpoints (БЕЗ ASYNC) ---
 
-router.get("/matches", response_model=List[DailyMatchResponse])
-def get_daily_matches( # <--- УБРАЛИ async
+@router.get("/matches", response_model=List[DailyMatchResponse])
+def get_daily_matches(
     target_date: Optional[date] = Query(None), 
     db: Session = Depends(get_db), 
     user: dict = Depends(get_current_user)
@@ -81,7 +82,7 @@ def get_daily_matches( # <--- УБРАЛИ async
     return result
 
 @router.post("/pick")
-def make_daily_pick( # <--- УБРАЛИ async
+def make_daily_pick(
     pick_data: DailyPickRequest,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user)
@@ -92,23 +93,15 @@ def make_daily_pick( # <--- УБРАЛИ async
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
         
-    # --- ЛОГИКА ПРОВЕРКИ ---
-    # 1. Если статус не PLANNED - точно нельзя
     if match.status != "PLANNED":
          raise HTTPException(status_code=400, detail="Match started")
 
-    # 2. Проверка времени (Smart)
-    # Проверяем время только если оно ЕСТЬ и оно НЕ 00:00 (что означает неизвестное время)
     if match.start_time:
-        # Проверяем, не является ли время полночью (глюк парсера или неизвестность)
         is_midnight = (match.start_time.hour == 0 and match.start_time.minute == 0)
-        
         if not is_midnight:
             now = datetime.now()
-            # Даем фору 5 минут
             if now > (match.start_time + timedelta(minutes=5)):
                  raise HTTPException(status_code=400, detail="Time expired")
-    # -----------------------
 
     existing_pick = db.query(models.DailyPick).filter(
         models.DailyPick.user_id == user_id,
