@@ -3,11 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
+import Image from 'next/image';
 
-// Иконки
 const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 19L8 12L15 5"/></svg>);
-const CupIcon = () => (<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>);
-const FireIcon = () => (<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF453A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2c0 0-3 3.5-3 6 0 1.5 1 3 1 3s-3-1-3-4c0 0-3 2-3 6 0 4.418 3.582 8 8 8s8-3.582 8-8c0-4-3-6-3-6s0 3 0 4c0 0 1-1.5 1-3 0-2.5-3-6-3-6z" /></svg>);
 
 export default function LeaderboardHub() {
   const router = useRouter();
@@ -22,57 +20,145 @@ export default function LeaderboardHub() {
     <div className="min-h-screen bg-[#141414] text-white flex flex-col pb-32">
       
       {/* HEADER */}
-      <header className="px-6 pt-8 pb-4 flex items-center justify-between relative">
+      <header className="px-6 pt-8 pb-4 flex items-center justify-between relative z-20">
         <button 
           onClick={() => { impact('light'); router.back(); }} 
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/10 active:scale-90 transition-transform z-10"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/10 active:scale-90 transition-transform"
         >
           <BackIcon />
         </button>
         
-        <h1 className="absolute left-0 right-0 text-center text-[20px] font-bold text-white">
+        <h1 className="absolute left-0 right-0 text-center text-[20px] font-bold text-white pointer-events-none">
             Лидерборды
         </h1>
-        <div className="w-10" /> {/* Spacer */}
+        <div className="w-10" /> 
       </header>
 
-      {/* BENTO GRID */}
-      <main className="px-4 mt-6 flex flex-col gap-4">
+      <main className="px-4 mt-4 flex flex-col gap-5">
           
-          {/* 1. TOURNAMENTS CARD */}
+          {/* ========================================== */}
+          {/* КАРТОЧКА 1: ПО ТУРНИРАМ */}
+          {/* ========================================== */}
           <motion.div 
             whileTap={{ scale: 0.98 }}
             onClick={() => handleNav('/leaderboard/tournaments')}
-            className="w-full bg-[#1C1C1E] rounded-[32px] p-6 border border-white/5 relative overflow-hidden h-[200px] flex flex-col justify-between cursor-pointer"
+            className="relative w-full cursor-pointer group"
           >
-              <div className="relative z-10">
-                  <div className="w-14 h-14 rounded-2xl bg-[#FFD700]/10 flex items-center justify-center mb-4">
-                      <CupIcon />
-                  </div>
-                  <h2 className="text-2xl font-bold text-white leading-none">По турнирам</h2>
-                  <p className="text-[#8E8E93] text-sm mt-2">Рейтинги всех прошедших и активных турниров</p>
-              </div>
-              
-              {/* Decor */}
-              <div className="absolute right-[-20px] bottom-[-20px] w-32 h-32 bg-[#FFD700] blur-[80px] opacity-10 rounded-full" />
+            {/* Градиентная обводка (Container) */}
+            <div className="rounded-[24px] p-[1px] bg-gradient-to-b from-[#212121] to-[#161616]">
+                
+                {/* Внутренний контент (Background) */}
+                <div className="relative h-[144px] w-full rounded-[23px] bg-gradient-to-b from-[#1B1A1E] to-[#161616] overflow-hidden flex items-center">
+                    
+                    {/* 1. Правый нижний градиент (Radial) */}
+                    <div 
+                        className="absolute bottom-0 right-0 w-[80%] h-[120%] pointer-events-none"
+                        style={{
+                            background: 'radial-gradient(ellipse 85% 120% at 100% 100%, #09576C 0%, rgba(26, 25, 28, 0) 100%)',
+                            opacity: 0.8
+                        }}
+                    />
+
+                    {/* 2. Шум (Noise) */}
+                    <div className="absolute inset-0 bg-noise pointer-events-none" />
+
+                    {/* 3. Shine Animation */}
+                    <div className="animate-shine" />
+
+                    {/* 4. Контент (Текст слева) */}
+                    <div className="relative z-10 pl-6 pr-24 flex flex-col justify-center h-full max-w-[65%]">
+                        <h2 className="text-[22px] font-bold text-white leading-tight mb-1">
+                            По Турнирам
+                        </h2>
+                        <p className="text-[#8E8E93] text-[12px] font-medium leading-snug">
+                            Рейтинги всех прошедших и активных турниров
+                        </p>
+                    </div>
+
+                    {/* 5. Картинка (Trophy) - Floating */}
+                    <div className="absolute right-[-10px] bottom-[-10px] w-[140px] h-[140px] z-20 animate-float">
+                        {/* Замените src на путь к вашей картинке */}
+                        {/* Если файла нет, покажет заглушку, но не сломает верстку */}
+                        <Image 
+                            src="/images/trophie_lb.png" 
+                            alt="Trophy" 
+                            width={160} 
+                            height={160}
+                            className="object-contain drop-shadow-2xl"
+                            priority
+                        />
+                    </div>
+                </div>
+            </div>
           </motion.div>
 
-          {/* 2. DAILY CARD */}
+
+          {/* ========================================== */}
+          {/* КАРТОЧКА 2: ДЕЙЛИ ЧЕЛЛЕНДЖ */}
+          {/* ========================================== */}
           <motion.div 
             whileTap={{ scale: 0.98 }}
             onClick={() => handleNav('/leaderboard/daily')}
-            className="w-full bg-[#1C1C1E] rounded-[32px] p-6 border border-white/5 relative overflow-hidden h-[200px] flex flex-col justify-between cursor-pointer"
+            className="relative w-full cursor-pointer group"
           >
-              <div className="relative z-10">
-                  <div className="w-14 h-14 rounded-2xl bg-[#FF453A]/10 flex items-center justify-center mb-4">
-                      <FireIcon />
-                  </div>
-                  <h2 className="text-2xl font-bold text-white leading-none">Дейли Челлендж</h2>
-                  <p className="text-[#8E8E93] text-sm mt-2">Ежедневный рейтинг прогнозистов</p>
-              </div>
+            {/* Градиентная обводка */}
+            <div className="rounded-[24px] p-[1px] bg-gradient-to-b from-[#212121] to-[#161616]">
+                
+                {/* Внутренний фон */}
+                <div className="relative h-[144px] w-full rounded-[23px] bg-gradient-to-b from-[#1B1A1E] to-[#161616] overflow-hidden flex items-center">
+                    
+                    {/* 1. Правый нижний градиент (Radial) */}
+                    <div 
+                        className="absolute bottom-0 right-0 w-[80%] h-[120%] pointer-events-none"
+                        style={{
+                            background: 'radial-gradient(ellipse 85% 120% at 100% 100%, #09576C 0%, rgba(26, 25, 28, 0) 100%)',
+                            opacity: 0.8
+                        }}
+                    />
 
-              {/* Decor */}
-              <div className="absolute right-[-20px] bottom-[-20px] w-32 h-32 bg-[#FF453A] blur-[80px] opacity-10 rounded-full" />
+                    {/* 2. Шум */}
+                    <div className="absolute inset-0 bg-noise pointer-events-none" />
+
+                    {/* 3. Shine Animation */}
+                    <div className="animate-shine" style={{ animationDelay: '1.5s' }} />
+
+                    {/* 4. Контент (Текст) */}
+                    <div className="relative z-10 pl-6 pr-20 flex flex-col justify-center h-full max-w-[65%]">
+                        <h2 className="text-[22px] font-bold text-white leading-tight mb-1">
+                            Дейли Челлендж
+                        </h2>
+                        <p className="text-[#8E8E93] text-[12px] font-medium leading-snug">
+                            Ежедневный рейтинг прогнозистов
+                        </p>
+                    </div>
+
+                    {/* 5. Картинки (Rackets) - Floating Desync */}
+                    <div className="absolute right-0 bottom-0 w-[140px] h-[140px] z-20">
+                        {/* Ракетка 1 (На заднем плане, чуть меньше) */}
+                        <div className="absolute right-[20px] bottom-[10px] w-[90px] h-[90px] animate-float-delayed opacity-80 rotate-[-15deg] blur-[0.5px]">
+                            <Image 
+                                src="/images/racket2.png" 
+                                alt="Racket Back" 
+                                width={100} 
+                                height={100}
+                                className="object-contain"
+                            />
+                        </div>
+                        
+                        {/* Ракетка 2 (На переднем плане) */}
+                        <div className="absolute right-[-10px] bottom-[-10px] w-[110px] h-[110px] animate-float z-30">
+                            <Image 
+                                src="/images/racket1.png" 
+                                alt="Racket Front" 
+                                width={120} 
+                                height={120}
+                                className="object-contain drop-shadow-2xl"
+                            />
+                        </div>
+                    </div>
+
+                </div>
+            </div>
           </motion.div>
 
       </main>

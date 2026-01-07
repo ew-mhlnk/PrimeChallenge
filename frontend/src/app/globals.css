@@ -1,26 +1,44 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-body {
-  @apply bg-gray-900 text-white font-sans;
+/* --- ЭФФЕКТ ШУМА (NOISE) --- */
+.bg-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+  opacity: 0.4; /* Настраиваемая прозрачность шума */
 }
 
-/* Скрыть скроллбар, но оставить функционал */
-.scrollbar-hide::-webkit-scrollbar {
-    display: none;
-}
-.scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+/* --- АНИМАЦИЯ ПЛАВАНИЯ (FLOATING) --- */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
 }
 
-/* Анимация блика для баннера */
-@keyframes shimmer {
-  0% { transform: translateX(-150%) skewX(-20deg); }
-  100% { transform: translateX(150%) skewX(-20deg); }
+@keyframes float-delayed {
+  0%, 100% { transform: translateY(0px) rotate(3deg); }
+  50% { transform: translateY(-5px) rotate(0deg); }
 }
 
-.animate-shimmer {
-  animation: shimmer 2s infinite linear;
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float-delayed 7s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
+/* --- АНИМАЦИЯ БЛИКА (SHINE) --- */
+@keyframes shine-slide {
+  0% { left: -100%; opacity: 0; }
+  50% { opacity: 0.1; }
+  100% { left: 200%; opacity: 0; }
+}
+
+.animate-shine {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.4), transparent);
+  transform: skewX(-20deg);
+  animation: shine-slide 4s infinite linear;
+  pointer-events: none;
 }
