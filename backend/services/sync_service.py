@@ -25,13 +25,29 @@ logger = logging.getLogger(__name__)
 # ==========================================
 
 def clean_sheet_value(value):
-    """Очищает значение ячейки, игнорируя ошибки Google Sheets."""
+    """
+    Очищает значение ячейки.
+    ГЛАВНОЕ: Игнорирует 'Загрузка...', '#ERROR!', '#N/A'.
+    Возвращает None, если данные 'битые' или грузятся.
+    """
     if not value: return None
     v = str(value).strip()
-    # Игнорируем ошибки формул Гугла
+    
+    # Приводим к верхнему регистру для проверки
     upper_v = v.upper()
-    if v.startswith("#") or "LOADING" in upper_v or "ERROR" in upper_v or "ЗАГРУЗКА" in upper_v:
-        return None
+    
+    # СПИСОК ЗАПРЕЩЕННЫХ СЛОВ (Фильтр мусора)
+    BAD_WORDS = [
+        "#ERROR", "#N/A", "#REF", "#NAME", 
+        "LOADING", "ЗАГРУЗКА", "ВЫЧИСЛЕНИЕ", 
+        "#DIV/0", "ERROR"
+    ]
+    
+    # Если ячейка начинается с ошибки или содержит слово "Загрузка"
+    for bad in BAD_WORDS:
+        if v.startswith("#") or bad in upper_v:
+            return None
+            
     return v
 
 def get_google_sheets_client():
@@ -94,7 +110,10 @@ def get_match_rows(round_name: str, draw_size: int):
     for i in range(count): indices.append(start_idx + (i * step))
     return indices
 
-# --- SYNC TOURNAMENTS ---
+# ==========================================
+# SYNC LOGIC
+# ==========================================
+
 async def sync_google_sheets_with_db(engine: Engine) -> None:
     print("--- STARTING TOURNAMENTS SYNC ---")
     try:
@@ -161,10 +180,11 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                         description=EXCLUDED.description, matches_count=EXCLUDED.matches_count,
                         month=EXCLUDED.month, image_url=EXCLUDED.image_url
                     """), {
-                        "id": tid, "name": name, "dates": dates, "status": status, "sheet": sheet_name, 
-                        "sr": s_round, "type": t_type, "start": start, "close": close, "tag": tag,
-                        "surf": surface, "defend": defending, "desc": info, "mc": matches_count, 
-                        "month": month_val, "img": img_url
+                        "id": tid, "name": name, "dates": dates, "status": status, 
+                        "sheet": sheet_name, "sr": s_round, "type": t_type, 
+                        "start": start, "close": close, "tag": tag,
+                        "surf": surface, "defend": defending, "desc": info, 
+                        "mc": matches_count, "month": month_val, "img": img_url
                     })
                     
                     draw_size = 32
@@ -217,10 +237,12 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                             
                             raw_p1 = row1[col_idx] if col_idx < len(row1) else ""
                             raw_p2 = row2[col_idx] if col_idx < len(row2) else ""
+                            
+                            # --- ФИЛЬТРАЦИЯ "Загрузка..." ---
                             p1 = clean_sheet_value(raw_p1)
                             p2 = clean_sheet_value(raw_p2)
                             
-                            # Пишем NULL если пусто, чтобы стереть ошибки
+                            # Превращаем None в пустую строку (чтобы стереть мусор в БД)
                             p1 = p1 if p1 else ""
                             p2 = p2 if p2 else ""
 
@@ -244,19 +266,23 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                                             if next_r_start + 1 < len(data): candidates.append(clean_sheet_value(data[next_r_start+1][next_col]))
                                             for cand in candidates:
                                                 if not cand: continue
+                                                from services.sync_service import is_same_player
                                                 if is_same_player(p1, cand): winner = p1; break
                                                 elif is_same_player(p2, cand): winner = p2; break
                             if round_name == "F" and champion:
-                                if is_same_player(p1, champion): winner = p1
-                                elif is_same_player(p2, champion): winner = p2
+                                from services.sync_service import is_same_player
+                                if p1 and is_same_player(p1, champion): winner = p1
+                                elif p2 and is_same_player(p2, champion): winner = p2
                             
                             scores = []
                             for s_off in range(1, 6):
                                 sc_idx = col_idx + s_off
                                 if sc_idx >= len(row1): scores.append(None); continue
                                 if sc_idx < len(headers) and headers[sc_idx].strip() in rounds_order: scores.append(None); continue
+                                
                                 s1_val = clean_sheet_value(row1[sc_idx])
                                 s2_val = clean_sheet_value(row2[sc_idx])
+                                
                                 if s1_val and s2_val: scores.append(f"{s1_val}-{s2_val}")
                                 else: scores.append(None)
                             s1, s2, s3, s4, s5 = (scores + [None]*5)[:5]
@@ -289,7 +315,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         conn.commit()
         print("--- TOURNAMENTS SYNC FINISHED ---")
 
-# --- SYNC DAILY CHALLENGE (WITH GHOST CLEANUP) ---
+# --- SYNC DAILY CHALLENGE ---
 async def sync_daily_challenge(engine: Engine) -> None:
     print("--- STARTING DAILY CHALLENGE SYNC ---")
     try:
@@ -307,11 +333,9 @@ async def sync_daily_challenge(engine: Engine) -> None:
 
     if len(rows) < 2: return
     session = SessionLocal()
-    
     try:
         sheet_ids = set()
         
-        # 1. UPSERT from Sheets to DB
         for row_idx, row in enumerate(rows[1:], start=2):
             if len(row) < 9: row += [""] * (9 - len(row))
             m_id = str(row[0]).strip()
@@ -347,7 +371,6 @@ async def sync_daily_challenge(engine: Engine) -> None:
                 status_raw = "COMPLETED"
 
             match = session.query(DailyMatch).filter(DailyMatch.id == m_id).first()
-            
             if not match:
                 match = DailyMatch(
                     id=m_id, tournament=tour_name, status=status_raw, round=round_name,
@@ -363,34 +386,22 @@ async def sync_daily_challenge(engine: Engine) -> None:
                 match.player2 = p2
                 match.score = score_text
                 match.winner = winner_val
-            
             session.flush()
-
             if match.status == "COMPLETED" and match.winner is not None:
                 process_match_results(match.id, session)
         
-        # 2. GHOST CLEANUP (Очистка)
-        # Получаем все PLANNED матчи из базы
+        # CLEANUP
         db_planned = session.query(DailyMatch).filter(DailyMatch.status == "PLANNED").all()
-        
         for db_match in db_planned:
             if db_match.id not in sheet_ids:
-                # Матч есть в базе, но нет в таблице.
-                # Проверяем прогнозы
                 has_picks = session.query(DailyPick).filter(DailyPick.match_id == db_match.id).count() > 0
-                
                 if has_picks:
-                    # Если были ставки -> CANCELLED
                     db_match.status = "CANCELLED"
-                    logger.info(f"Marked CANCELLED: {db_match.id} (had picks)")
                 else:
-                    # Если ставок нет -> DELETE
                     session.delete(db_match)
-                    logger.info(f"Deleted ghost match: {db_match.id}")
 
         session.commit()
         print("Daily Challenge Sync Finished.")
-
     except Exception as e:
         session.rollback()
         logger.error(f"Daily Sync DB Error: {e}")
