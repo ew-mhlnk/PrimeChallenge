@@ -37,20 +37,17 @@ export default function LeaderboardHub() {
       <main className="px-4 mt-4 flex flex-col gap-5">
           
           {/* ========================================== */}
-          {/* КАРТОЧКА 1: ПО ТУРНИРАМ (ЗОЛОТОЙ ГРАДИЕНТ) */}
+          {/* КАРТОЧКА 1: ПО ТУРНИРАМ (ЗОЛОТОЙ) */}
           {/* ========================================== */}
           <motion.div 
             whileTap={{ scale: 0.98 }}
             onClick={() => handleNav('/leaderboard/tournaments')}
             className="relative w-full cursor-pointer group"
           >
-            {/* Обводка */}
             <div className="rounded-[24px] p-[1px] bg-gradient-to-b from-[#212121] to-[#161616]">
-                
-                {/* Фон карточки */}
                 <div className="relative h-[144px] w-full rounded-[23px] bg-[#1B1A1E] overflow-hidden flex items-center">
                     
-                    {/* 1. ГРАДИЕНТ (Gold/Brown #6C4D09) */}
+                    {/* Градиент */}
                     <div 
                         className="absolute bottom-0 right-0 w-[80%] h-[120%] pointer-events-none"
                         style={{
@@ -59,34 +56,32 @@ export default function LeaderboardHub() {
                         }}
                     />
 
-                    {/* 2. Шум */}
+                    {/* Шум + Блик */}
                     <div className="absolute inset-0 bg-noise pointer-events-none opacity-40" />
-
-                    {/* 3. Shine Animation */}
                     <div className="animate-shine" />
 
-                    {/* 4. Контент (Текст) */}
-                    <div className="relative z-10 pl-6 flex flex-col justify-center h-full w-[55%]">
+                    {/* Текст (Слева) - ширина 50%, чтобы не наезжал на кубок */}
+                    <div className="relative z-10 pl-6 flex flex-col justify-center h-full w-[50%]">
                         <h2 className="text-[22px] font-bold text-white leading-tight mb-2 whitespace-nowrap">
                             По Турнирам
                         </h2>
-                        {/* Ограничиваем ширину, чтобы переносилось в 2 строки */}
                         <p className="text-[#8E8E93] text-[12px] font-medium leading-[1.3] line-clamp-2">
                             Рейтинги всех прошедших и активных турниров
                         </p>
                     </div>
 
-                    {/* 5. Картинка (Trophy) */}
-                    <div className="absolute right-[-20px] bottom-[-20px] z-20 animate-float">
+                    {/* --- КАРТИНКА КУБКА (УВЕЛИЧЕНА x1.5) --- */}
+                    {/* Используем w-[...] для адаптивности, max-w для десктопа */}
+                    <div className="absolute right-[-15px] bottom-[-25px] w-[180px] sm:w-[220px] z-20 animate-float pointer-events-none">
                         <Image 
                             src="/images/trophie_lb.png" 
                             alt="Trophy" 
-                            width={238} 
-                            height={162}
+                            width={357} /* Указал исходный * 1.5 для рендеринга */
+                            height={243}
+                            quality={100} /* Максимальное качество */
+                            unoptimized={true} /* Отключаем сжатие Next.js для четкости */
                             className="object-contain drop-shadow-2xl"
-                            // Scale down немного через CSS, чтобы влезало в 144px высоты, но сохраняло пропорции
-                            style={{ height: '140px', width: 'auto' }}
-                            priority
+                            style={{ width: '100%', height: 'auto' }}
                         />
                     </div>
                 </div>
@@ -95,20 +90,17 @@ export default function LeaderboardHub() {
 
 
           {/* ========================================== */}
-          {/* КАРТОЧКА 2: ДЕЙЛИ ЧЕЛЛЕНДЖ (BLUE/TEAL ГРАДИЕНТ) */}
+          {/* КАРТОЧКА 2: ДЕЙЛИ ЧЕЛЛЕНДЖ (СИНИЙ) */}
           {/* ========================================== */}
           <motion.div 
             whileTap={{ scale: 0.98 }}
             onClick={() => handleNav('/leaderboard/daily')}
             className="relative w-full cursor-pointer group"
           >
-            {/* Обводка */}
             <div className="rounded-[24px] p-[1px] bg-gradient-to-b from-[#212121] to-[#161616]">
-                
-                {/* Фон */}
                 <div className="relative h-[144px] w-full rounded-[23px] bg-[#1B1A1E] overflow-hidden flex items-center">
                     
-                    {/* 1. ГРАДИЕНТ (Teal #09576C) */}
+                    {/* Градиент */}
                     <div 
                         className="absolute bottom-0 right-0 w-[80%] h-[120%] pointer-events-none"
                         style={{
@@ -117,14 +109,12 @@ export default function LeaderboardHub() {
                         }}
                     />
 
-                    {/* 2. Шум */}
+                    {/* Шум + Блик */}
                     <div className="absolute inset-0 bg-noise pointer-events-none opacity-40" />
-
-                    {/* 3. Shine Animation (с задержкой) */}
                     <div className="animate-shine" style={{ animationDelay: '1.5s' }} />
 
-                    {/* 4. Контент (Текст) */}
-                    <div className="relative z-10 pl-6 flex flex-col justify-center h-full w-[55%]">
+                    {/* Текст */}
+                    <div className="relative z-10 pl-6 flex flex-col justify-center h-full w-[50%]">
                         <h2 className="text-[22px] font-bold text-white leading-tight mb-2 whitespace-nowrap">
                             Дейли Челлендж
                         </h2>
@@ -133,30 +123,34 @@ export default function LeaderboardHub() {
                         </p>
                     </div>
 
-                    {/* 5. Картинки (Ракетки) */}
-                    <div className="absolute right-0 bottom-0 h-full w-[160px] z-20">
+                    {/* --- КАРТИНКИ РАКЕТОК (УВЕЛИЧЕНЫ x1.5) --- */}
+                    <div className="absolute right-[-10px] bottom-[-20px] w-[220px] sm:w-[260px] h-[200px] z-20 pointer-events-none">
                         
-                        {/* Ракетка 2 (Задняя) 242x144 */}
-                        <div className="absolute right-[10px] bottom-[-20px] animate-float-delayed z-20">
+                        {/* Ракетка 2 (Задняя) - Размытая */}
+                        <div className="absolute right-[20px] bottom-[20px] w-[80%] animate-float-delayed z-20">
                             <Image 
                                 src="/images/racket2.png" 
                                 alt="Racket Back" 
-                                width={242} 
-                                height={144}
+                                width={363}
+                                height={216}
+                                quality={100}
+                                unoptimized={true}
                                 className="object-contain opacity-60 blur-[1px]"
-                                style={{ height: '110px', width: 'auto', transform: 'rotate(-10deg)' }}
+                                style={{ width: '100%', height: 'auto', transform: 'rotate(-10deg)' }}
                             />
                         </div>
                         
-                        {/* Ракетка 1 (Передняя) 268x188 */}
-                        <div className="absolute right-[-30px] bottom-[-30px] animate-float z-30">
+                        {/* Ракетка 1 (Передняя) - Четкая */}
+                        <div className="absolute right-[0px] bottom-[0px] w-[90%] animate-float z-30">
                             <Image 
                                 src="/images/racket1.png" 
                                 alt="Racket Front" 
-                                width={268} 
-                                height={188}
+                                width={402}
+                                height={282}
+                                quality={100}
+                                unoptimized={true}
                                 className="object-contain drop-shadow-2xl"
-                                style={{ height: '150px', width: 'auto' }}
+                                style={{ width: '100%', height: 'auto' }}
                             />
                         </div>
                     </div>
