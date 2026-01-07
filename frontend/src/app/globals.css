@@ -56,20 +56,24 @@ body {
   animation-delay: 1s;
 }
 
-/* 3. Анимация блика (Shine) */
+/* --- ОПТИМИЗИРОВАННАЯ АНИМАЦИЯ БЛИКА (SHINE) --- */
 @keyframes shine-slide {
-  0% { left: -100%; opacity: 0; }
-  50% { opacity: 0.1; }
-  100% { left: 200%; opacity: 0; }
+  0% { transform: translateX(-150%) skewX(-20deg); opacity: 0; }
+  50% { opacity: 0.15; } /* Чуть ярче, чтобы было видно */
+  100% { transform: translateX(350%) skewX(-20deg); opacity: 0; }
 }
 
 .animate-shine {
   position: absolute;
   top: 0;
-  width: 50%;
+  left: 0;
+  width: 100%; /* На всю ширину, двигаем через transform */
   height: 100%;
-  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.4), transparent);
-  transform: skewX(-20deg);
-  animation: shine-slide 4s infinite linear;
+  background: linear-gradient(to right, transparent 0%, rgba(255, 255, 255, 0.6) 50%, transparent 100%);
+  /* Аппаратное ускорение */
+  will-change: transform;
+  transform: translate3d(0, 0, 0); 
+  animation: shine-slide 3s infinite linear; /* Ускорил до 3с для динамики */
   pointer-events: none;
+  z-index: 5;
 }
