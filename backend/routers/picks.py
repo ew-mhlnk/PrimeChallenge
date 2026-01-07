@@ -13,13 +13,13 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 @router.get("/user-picks", response_model=List[UserPick])
-async def get_user_picks(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+def get_user_picks(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     user_id = user["id"]
     picks = db.query(models.UserPick).filter(models.UserPick.user_id == user_id).all()
     return picks
 
 @router.post("/bulk", response_model=List[UserPick])
-async def create_picks_bulk(
+def create_picks_bulk( # <--- УБРАЛИ async
     picks: List[UserPickCreate],
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user)

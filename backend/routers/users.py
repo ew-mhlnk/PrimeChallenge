@@ -40,7 +40,7 @@ class ProfileStatsResponse(BaseModel):
 # --- Логика ---
 
 @router.get("/profile/stats", response_model=ProfileStatsResponse)
-async def get_profile_stats(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+def get_profile_stats(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     user_id = user["id"]
     
     # 1. Имя юзера

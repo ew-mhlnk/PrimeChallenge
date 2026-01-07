@@ -38,8 +38,8 @@ class DailyLeaderboardEntry(BaseModel):
 
 # --- Endpoints ---
 
-@router.get("/matches", response_model=List[DailyMatchResponse])
-async def get_daily_matches(
+router.get("/matches", response_model=List[DailyMatchResponse])
+def get_daily_matches( # <--- УБРАЛИ async
     target_date: Optional[date] = Query(None), 
     db: Session = Depends(get_db), 
     user: dict = Depends(get_current_user)
@@ -81,7 +81,7 @@ async def get_daily_matches(
     return result
 
 @router.post("/pick")
-async def make_daily_pick(
+def make_daily_pick( # <--- УБРАЛИ async
     pick_data: DailyPickRequest,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user)
@@ -129,7 +129,7 @@ async def make_daily_pick(
     return {"status": "ok", "message": "Pick saved"}
 
 @router.get("/leaderboard", response_model=List[DailyLeaderboardEntry])
-async def get_daily_leaderboard(db: Session = Depends(get_db)):
+def get_daily_leaderboard(db: Session = Depends(get_db)):
     results = db.query(models.DailyLeaderboard).join(models.User)\
         .order_by(desc(models.DailyLeaderboard.total_points), desc(models.DailyLeaderboard.correct_picks))\
         .limit(100)\

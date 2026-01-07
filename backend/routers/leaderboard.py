@@ -10,7 +10,7 @@ router = APIRouter()
 
 # --- 1. ГЛОБАЛЬНЫЙ ЛИДЕРБОРД ---
 @router.get("/", response_model=List[dict])
-async def get_global_leaderboard(db: Session = Depends(get_db)):
+def get_global_leaderboard(db: Session = Depends(get_db)):
     """
     Глобальный рейтинг пользователей по сумме очков за все турниры.
     """
@@ -46,7 +46,7 @@ async def get_global_leaderboard(db: Session = Depends(get_db)):
 
 # --- 2. СПИСОК ТУРНИРОВ С РАНГОМ ЮЗЕРА (НОВОЕ) ---
 @router.get("/list", response_model=List[dict])
-async def get_tournaments_with_ranks(
+def get_tournaments_with_ranks( # <--- УБРАЛИ async
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user)
 ):
@@ -92,7 +92,7 @@ async def get_tournaments_with_ranks(
 
 # --- 3. ЛИДЕРБОРД КОНКРЕТНОГО ТУРНИРА ---
 @router.get("/tournament/{tournament_id}", response_model=List[dict])
-async def get_tournament_leaderboard(tournament_id: int, db: Session = Depends(get_db)):
+def get_tournament_leaderboard(tournament_id: int, db: Session = Depends(get_db)):
     """
     Детальный рейтинг турнира.
     Считает статистику (Неверно, %) "на лету", не требуя миграций БД.

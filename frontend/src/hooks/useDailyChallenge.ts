@@ -22,12 +22,13 @@ export function useDailyChallenge() {
   const [dayStatus, setDayStatus] = useState<'PLANNED' | 'ACTIVE' | 'COMPLETED'>('PLANNED');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-  // Используем ref, чтобы понимать, первый это запуск или нет
   const isFirstLoad = useRef(true);
+  
+  // --- НОВОЕ: Хранилище таймеров для каждого матча ---
+  // Ключ - ID матча, Значение - Таймер
+  const debounceRefs = useRef<Record<string, NodeJS.Timeout>>({});
 
   const fetchMatches = useCallback(async () => {
-      // Показываем спиннер ТОЛЬКО если это первая загрузка или смена даты
-      // Если это фоновое обновление (раз в 30 сек), спиннер не нужен
       if (isFirstLoad.current) {
           setIsLoading(true);
       }
@@ -59,62 +60,68 @@ export function useDailyChallenge() {
 
       } catch (e) {
           console.error(e);
-          // Не спамим ошибками в тостах при фоновом обновлении
           if (isFirstLoad.current) {
               toast.error('Ошибка загрузки матчей');
           }
       } finally {
           setIsLoading(false);
-          isFirstLoad.current = false; // Первая загрузка прошла
+          isFirstLoad.current = false;
       }
   }, [selectedDate]);
 
-  // ЭФФЕКТ: Загрузка + Автообновление
   useEffect(() => {
-      // 1. Загружаем сразу
-      isFirstLoad.current = true; // Сбрасываем флаг при смене даты
+      isFirstLoad.current = true;
       fetchMatches();
-
-      // 2. Ставим таймер на обновление каждые 30 секунд
       const intervalId = setInterval(() => {
           fetchMatches();
-      }, 30000); // 30000 мс = 30 секунд
-
-      // 3. Очищаем таймер, если ушли со страницы
+      }, 30000);
       return () => clearInterval(intervalId);
   }, [fetchMatches]);
 
-  const makePick = async (matchId: string, winner: 1 | 2) => {
+  // --- ОБНОВЛЕННАЯ ФУНКЦИЯ MAKE PICK ---
+  const makePick = useCallback(async (matchId: string, winner: 1 | 2) => {
       impact('medium');
       
-      const previousMatches = [...matches];
+      // 1. Оптимистичное обновление (Сразу меняем цвет кнопки)
       setMatches(prev => prev.map(m => 
           m.id === matchId ? { ...m, my_pick: winner } : m
       ));
 
-      try {
-          const initData = await waitForTelegram();
-          const res = await fetch('/api/daily/pick', {
-              method: 'POST',
-              headers: { 
-                  'Content-Type': 'application/json',
-                  Authorization: initData || '' 
-              },
-              body: JSON.stringify({ match_id: matchId, winner })
-          });
-          
-          if (!res.ok) {
-              const err = await res.json();
-              throw new Error(err.detail || 'Too late');
-          }
-          notification('success');
-      } catch (e: any) {
-          notification('error');
-          toast.error(e.message === 'Too late' ? 'Прием ставок закрыт' : 'Ошибка сохранения');
-          setMatches(previousMatches);
-          fetchMatches(); 
+      // 2. Сбрасываем предыдущий таймер для ЭТОГО матча, если он был
+      if (debounceRefs.current[matchId]) {
+          clearTimeout(debounceRefs.current[matchId]);
       }
-  };
+
+      // 3. Запускаем новый таймер (Debounce 500ms)
+      debounceRefs.current[matchId] = setTimeout(async () => {
+          try {
+              const initData = await waitForTelegram();
+              const res = await fetch('/api/daily/pick', {
+                  method: 'POST',
+                  headers: { 
+                      'Content-Type': 'application/json',
+                      Authorization: initData || '' 
+                  },
+                  body: JSON.stringify({ match_id: matchId, winner })
+              });
+              
+              if (!res.ok) {
+                  const err = await res.json();
+                  throw new Error(err.detail || 'Too late');
+              }
+              // Успех (можно добавить тихую вибрацию, но не обязательно)
+          } catch (e: any) {
+              notification('error');
+              toast.error(e.message === 'Too late' ? 'Прием ставок закрыт' : 'Ошибка сохранения');
+              
+              // Если ошибка - откатываем UI назад, перезагружая данные
+              fetchMatches(); 
+          } finally {
+              // Удаляем таймер из списка
+              delete debounceRefs.current[matchId];
+          }
+      }, 500); // <-- Задержка 500мс
+  }, [fetchMatches, impact, notification]);
 
   return { 
       matches, 

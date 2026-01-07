@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/tournaments", response_model=List[dict])
-async def get_tournaments(db: Session = Depends(get_db)):
+def get_tournaments(db: Session = Depends(get_db)):
     logger.info("Fetching all tournaments")
     tournaments = db.query(models.Tournament).all()
     
@@ -41,7 +41,7 @@ async def get_tournaments(db: Session = Depends(get_db)):
 
 
 @router.get("/tournament/{id}", response_model=dict)
-async def get_tournament_by_id(
+def get_tournament_by_id( # <--- УБРАЛИ async
     id: int,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user)
