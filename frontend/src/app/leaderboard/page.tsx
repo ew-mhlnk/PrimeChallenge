@@ -21,10 +21,7 @@ export default function LeaderboardHub() {
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col pb-32">
       
-      {/* 
-         HEADER
-         Убрал border-b и border-white/5, чтобы не было полоски.
-      */}
+      {/* HEADER */}
       <header className="sticky top-0 z-30 bg-[#141414]/95 backdrop-blur-md pt-6 pb-4 px-6">
             <div className="relative flex items-center justify-center min-h-[40px]">
                 <button 
@@ -61,24 +58,27 @@ export default function LeaderboardHub() {
                 />
                 <div className="absolute inset-0 bg-noise pointer-events-none opacity-30" />
 
-                {/* Текст (z-30 чтобы был поверх картинок при сужении экрана) */}
+                {/* Текст */}
                 <div className="relative z-30 pl-8 flex flex-col justify-center h-full w-[50%]">
                     <span className="text-[20px] font-medium text-white uppercase tracking-wide leading-tight drop-shadow-md">
                         По турнирам
                     </span>
                 </div>
 
-                {/* КАРТИНКА (КУБОК - 3.png) */}
-                {/* 30px слева от правой стенки = right-[30px] */}
-                <div className="absolute bottom-0 right-[30px] h-[140px] w-[140px] sm:w-[160px] sm:h-[160px] z-20 flex items-end justify-center pointer-events-none">
+                {/* 
+                   КУБОК (3.png)
+                   Мы увеличили сам контейнер (w-48 h-48 вместо w-32), 
+                   чтобы не использовать scale и не терять качество.
+                */}
+                <div className="absolute bottom-[-10px] right-[10px] w-[180px] h-[180px] sm:w-[220px] sm:h-[220px] z-20 flex items-end justify-center pointer-events-none">
                     <div className="relative w-full h-full">
                         <Image 
                             src="/images/3.png" 
                             alt="Trophy" 
                             fill
-                            className="object-contain object-bottom scale-125" // Scale для визуального увеличения
+                            className="object-contain object-bottom" // УБРАН SCALE
                             quality={100}
-                            unoptimized={true}
+                            unoptimized={true} // Важно для четкости PNG
                             priority
                         />
                     </div>
@@ -115,33 +115,35 @@ export default function LeaderboardHub() {
                 </div>
 
                 {/* 
-                   РАКЕТКИ 
-                   Размеры контейнеров подобраны так, чтобы картинки были крупными (h-full),
-                   но при этом позиционировались от нижней границы (items-end).
+                   РАКЕТКА 2 (Задняя - 2.png) 
+                   right-[111px] сохранено. 
+                   Размер контейнера увеличен, чтобы картинка была большой без зума.
                 */}
-
-                {/* Ракетка 2 (Задняя - 2.png) - 111px от правого края */}
-                <div className="absolute bottom-[-10px] right-[111px] h-[140px] w-[100px] sm:h-[160px] sm:w-[120px] z-10 pointer-events-none flex items-end">
-                    <div className="relative w-full h-full opacity-60 blur-[0.5px]"> {/* Добавил легкий блюр для глубины */}
+                <div className="absolute bottom-[-20px] right-[111px] w-[140px] h-[160px] sm:w-[160px] sm:h-[180px] z-10 pointer-events-none">
+                    <div className="relative w-full h-full opacity-60 blur-[0.5px]">
                         <Image 
                             src="/images/2.png" 
                             alt="Racket 2" 
                             fill
-                            className="object-contain object-bottom scale-110" 
+                            className="object-contain object-bottom" // УБРАН SCALE
                             quality={100}
                             unoptimized={true}
                         />
                     </div>
                 </div>
 
-                {/* Ракетка 1 (Передняя - 1.png) - 30px от правого края */}
-                <div className="absolute bottom-[-10px] right-[30px] h-[150px] w-[110px] sm:h-[170px] sm:w-[130px] z-20 pointer-events-none flex items-end">
+                {/* 
+                   РАКЕТКА 1 (Передняя - 1.png)
+                   right-[30px] сохранено.
+                   Размер контейнера больше, чем у задней.
+                */}
+                <div className="absolute bottom-[-20px] right-[20px] w-[160px] h-[180px] sm:w-[190px] sm:h-[210px] z-20 pointer-events-none">
                     <div className="relative w-full h-full">
                         <Image 
                             src="/images/1.png" 
                             alt="Racket 1" 
                             fill
-                            className="object-contain object-bottom scale-125" 
+                            className="object-contain object-bottom" // УБРАН SCALE
                             quality={100}
                             unoptimized={true}
                         /> 
