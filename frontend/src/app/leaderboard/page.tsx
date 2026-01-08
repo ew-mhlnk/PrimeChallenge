@@ -22,19 +22,21 @@ export default function LeaderboardHub() {
     <div className="min-h-screen bg-[#141414] text-white flex flex-col pb-32">
       
       {/* 
-         HEADER - Идентичен Daily Challenge 
-         pt-6, pb-2, px-6 - те же отступы.
-         text-[20px] font-bold - тот же шрифт.
+         HEADER - Идентичен DailyPage
+         Структура: relative контейнер, кнопка absolute left-0, заголовок по центру.
       */}
-      <header className="sticky top-0 z-30 bg-[#141414]/95 backdrop-blur-md pt-6 pb-2 px-6 border-b border-white/5">
-            <div className="relative flex items-center justify-center mb-0">
+      <header className="sticky top-0 z-30 bg-[#141414]/95 backdrop-blur-md pt-6 pb-4 px-6 border-b border-white/5">
+            <div className="relative flex items-center justify-center min-h-[40px]">
+                {/* Кнопка Назад (Абсолютно слева) */}
                 <button 
                     onClick={() => { impact('light'); router.back(); }} 
                     className="absolute left-0 w-10 h-10 flex items-center justify-center rounded-full bg-[#1C1C1E] border border-white/5 active:scale-90 transition-transform"
                 >
                     <BackIcon />
                 </button>
-                <h1 className="text-[20px] font-bold text-white tracking-tight">
+                
+                {/* Заголовок (Строго по центру) */}
+                <h1 className="text-[20px] font-bold text-white tracking-tight leading-none">
                     Лидерборды
                 </h1>
             </div>
@@ -50,10 +52,9 @@ export default function LeaderboardHub() {
             onClick={() => handleNav('/leaderboard/tournaments')}
             className="relative w-full cursor-pointer"
           >
-            {/* Карточка */}
             <div className="relative h-[160px] w-full rounded-[24px] bg-[#161616] border border-white/5 overflow-hidden flex items-center shadow-lg">
                 
-                {/* Градиент (Золотой) */}
+                {/* Градиент */}
                 <div 
                     className="absolute right-[-20%] bottom-[-30%] w-[80%] h-[150%] pointer-events-none"
                     style={{
@@ -62,25 +63,23 @@ export default function LeaderboardHub() {
                     }}
                 />
 
-                {/* Шум */}
                 <div className="absolute inset-0 bg-noise pointer-events-none opacity-30" />
 
                 {/* Текст */}
-                <div className="relative z-10 pl-8 flex flex-col justify-center h-full w-[55%]">
-                    <span className="text-[20px] font-medium text-white uppercase tracking-wide leading-tight">
+                <div className="relative z-10 pl-8 flex flex-col justify-center h-full w-[50%]">
+                    <span className="text-[20px] font-medium text-white uppercase tracking-wide leading-tight relative z-20">
                         По турнирам
                     </span>
                 </div>
 
-                {/* КАРТИНКА (КУБОК) */}
-                {/* Трюк: h-[140%] делает контейнер выше карточки, scale-110 увеличивает саму картинку */}
-                <div className="absolute right-[-10px] bottom-[-20px] h-[140%] w-[50%] z-20 flex items-end justify-end pointer-events-none">
+                {/* КАРТИНКА (КУБОК) - Масштаб x1.45 */}
+                <div className="absolute right-[-20px] bottom-[-40px] h-[180%] w-[60%] z-10 flex items-end justify-end pointer-events-none">
                     <div className="relative w-full h-full">
                         <Image 
                             src="/images/trophie_lb.png" 
                             alt="Trophy" 
                             fill
-                            className="object-contain object-bottom scale-110"
+                            className="object-contain object-bottom scale-[1.45]"
                             quality={100}
                             priority
                         />
@@ -98,10 +97,9 @@ export default function LeaderboardHub() {
             onClick={() => handleNav('/leaderboard/daily')}
             className="relative w-full cursor-pointer"
           >
-            {/* Карточка */}
             <div className="relative h-[160px] w-full rounded-[24px] bg-[#161616] border border-white/5 overflow-hidden flex items-center shadow-lg">
                 
-                {/* Градиент (Тиловый) */}
+                {/* Градиент */}
                 <div 
                     className="absolute right-[-20%] bottom-[-30%] w-[80%] h-[150%] pointer-events-none"
                     style={{
@@ -110,40 +108,24 @@ export default function LeaderboardHub() {
                     }}
                 />
 
-                {/* Шум */}
                 <div className="absolute inset-0 bg-noise pointer-events-none opacity-30" />
 
                 {/* Текст */}
-                <div className="relative z-10 pl-8 flex flex-col justify-center h-full w-[55%]">
-                    <span className="text-[20px] font-medium text-white uppercase tracking-wide leading-tight">
+                <div className="relative z-10 pl-8 flex flex-col justify-center h-full w-[50%]">
+                    <span className="text-[20px] font-medium text-white uppercase tracking-wide leading-tight relative z-20">
                         Дейли<br />челлендж
                     </span>
                 </div>
 
-                {/* КАРТИНКА (РАКЕТКИ) */}
-                {/* Делаем их огромными, наезжающими на край */}
-                <div className="absolute right-[-20px] bottom-[-20px] h-[130%] w-[55%] z-20 pointer-events-none">
-                    
-                    {/* Вариант 1: Если у вас две ракетки в одном файле racket1.png */}
+                {/* КАРТИНКА (РАКЕТКИ) - Масштаб x1.7 */}
+                <div className="absolute right-[-30px] bottom-[-30px] h-[160%] w-[65%] z-10 pointer-events-none">
                     <Image 
                         src="/images/racket1.png" 
                         alt="Rackets" 
                         fill
-                        className="object-contain object-bottom-right scale-125" 
+                        className="object-contain object-bottom-right scale-[1.7]" 
                         quality={100}
                     /> 
-
-                    {/* Вариант 2: Если нужно собрать из двух (раскомментируйте, если надо) */}
-                    {/*
-                    <div className="relative w-full h-full scale-125 origin-bottom-right">
-                        <div className="absolute right-[20px] bottom-[10px] w-[80%] h-[80%] opacity-50 blur-[1px]">
-                             <Image src="/images/racket2.png" alt="Back" fill className="object-contain" />
-                        </div>
-                        <div className="absolute right-0 bottom-0 w-[90%] h-[90%]">
-                             <Image src="/images/racket1.png" alt="Front" fill className="object-contain" />
-                        </div>
-                    </div>
-                    */}
                 </div>
 
             </div>
