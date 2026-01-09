@@ -21,8 +21,8 @@ export default function LeaderboardHub() {
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col pb-32">
       
-      {/* HEADER */}
-      <header className="sticky top-0 z-30 bg-[#141414]/95 backdrop-blur-md pt-6 pb-4 px-6">
+      {/* HEADER (Идентичен Daily Challenge) */}
+      <header className="sticky top-0 z-30 bg-[#141414]/95 backdrop-blur-md pt-6 pb-4 px-6 border-b border-white/5">
             <div className="relative flex items-center justify-center min-h-[40px]">
                 <button 
                     onClick={() => { impact('light'); router.back(); }} 
@@ -36,7 +36,7 @@ export default function LeaderboardHub() {
             </div>
       </header>
 
-      <main className="px-4 mt-6 flex flex-col gap-4">
+      <main className="px-4 mt-6 flex flex-col gap-5">
           
           {/* ========================================== */}
           {/* КАРТОЧКА 1: ПО ТУРНИРАМ (КУБОК) */}
@@ -44,41 +44,48 @@ export default function LeaderboardHub() {
           <motion.div 
             whileTap={{ scale: 0.98 }}
             onClick={() => handleNav('/leaderboard/tournaments')}
-            className="relative w-full cursor-pointer"
+            className="relative w-full cursor-pointer group"
           >
-            <div className="relative h-[160px] w-full rounded-[24px] bg-[#161616] border border-white/5 overflow-hidden flex items-center shadow-lg">
+            <div className="relative h-[160px] w-full rounded-[24px] bg-[#161616] border border-white/5 overflow-hidden flex items-center shadow-2xl">
                 
-                {/* Градиент */}
+                {/* --- ФОН И ЭФФЕКТЫ --- */}
+                {/* Золотой градиент справа-снизу */}
                 <div 
-                    className="absolute right-[-20%] bottom-[-30%] w-[80%] h-[150%] pointer-events-none"
+                    className="absolute right-[-10%] bottom-[-40%] w-[90%] h-[160%] pointer-events-none"
                     style={{
-                        background: 'radial-gradient(50% 50% at 50% 50%, rgba(184, 134, 11, 0.5) 0%, rgba(26, 25, 28, 0) 100%)',
-                        filter: 'blur(30px)',
+                        background: 'radial-gradient(50% 50% at 50% 50%, rgba(184, 134, 11, 0.45) 0%, rgba(26, 25, 28, 0) 100%)',
+                        filter: 'blur(35px)',
                     }}
                 />
-                <div className="absolute inset-0 bg-noise pointer-events-none opacity-30" />
+                <div className="absolute inset-0 bg-noise pointer-events-none opacity-20" />
+                <div className="animate-shine" />
 
-                {/* Текст */}
-                <div className="relative z-30 pl-8 flex flex-col justify-center h-full w-[50%]">
+                {/* --- ТЕКСТ (СЛЕВА) --- */}
+                <div className="relative z-30 pl-8 flex flex-col justify-center h-full w-[55%]">
                     <span className="text-[20px] font-medium text-white uppercase tracking-wide leading-tight drop-shadow-md">
                         По турнирам
                     </span>
+                    <span className="text-[12px] text-[#8E8E93] font-medium mt-1 leading-snug pr-2">
+                        Рейтинги всех прошедших и активных турниров
+                    </span>
                 </div>
 
+                {/* --- КАРТИНКА (КУБОК) --- */}
                 {/* 
-                   КУБОК (3.png)
-                   Мы увеличили сам контейнер (w-48 h-48 вместо w-32), 
-                   чтобы не использовать scale и не терять качество.
+                    w-[45%] - занимает 45% ширины справа.
+                    h-[90%] - занимает 90% высоты (чтобы были отступы).
+                    object-contain - сохраняет пропорции.
+                    object-right-bottom - прижимается в угол.
                 */}
-                <div className="absolute bottom-[-10px] right-[10px] w-[180px] h-[180px] sm:w-[220px] sm:h-[220px] z-20 flex items-end justify-center pointer-events-none">
-                    <div className="relative w-full h-full">
+                <div className="absolute right-0 bottom-0 w-[45%] h-[100%] z-20 flex items-end justify-end pointer-events-none pr-4 pb-2">
+                    <div className="relative w-full h-[95%] animate-float"> 
                         <Image 
-                            src="/images/3.png" 
+                            src="/images/кубок.png"  // Используем русское имя, если вы так сохранили, но лучше trophy.png
                             alt="Trophy" 
                             fill
-                            className="object-contain object-bottom" // УБРАН SCALE
+                            className="object-contain object-right-bottom"
                             quality={100}
-                            unoptimized={true} // Важно для четкости PNG
+                            unoptimized={true}
                             priority
                         />
                     </div>
@@ -88,62 +95,46 @@ export default function LeaderboardHub() {
 
 
           {/* ========================================== */}
-          {/* КАРТОЧКА 2: ДЕЙЛИ ЧЕЛЛЕНДЖ (РАКЕТКИ) */}
+          {/* КАРТОЧКА 2: ДЕЙЛИ ЧЕЛЛЕНДЖ (РАКЕТКА) */}
           {/* ========================================== */}
           <motion.div 
             whileTap={{ scale: 0.98 }}
             onClick={() => handleNav('/leaderboard/daily')}
-            className="relative w-full cursor-pointer"
+            className="relative w-full cursor-pointer group"
           >
-            <div className="relative h-[160px] w-full rounded-[24px] bg-[#161616] border border-white/5 overflow-hidden flex items-center shadow-lg">
+            <div className="relative h-[160px] w-full rounded-[24px] bg-[#161616] border border-white/5 overflow-hidden flex items-center shadow-2xl">
                 
-                {/* Градиент */}
+                {/* --- ФОН И ЭФФЕКТЫ --- */}
+                {/* Синий/Тиловый градиент */}
                 <div 
-                    className="absolute right-[-20%] bottom-[-30%] w-[80%] h-[150%] pointer-events-none"
+                    className="absolute right-[-10%] bottom-[-40%] w-[90%] h-[160%] pointer-events-none"
                     style={{
-                        background: 'radial-gradient(50% 50% at 50% 50%, rgba(9, 87, 108, 0.6) 0%, rgba(26, 25, 28, 0) 100%)',
-                        filter: 'blur(30px)',
+                        background: 'radial-gradient(50% 50% at 50% 50%, rgba(9, 87, 108, 0.5) 0%, rgba(26, 25, 28, 0) 100%)',
+                        filter: 'blur(35px)',
                     }}
                 />
-                <div className="absolute inset-0 bg-noise pointer-events-none opacity-30" />
+                <div className="absolute inset-0 bg-noise pointer-events-none opacity-20" />
+                <div className="animate-shine" style={{ animationDelay: '1.5s' }} />
 
-                {/* Текст */}
-                <div className="relative z-30 pl-8 flex flex-col justify-center h-full w-[50%]">
+                {/* --- ТЕКСТ (СЛЕВА) --- */}
+                <div className="relative z-30 pl-8 flex flex-col justify-center h-full w-[55%]">
                     <span className="text-[20px] font-medium text-white uppercase tracking-wide leading-tight drop-shadow-md">
                         Дейли<br />челлендж
                     </span>
+                    <span className="text-[12px] text-[#8E8E93] font-medium mt-1 leading-snug">
+                        Ежедневный рейтинг прогнозистов
+                    </span>
                 </div>
 
-                {/* 
-                   РАКЕТКА 2 (Задняя - 2.png) 
-                   right-[111px] сохранено. 
-                   Размер контейнера увеличен, чтобы картинка была большой без зума.
-                */}
-                <div className="absolute bottom-[-20px] right-[111px] w-[140px] h-[160px] sm:w-[160px] sm:h-[180px] z-10 pointer-events-none">
-                    <div className="relative w-full h-full opacity-60 blur-[0.5px]">
+                {/* --- КАРТИНКА (РАКЕТКА) --- */}
+                <div className="absolute right-0 bottom-0 w-[50%] h-[100%] z-20 flex items-end justify-end pointer-events-none pr-0 pb-0">
+                    {/* h-[110%] позволяет ракетке быть визуально чуть больше карточки, но overflow обрежет лишнее */}
+                    <div className="relative w-full h-[110%] animate-float-delayed translate-y-2"> 
                         <Image 
-                            src="/images/2.png" 
-                            alt="Racket 2" 
+                            src="/images/ракетка.png" // Используем русское имя, лучше racket.png
+                            alt="Racket" 
                             fill
-                            className="object-contain object-bottom" // УБРАН SCALE
-                            quality={100}
-                            unoptimized={true}
-                        />
-                    </div>
-                </div>
-
-                {/* 
-                   РАКЕТКА 1 (Передняя - 1.png)
-                   right-[30px] сохранено.
-                   Размер контейнера больше, чем у задней.
-                */}
-                <div className="absolute bottom-[-20px] right-[20px] w-[160px] h-[180px] sm:w-[190px] sm:h-[210px] z-20 pointer-events-none">
-                    <div className="relative w-full h-full">
-                        <Image 
-                            src="/images/1.png" 
-                            alt="Racket 1" 
-                            fill
-                            className="object-contain object-bottom" // УБРАН SCALE
+                            className="object-contain object-right-bottom"
                             quality={100}
                             unoptimized={true}
                         /> 
