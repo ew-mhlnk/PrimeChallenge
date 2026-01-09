@@ -21,7 +21,7 @@ export default function LeaderboardHub() {
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col pb-32">
       
-      {/* HEADER (Идентичен Daily Challenge) */}
+      {/* HEADER */}
       <header className="sticky top-0 z-30 bg-[#141414]/95 backdrop-blur-md pt-6 pb-4 px-6 border-b border-white/5">
             <div className="relative flex items-center justify-center min-h-[40px]">
                 <button 
@@ -48,8 +48,7 @@ export default function LeaderboardHub() {
           >
             <div className="relative h-[160px] w-full rounded-[24px] bg-[#161616] border border-white/5 overflow-hidden flex items-center shadow-2xl">
                 
-                {/* --- ФОН И ЭФФЕКТЫ --- */}
-                {/* Золотой градиент справа-снизу */}
+                {/* Фон и Градиент */}
                 <div 
                     className="absolute right-[-10%] bottom-[-40%] w-[90%] h-[160%] pointer-events-none"
                     style={{
@@ -60,7 +59,7 @@ export default function LeaderboardHub() {
                 <div className="absolute inset-0 bg-noise pointer-events-none opacity-20" />
                 <div className="animate-shine" />
 
-                {/* --- ТЕКСТ (СЛЕВА) --- */}
+                {/* Текст */}
                 <div className="relative z-30 pl-8 flex flex-col justify-center h-full w-[55%]">
                     <span className="text-[20px] font-medium text-white uppercase tracking-wide leading-tight drop-shadow-md">
                         По турнирам
@@ -70,20 +69,19 @@ export default function LeaderboardHub() {
                     </span>
                 </div>
 
-                {/* --- КАРТИНКА (КУБОК) --- */}
                 {/* 
-                    w-[45%] - занимает 45% ширины справа.
-                    h-[90%] - занимает 90% высоты (чтобы были отступы).
-                    object-contain - сохраняет пропорции.
-                    object-right-bottom - прижимается в угол.
+                   КАРТИНКА (КУБОК) 
+                   right-[40px] - отступ 40 пикселей от правого края.
+                   w-[40%] - ширина контейнера картинки (чтобы сохранить пропорции).
+                   h-[85%] - высота (чуть меньше 100%, чтобы был воздух снизу/сверху).
                 */}
-                <div className="absolute right-0 bottom-0 w-[45%] h-[100%] z-20 flex items-end justify-end pointer-events-none pr-4 pb-2">
-                    <div className="relative w-full h-[95%] animate-float"> 
+                <div className="absolute right-[40px] bottom-0 w-[40%] h-[90%] z-20 flex items-end justify-center pointer-events-none pb-3">
+                    <div className="relative w-full h-full"> 
                         <Image 
-                            src="/images/кубок.png"  // Используем русское имя, если вы так сохранили, но лучше trophy.png
+                            src="/images/кубок.png" 
                             alt="Trophy" 
                             fill
-                            className="object-contain object-right-bottom"
+                            className="object-contain object-bottom" // Прижат к низу контейнера
                             quality={100}
                             unoptimized={true}
                             priority
@@ -104,8 +102,7 @@ export default function LeaderboardHub() {
           >
             <div className="relative h-[160px] w-full rounded-[24px] bg-[#161616] border border-white/5 overflow-hidden flex items-center shadow-2xl">
                 
-                {/* --- ФОН И ЭФФЕКТЫ --- */}
-                {/* Синий/Тиловый градиент */}
+                {/* Фон и Градиент */}
                 <div 
                     className="absolute right-[-10%] bottom-[-40%] w-[90%] h-[160%] pointer-events-none"
                     style={{
@@ -116,7 +113,7 @@ export default function LeaderboardHub() {
                 <div className="absolute inset-0 bg-noise pointer-events-none opacity-20" />
                 <div className="animate-shine" style={{ animationDelay: '1.5s' }} />
 
-                {/* --- ТЕКСТ (СЛЕВА) --- */}
+                {/* Текст */}
                 <div className="relative z-30 pl-8 flex flex-col justify-center h-full w-[55%]">
                     <span className="text-[20px] font-medium text-white uppercase tracking-wide leading-tight drop-shadow-md">
                         Дейли<br />челлендж
@@ -126,15 +123,18 @@ export default function LeaderboardHub() {
                     </span>
                 </div>
 
-                {/* --- КАРТИНКА (РАКЕТКА) --- */}
-                <div className="absolute right-0 bottom-0 w-[50%] h-[100%] z-20 flex items-end justify-end pointer-events-none pr-0 pb-0">
-                    {/* h-[110%] позволяет ракетке быть визуально чуть больше карточки, но overflow обрежет лишнее */}
-                    <div className="relative w-full h-[110%] animate-float-delayed translate-y-2"> 
+                {/* 
+                   КАРТИНКА (РАКЕТКА) 
+                   right-[40px] - отступ.
+                   h-[105%] - чуть больше высоты карточки, чтобы она выглядела крупнее.
+                */}
+                <div className="absolute right-[40px] bottom-0 w-[45%] h-[105%] z-20 flex items-end justify-center pointer-events-none pb-0">
+                    <div className="relative w-full h-full translate-y-3"> 
                         <Image 
-                            src="/images/ракетка.png" // Используем русское имя, лучше racket.png
+                            src="/images/ракетка.png" 
                             alt="Racket" 
                             fill
-                            className="object-contain object-right-bottom"
+                            className="object-contain object-bottom"
                             quality={100}
                             unoptimized={true}
                         /> 
