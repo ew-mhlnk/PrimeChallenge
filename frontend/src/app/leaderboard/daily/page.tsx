@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
+import useSWR from 'swr'; // <--- Импортируем SWR
 
 // --- ТИПЫ ---
 interface DailyLeaderboardEntry {
@@ -17,13 +18,23 @@ interface DailyLeaderboardEntry {
 // --- ХЕЛПЕРЫ ---
 const getInitials = (name: string) => name.slice(0, 2).toUpperCase();
 
-const waitForTelegram = async () => {
+// Функция-фетчер для SWR
+const fetcher = async (url: string) => {
+    // Ждем инициализацию Telegram
     let attempts = 0;
     while (typeof window !== 'undefined' && !window.Telegram?.WebApp?.initData && attempts < 20) {
         await new Promise(r => setTimeout(r, 100));
         attempts++;
     }
-    return typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
+    
+    const initData = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initData : '';
+    
+    const res = await fetch(url, {
+        headers: { Authorization: initData || '' }
+    });
+
+    if (!res.ok) throw new Error('Failed to load');
+    return res.json();
 };
 
 // --- ПРЕМИУМ ГРАДИЕНТЫ ---
@@ -46,33 +57,29 @@ const BackIcon = () => (
 export default function DailyLeaderboardPage() {
     const router = useRouter();
     const { impact } = useHapticFeedback();
-    
-    const [leaderboard, setLeaderboard] = useState<DailyLeaderboardEntry[]>([]);
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
-    const [loading, setLoading] = useState(true);
 
+    // Получаем ID юзера один раз при загрузке
     useEffect(() => {
-        const init = async () => {
-            const tg = await waitForTelegram();
-            if (tg) {
-                setCurrentUserId(tg.initDataUnsafe?.user?.id || null);
-                try {
-                    const res = await fetch('/api/daily/leaderboard', { 
-                        headers: { Authorization: tg.initData } 
-                    });
-                    if (res.ok) {
-                        const data = await res.json();
-                        setLeaderboard(data);
-                    }
-                } catch (e) {
-                    console.error(e);
-                } finally {
-                    setLoading(false);
-                }
-            }
-        };
-        init();
+        if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+            setCurrentUserId(window.Telegram.WebApp.initDataUnsafe?.user?.id || null);
+        }
     }, []);
+
+    // --- SWR КЭШИРОВАНИЕ ---
+    // Ключ '/api/daily/leaderboard' уникален. SWR сохранит данные под этим ключом.
+    // При возврате на страницу данные возьмутся из кэша мгновенно.
+    const { data: leaderboardData, error, isLoading } = useSWR<DailyLeaderboardEntry[]>(
+        '/api/daily/leaderboard', 
+        fetcher,
+        {
+            revalidateOnFocus: false, // Не обновлять при каждом клике по окну (экономим запросы)
+            dedupingInterval: 60000,  // Кэшировать на 1 минуту (не делать запросы чаще чем раз в минуту)
+            keepPreviousData: true,   // При обновлении не мигать пустым экраном
+        }
+    );
+
+    const leaderboard = leaderboardData || [];
 
     const top1 = leaderboard.find(u => u.rank === 1);
     const top2 = leaderboard.find(u => u.rank === 2);
@@ -122,22 +129,21 @@ export default function DailyLeaderboardPage() {
                 </div>
             </header>
 
-            {loading ? (
+            {/* Показываем спиннер только если нет данных в кэше И идет первая загрузка */}
+            {isLoading && !leaderboardData ? (
                 <div className="flex justify-center mt-20">
                     <div className="w-8 h-8 border-2 border-[#00B2FF] border-t-transparent rounded-full animate-spin" />
                 </div>
             ) : (
-                <main className="px-4 mt-6 flex flex-col gap-4">
+                <main className="px-4 mt-6 flex flex-col gap-4 animate-fade-in">
                     
                     {/* --- 1. ПОДИУМ (TOP 3) --- */}
                     {leaderboard.length > 0 && (
-                        /* Увеличил высоту контейнера до 300px для большего подиума */
-                        <div className="relative w-full h-[300px] mt-0 mb-0">
+                        <div className="relative w-full h-[280px] mt-2 mb-0">
                             
                             {/* Картинка стенда */}
-                            {/* Увеличил max-w до 420px (шире) и высоту до 170px */}
-                            <div className="absolute bottom-0 left-0 right-0 h-[170px] z-10 flex justify-center items-end">
-                                <div className="relative w-full max-w-[420px] h-full">
+                            <div className="absolute bottom-0 left-0 right-0 h-[150px] z-10 flex justify-center items-end">
+                                <div className="relative w-full max-w-[380px] h-full">
                                     <Image 
                                         src="/images/stand.png" 
                                         alt="Podium" 
@@ -150,11 +156,11 @@ export default function DailyLeaderboardPage() {
                                 </div>
                             </div>
 
-                            {/* --- ИГРОКИ (Аватарки подняты выше под новый размер) --- */}
+                            {/* --- ИГРОКИ --- */}
                             
                             {/* 2 МЕСТО */}
                             {top2 && (
-                                <div className="absolute bottom-[145px] left-[10%] flex flex-col items-center z-20 w-[80px]">
+                                <div className="absolute bottom-[125px] left-[12%] flex flex-col items-center z-20 w-[80px]">
                                     <Avatar user={top2} size="md" rank={2} />
                                     <span className="text-[11px] font-semibold mt-1.5 text-gray-300 truncate w-full text-center drop-shadow-md">
                                         {top2.username}
@@ -164,7 +170,7 @@ export default function DailyLeaderboardPage() {
 
                             {/* 1 МЕСТО */}
                             {top1 && (
-                                <div className="absolute bottom-[180px] left-1/2 -translate-x-1/2 flex flex-col items-center z-30 w-[100px]">
+                                <div className="absolute bottom-[160px] left-1/2 -translate-x-1/2 flex flex-col items-center z-30 w-[100px]">
                                     <div className="mb-1 text-[#FFD700] text-lg drop-shadow-[0_0_10px_rgba(255,215,0,0.5)]">👑</div>
                                     <Avatar user={top1} size="lg" rank={1} />
                                     <span className="text-[13px] font-bold mt-1.5 text-white truncate w-full text-center drop-shadow-md">
@@ -175,7 +181,7 @@ export default function DailyLeaderboardPage() {
 
                             {/* 3 МЕСТО */}
                             {top3 && (
-                                <div className="absolute bottom-[125px] right-[10%] flex flex-col items-center z-20 w-[80px]">
+                                <div className="absolute bottom-[105px] right-[12%] flex flex-col items-center z-20 w-[80px]">
                                     <Avatar user={top3} size="md" rank={3} />
                                     <span className="text-[11px] font-semibold mt-1.5 text-[#B87C59] truncate w-full text-center drop-shadow-md">
                                         {top3.username}
@@ -215,10 +221,9 @@ export default function DailyLeaderboardPage() {
                         </div>
                     )}
 
-                    {/* --- 3. ПОЛНЫЙ СПИСОК --- */}
+                    {/* --- 3. СПИСОК ОСТАЛЬНЫХ --- */}
                     <div className="flex flex-col gap-2 relative z-10">
                         {leaderboard.map((entry) => {
-                            // Цвет цифры ранга
                             let rankColor = "text-[#5F6067]";
                             if (entry.rank === 1) rankColor = "text-[#FFD700]";
                             if (entry.rank === 2) rankColor = "text-[#C0C0C0]";
@@ -227,7 +232,6 @@ export default function DailyLeaderboardPage() {
                             return (
                                 <div 
                                     key={entry.user_id} 
-                                    // Все карточки теперь одинаковые (leaderboard-card), без цветных границ
                                     className="leaderboard-card h-[50px] w-full flex items-center justify-between px-4"
                                 >
                                     <div className="flex items-center gap-3">
