@@ -77,3 +77,13 @@ body {
   pointer-events: none;
   z-index: 5;
 }
+.leaderboard-card {
+  /* Сначала заливка фона (padding-box), потом заливка рамки (border-box) */
+  background: 
+    linear-gradient(90deg, #1B1A1F 0%, #161616 100%) padding-box,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0%, rgba(153, 153, 153, 0) 100%) border-box;
+  
+  /* Делаем рамку прозрачной, чтобы было видно градиент под ней */
+  border: 1px solid transparent;
+  border-radius: 16px; /* или 12px, как вам нравится */
+}
