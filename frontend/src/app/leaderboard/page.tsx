@@ -48,7 +48,7 @@ export default function LeaderboardHub() {
           >
             <div className="relative h-[160px] w-full rounded-[24px] bg-[#161616] border border-white/5 overflow-hidden flex items-center shadow-2xl">
                 
-                {/* Фон и Градиент */}
+                {/* Градиент */}
                 <div 
                     className="absolute right-[-10%] bottom-[-40%] w-[90%] h-[160%] pointer-events-none"
                     style={{
@@ -56,8 +56,8 @@ export default function LeaderboardHub() {
                         filter: 'blur(35px)',
                     }}
                 />
+                {/* Шум есть, блика (shine) нет */}
                 <div className="absolute inset-0 bg-noise pointer-events-none opacity-20" />
-                <div className="animate-shine" />
 
                 {/* Текст */}
                 <div className="relative z-30 pl-8 flex flex-col justify-center h-full w-[55%]">
@@ -71,17 +71,15 @@ export default function LeaderboardHub() {
 
                 {/* 
                    КАРТИНКА (КУБОК) 
-                   right-[40px] - отступ 40 пикселей от правого края.
-                   w-[40%] - ширина контейнера картинки (чтобы сохранить пропорции).
-                   h-[85%] - высота (чуть меньше 100%, чтобы был воздух снизу/сверху).
+                   right-[25px] - придвинули ближе к краю.
                 */}
-                <div className="absolute right-[40px] bottom-0 w-[40%] h-[90%] z-20 flex items-end justify-center pointer-events-none pb-3">
+                <div className="absolute right-[25px] bottom-0 w-[40%] h-[90%] z-20 flex items-end justify-center pointer-events-none pb-3">
                     <div className="relative w-full h-full"> 
                         <Image 
                             src="/images/кубок.png" 
                             alt="Trophy" 
                             fill
-                            className="object-contain object-bottom" // Прижат к низу контейнера
+                            className="object-contain object-bottom"
                             quality={100}
                             unoptimized={true}
                             priority
@@ -102,7 +100,7 @@ export default function LeaderboardHub() {
           >
             <div className="relative h-[160px] w-full rounded-[24px] bg-[#161616] border border-white/5 overflow-hidden flex items-center shadow-2xl">
                 
-                {/* Фон и Градиент */}
+                {/* Градиент */}
                 <div 
                     className="absolute right-[-10%] bottom-[-40%] w-[90%] h-[160%] pointer-events-none"
                     style={{
@@ -110,8 +108,8 @@ export default function LeaderboardHub() {
                         filter: 'blur(35px)',
                     }}
                 />
+                {/* Шум есть, блика нет */}
                 <div className="absolute inset-0 bg-noise pointer-events-none opacity-20" />
-                <div className="animate-shine" style={{ animationDelay: '1.5s' }} />
 
                 {/* Текст */}
                 <div className="relative z-30 pl-8 flex flex-col justify-center h-full w-[55%]">
@@ -125,10 +123,9 @@ export default function LeaderboardHub() {
 
                 {/* 
                    КАРТИНКА (РАКЕТКА) 
-                   right-[40px] - отступ.
-                   h-[105%] - чуть больше высоты карточки, чтобы она выглядела крупнее.
+                   right-[25px] - придвинули ближе.
                 */}
-                <div className="absolute right-[40px] bottom-0 w-[45%] h-[105%] z-20 flex items-end justify-center pointer-events-none pb-0">
+                <div className="absolute right-[25px] bottom-0 w-[45%] h-[105%] z-20 flex items-end justify-center pointer-events-none pb-0">
                     <div className="relative w-full h-full translate-y-3"> 
                         <Image 
                             src="/images/ракетка.png" 
