@@ -26,7 +26,7 @@ const waitForTelegram = async () => {
     return typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
 };
 
-// --- ПРЕМИУМ ГРАДИЕНТЫ ---
+// --- ПРЕМИУМ ГРАДИЕНТЫ ДЛЯ АВАТАРОК ---
 const getPremiumGradient = (id: number) => {
     const gradients = [
         'bg-gradient-to-br from-[#141E30] to-[#243B55]', 
@@ -77,7 +77,6 @@ export default function DailyLeaderboardPage() {
     const top1 = leaderboard.find(u => u.rank === 1);
     const top2 = leaderboard.find(u => u.rank === 2);
     const top3 = leaderboard.find(u => u.rank === 3);
-    const restList = leaderboard.filter(u => u.rank > 3);
     const currentUserEntry = leaderboard.find(u => u.user_id === currentUserId);
 
     // --- КОМПОНЕНТ АВАТАРА ---
@@ -132,11 +131,9 @@ export default function DailyLeaderboardPage() {
                     
                     {/* --- 1. ПОДИУМ (TOP 3) --- */}
                     {leaderboard.length > 0 && (
-                        /* Увеличил высоту контейнера до 280px */
                         <div className="relative w-full h-[280px] mt-2 mb-0">
                             
                             {/* Картинка стенда */}
-                            {/* Увеличил высоту до 150px и max-w до 380px (шире) */}
                             <div className="absolute bottom-0 left-0 right-0 h-[150px] z-10 flex justify-center items-end">
                                 <div className="relative w-full max-w-[380px] h-full">
                                     <Image 
@@ -151,7 +148,7 @@ export default function DailyLeaderboardPage() {
                                 </div>
                             </div>
 
-                            {/* --- ИГРОКИ (Без очков) --- */}
+                            {/* --- ИГРОКИ НА ПОДИУМЕ --- */}
                             
                             {/* 2 МЕСТО */}
                             {top2 && (
@@ -211,36 +208,56 @@ export default function DailyLeaderboardPage() {
                                     <span className="text-[#00B2FF] font-bold text-[16px]">
                                         {currentUserEntry.total_points}
                                     </span>
-                                    {/* PTS убрано */}
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* --- 3. СПИСОК ОСТАЛЬНЫХ --- */}
+                    {/* --- 3. ПОЛНЫЙ СПИСОК (С 1-го места) --- */}
                     <div className="flex flex-col gap-2 relative z-10">
-                        {restList.map((entry) => (
-                            <div 
-                                key={entry.user_id} 
-                                className="leaderboard-card h-[50px] w-full flex items-center justify-between px-4"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span className="text-[#5F6067] font-bold text-xs w-6 text-center">
-                                        {entry.rank}
-                                    </span>
-                                    <Avatar user={entry} size="sm" />
-                                    <span className="text-[13px] font-medium text-[#EBEBF5]">
-                                        {entry.username}
-                                    </span>
-                                </div>
+                        {leaderboard.map((entry) => {
+                            // ОПРЕДЕЛЯЕМ СТИЛЬ ДЛЯ ТОП-3
+                            let rowClass = "leaderboard-card"; // Стандартный стиль (серый)
+                            let rankColor = "text-[#5F6067]";
 
-                                <div className="text-right">
-                                    <span className="text-[#00B2FF] font-bold text-[14px]">
-                                        {entry.total_points}
-                                    </span>
+                            if (entry.rank === 1) {
+                                // ЗОЛОТО
+                                rowClass = "border border-[#FFD700]/30 bg-[#FFD700]/5 shadow-[0_0_10px_rgba(255,215,0,0.05)] rounded-[16px]";
+                                rankColor = "text-[#FFD700]";
+                            } else if (entry.rank === 2) {
+                                // СЕРЕБРО
+                                rowClass = "border border-[#C0C0C0]/30 bg-[#C0C0C0]/5 rounded-[16px]";
+                                rankColor = "text-[#C0C0C0]";
+                            } else if (entry.rank === 3) {
+                                // БРОНЗА
+                                rowClass = "border border-[#CD7F32]/30 bg-[#CD7F32]/5 rounded-[16px]";
+                                rankColor = "text-[#CD7F32]";
+                            }
+
+                            return (
+                                <div 
+                                    key={entry.user_id} 
+                                    className={`${rowClass} h-[50px] w-full flex items-center justify-between px-4`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <span className={`${rankColor} font-bold text-xs w-6 text-center`}>
+                                            {entry.rank}
+                                        </span>
+                                        {/* Передаем rank в Avatar для цветной обводки */}
+                                        <Avatar user={entry} size="sm" rank={entry.rank} />
+                                        <span className="text-[13px] font-medium text-[#EBEBF5]">
+                                            {entry.username}
+                                        </span>
+                                    </div>
+
+                                    <div className="text-right">
+                                        <span className="text-[#00B2FF] font-bold text-[14px]">
+                                            {entry.total_points}
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
 
                 </main>
