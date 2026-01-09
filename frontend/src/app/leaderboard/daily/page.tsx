@@ -26,7 +26,7 @@ const waitForTelegram = async () => {
     return typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
 };
 
-// --- ПРЕМИУМ ГРАДИЕНТЫ ДЛЯ АВАТАРОК ---
+// --- ПРЕМИУМ ГРАДИЕНТЫ ---
 const getPremiumGradient = (id: number) => {
     const gradients = [
         'bg-gradient-to-br from-[#141E30] to-[#243B55]', 
@@ -131,11 +131,13 @@ export default function DailyLeaderboardPage() {
                     
                     {/* --- 1. ПОДИУМ (TOP 3) --- */}
                     {leaderboard.length > 0 && (
-                        <div className="relative w-full h-[280px] mt-2 mb-0">
+                        /* Увеличил высоту контейнера до 300px для большего подиума */
+                        <div className="relative w-full h-[300px] mt-0 mb-0">
                             
                             {/* Картинка стенда */}
-                            <div className="absolute bottom-0 left-0 right-0 h-[150px] z-10 flex justify-center items-end">
-                                <div className="relative w-full max-w-[380px] h-full">
+                            {/* Увеличил max-w до 420px (шире) и высоту до 170px */}
+                            <div className="absolute bottom-0 left-0 right-0 h-[170px] z-10 flex justify-center items-end">
+                                <div className="relative w-full max-w-[420px] h-full">
                                     <Image 
                                         src="/images/stand.png" 
                                         alt="Podium" 
@@ -148,11 +150,11 @@ export default function DailyLeaderboardPage() {
                                 </div>
                             </div>
 
-                            {/* --- ИГРОКИ НА ПОДИУМЕ --- */}
+                            {/* --- ИГРОКИ (Аватарки подняты выше под новый размер) --- */}
                             
                             {/* 2 МЕСТО */}
                             {top2 && (
-                                <div className="absolute bottom-[125px] left-[12%] flex flex-col items-center z-20 w-[80px]">
+                                <div className="absolute bottom-[145px] left-[10%] flex flex-col items-center z-20 w-[80px]">
                                     <Avatar user={top2} size="md" rank={2} />
                                     <span className="text-[11px] font-semibold mt-1.5 text-gray-300 truncate w-full text-center drop-shadow-md">
                                         {top2.username}
@@ -162,7 +164,7 @@ export default function DailyLeaderboardPage() {
 
                             {/* 1 МЕСТО */}
                             {top1 && (
-                                <div className="absolute bottom-[160px] left-1/2 -translate-x-1/2 flex flex-col items-center z-30 w-[100px]">
+                                <div className="absolute bottom-[180px] left-1/2 -translate-x-1/2 flex flex-col items-center z-30 w-[100px]">
                                     <div className="mb-1 text-[#FFD700] text-lg drop-shadow-[0_0_10px_rgba(255,215,0,0.5)]">👑</div>
                                     <Avatar user={top1} size="lg" rank={1} />
                                     <span className="text-[13px] font-bold mt-1.5 text-white truncate w-full text-center drop-shadow-md">
@@ -173,7 +175,7 @@ export default function DailyLeaderboardPage() {
 
                             {/* 3 МЕСТО */}
                             {top3 && (
-                                <div className="absolute bottom-[105px] right-[12%] flex flex-col items-center z-20 w-[80px]">
+                                <div className="absolute bottom-[125px] right-[10%] flex flex-col items-center z-20 w-[80px]">
                                     <Avatar user={top3} size="md" rank={3} />
                                     <span className="text-[11px] font-semibold mt-1.5 text-[#B87C59] truncate w-full text-center drop-shadow-md">
                                         {top3.username}
@@ -213,37 +215,25 @@ export default function DailyLeaderboardPage() {
                         </div>
                     )}
 
-                    {/* --- 3. ПОЛНЫЙ СПИСОК (С 1-го места) --- */}
+                    {/* --- 3. ПОЛНЫЙ СПИСОК --- */}
                     <div className="flex flex-col gap-2 relative z-10">
                         {leaderboard.map((entry) => {
-                            // ОПРЕДЕЛЯЕМ СТИЛЬ ДЛЯ ТОП-3
-                            let rowClass = "leaderboard-card"; // Стандартный стиль (серый)
+                            // Цвет цифры ранга
                             let rankColor = "text-[#5F6067]";
-
-                            if (entry.rank === 1) {
-                                // ЗОЛОТО
-                                rowClass = "border border-[#FFD700]/30 bg-[#FFD700]/5 shadow-[0_0_10px_rgba(255,215,0,0.05)] rounded-[16px]";
-                                rankColor = "text-[#FFD700]";
-                            } else if (entry.rank === 2) {
-                                // СЕРЕБРО
-                                rowClass = "border border-[#C0C0C0]/30 bg-[#C0C0C0]/5 rounded-[16px]";
-                                rankColor = "text-[#C0C0C0]";
-                            } else if (entry.rank === 3) {
-                                // БРОНЗА
-                                rowClass = "border border-[#CD7F32]/30 bg-[#CD7F32]/5 rounded-[16px]";
-                                rankColor = "text-[#CD7F32]";
-                            }
+                            if (entry.rank === 1) rankColor = "text-[#FFD700]";
+                            if (entry.rank === 2) rankColor = "text-[#C0C0C0]";
+                            if (entry.rank === 3) rankColor = "text-[#CD7F32]";
 
                             return (
                                 <div 
                                     key={entry.user_id} 
-                                    className={`${rowClass} h-[50px] w-full flex items-center justify-between px-4`}
+                                    // Все карточки теперь одинаковые (leaderboard-card), без цветных границ
+                                    className="leaderboard-card h-[50px] w-full flex items-center justify-between px-4"
                                 >
                                     <div className="flex items-center gap-3">
                                         <span className={`${rankColor} font-bold text-xs w-6 text-center`}>
                                             {entry.rank}
                                         </span>
-                                        {/* Передаем rank в Avatar для цветной обводки */}
                                         <Avatar user={entry} size="sm" rank={entry.rank} />
                                         <span className="text-[13px] font-medium text-[#EBEBF5]">
                                             {entry.username}
