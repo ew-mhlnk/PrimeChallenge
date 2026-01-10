@@ -7,8 +7,10 @@ import useTournaments from '../hooks/useTournaments';
 import useAuth from '../hooks/useAuth';
 import { Tournament } from '@/types';
 import { TournamentCard } from '@/components/tournament/TournamentCard';
+// Импортируем наш новый баннер
+import { PromoBanner } from '@/components/promo/PromoBanner';
 
-// 1. Теги
+// --- КОМПОНЕНТ ФИЛЬТРА (TEG) ---
 interface FilterPillProps {
   label: string;
   isActive: boolean;
@@ -40,7 +42,7 @@ const FilterPill = ({ label, isActive, onClick, colorClass }: FilterPillProps) =
   );
 };
 
-// 2. Loading Screen
+// --- ЗАГРУЗОЧНЫЙ ЭКРАН ---
 const LoadingScreen = () => (
   <div className="fixed inset-0 z-50 bg-[#141414] flex flex-col items-center justify-center">
     <div className="relative z-10 flex flex-col items-center gap-4">
@@ -50,8 +52,7 @@ const LoadingScreen = () => (
   </div>
 );
 
-// --- MAIN PAGE ---
-
+// --- ГЛАВНАЯ СТРАНИЦА ---
 export default function Home() {
   const { tournaments, error, isLoading } = useTournaments();
   const { user } = useAuth();
@@ -67,10 +68,9 @@ export default function Home() {
   if (isLoading) return <LoadingScreen />;
   if (error) return <p className="text-red-500 px-8 pt-20">Ошибка: {error}</p>;
 
-  // На главной показываем: ACTIVE и CLOSED
+  // Фильтруем: только ACTIVE и CLOSED
   const activeTournaments = tournaments ? tournaments.filter((tournament: Tournament) => {
     if (!['ACTIVE', 'CLOSED'].includes(tournament.status)) return false;
-    
     if (selectedTag === 'ВСЕ') return true;
     return tournament.tag === selectedTag;
   }) : [];
@@ -80,10 +80,9 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col relative overflow-x-hidden pb-32">
       
-      {/* УБРАЛИ СИНИЙ ГРАДИЕНТ ЗДЕСЬ */}
-
       <main className="relative z-10 px-6 pt-12 flex flex-col gap-8">
         
+        {/* Приветствие */}
         <header className="flex flex-col justify-center mt-2">
             <span className="text-[14px] text-[#8E8E93] font-medium uppercase tracking-wide mb-1">
               Prime Bracket
@@ -93,20 +92,10 @@ export default function Home() {
             </h1>
         </header>
 
-        <motion.div 
-          whileTap={{ scale: 0.98 }}
-          className="w-full h-[120px] bg-[#D9D9D9] rounded-[24px] relative overflow-hidden cursor-pointer shadow-lg"
-        >
-           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
-                style={{ transform: 'skewX(-20deg) translateX(-150%)' }} />
-           
-           <div className="absolute bottom-3 left-4">
-              <span className="text-black/60 text-[10px] font-bold uppercase tracking-widest bg-white/40 px-2 py-1 rounded backdrop-blur-md">
-                Promo
-              </span>
-           </div>
-        </motion.div>
+        {/* --- ВСТАВЛЯЕМ НОВЫЙ БАННЕР --- */}
+        <PromoBanner />
 
+        {/* Список турниров */}
         <section>
           <div className="flex justify-between items-end mb-4">
             <h2 className="text-[20px] font-bold text-white tracking-tight">
