@@ -6,6 +6,10 @@ import json
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
+from database.db import SessionLocal
+from database.models import DailyMatch
+from utils.daily_calculator import process_match_results
 
 logger = logging.getLogger(__name__)
 
@@ -22,18 +26,22 @@ ROUND_MAP = {
 
 INVALID_TYPES = ["Doubles", "Challenger", "ITF", "Boys", "Girls", "Juniors"]
 
-# === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
-
+# === ГУГЛ КЛИЕНТ ===
 def get_google_client():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds_json = os.getenv("GOOGLE_CREDENTIALS") or os.getenv("GOOGLE_SHEETS_CREDENTIALS")
+        
         if not creds_json:
             if os.path.exists("google-credentials.json"):
                 return ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope)
             return None
-        if isinstance(creds_json, str): creds_dict = json.loads(creds_json)
-        else: creds_dict = creds_json
+            
+        if isinstance(creds_json, str):
+            creds_dict = json.loads(creds_json)
+        else:
+            creds_dict = creds_json
+            
         return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope))
     except Exception as e:
         logger.error(f"Google Auth Error: {e}")
@@ -43,6 +51,7 @@ def load_dictionary_from_sheets():
     global PLAYER_DICT
     client = get_google_client()
     if not client: return
+
     try:
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
         ws = client.open_by_key(sheet_id).worksheet("DICTIONARY")
@@ -50,15 +59,17 @@ def load_dictionary_from_sheets():
         new_dict = {}
         for row in rows[1:]:
             if len(row) <= 8: continue
-            full = row[0].strip(); short = row[3].strip(); flag = row[5].strip(); rus = row[8].strip()
-            if rus:
-                res = f"{flag} {rus}".strip()
-                if full: new_dict[full.lower()] = res
-                if short: new_dict[short.lower()] = res
+            full_eng = row[0].strip(); short_eng = row[3].strip(); flag = row[5].strip(); rus_name = row[8].strip()
+            if rus_name:
+                final_str = f"{flag} {rus_name}".strip()
+                if full_eng: new_dict[full_eng.lower()] = final_str
+                if short_eng: new_dict[short_eng.lower()] = final_str
         PLAYER_DICT = new_dict
         logger.info(f"📚 Dictionary loaded: {len(PLAYER_DICT)}")
-    except: pass
+    except Exception as e:
+        logger.error(f"Dict load error: {e}")
 
+# === ХЕЛПЕРЫ ===
 def translate(name: str) -> str:
     if not name: return "TBD"
     return PLAYER_DICT.get(name.strip().lower(), name.strip())
@@ -99,7 +110,8 @@ def build_score(match):
     res = ", ".join(sets)
     game = str(match.get("event_game_result", ""))
     if game and game not in ["-", "None"]:
-        res += f" ({game.replace(' - ', ':').replace('-', ':').replace(' : ', ':')})"
+        clean_game = game.replace(" - ", ":").replace("-", ":").replace(" : ", ":")
+        res += f" ({clean_game})"
     return res
 
 def fetch_from_api(date_str):
@@ -112,7 +124,7 @@ def fetch_from_api(date_str):
         if isinstance(data, list): return data
         return []
     except Exception as e:
-        logger.error(f"API Error: {e}")
+        logger.error(f"API Request failed: {e}")
         return []
 
 def process_matches(matches):
@@ -121,15 +133,15 @@ def process_matches(matches):
     for m in matches:
         m_id = str(m.get("event_key"))
         
-        # --- ФИЛЬТРЫ ---
-        # 1. Квалификация (Строго: если поле true/1 ИЛИ в названии раунда есть qual/prelim)
-        q_field = str(m.get("event_qualification", "")).lower()
-        if q_field in ["true", "1"]: continue
+        # === СТРОГИЕ ФИЛЬТРЫ ===
+        # 1. Поле event_qualification: Если True или 1 - пропускаем
+        qual_val = str(m.get("event_qualification", "")).lower()
+        if qual_val in ["true", "1"]: continue
         
+        # 2. Поле tournament_round: Если содержит Qual - пропускаем
         r_raw = str(m.get("tournament_round", "")).lower()
         if "qual" in r_raw or "prelim" in r_raw: continue
 
-        # 2. Тип
         etype = str(m.get("event_type_type", "")).title()
         if any(b in etype for b in INVALID_TYPES): continue
         is_singles = "Singles" in etype or "United Cup" in etype
@@ -137,13 +149,13 @@ def process_matches(matches):
         if not (is_singles and is_major): continue
         
         p1_raw = m.get("event_first_player", "")
-        if "/" in p1_raw: continue # Пары
+        if "/" in p1_raw: continue
         
         if m_id in seen: continue
         seen.add(m_id)
 
-        # --- СБОР ---
-        t_clean = (m.get("tournament_name") or "").replace(" Singles", "").strip()
+        t_raw = m.get("tournament_name") or ""
+        t_clean = t_raw.replace(" Singles", "").strip()
         if "Wta" in etype and "WTA" not in t_clean: t_clean = f"WTA {t_clean}"
         elif "Atp" in etype and "ATP" not in t_clean: t_clean = f"ATP {t_clean}"
         
@@ -155,11 +167,8 @@ def process_matches(matches):
         elif any(x in st_raw for x in ["fin", "aft", "ret"]): status = "COMPLETED"
         elif is_api_live or any(x in st_raw for x in ["live", "set", "game", "break"]): status = "LIVE"
         
-        # Проверка счета для лайва
         score_str = build_score(m)
-        if status == "PLANNED" and score_str and any(c.isdigit() for c in score_str):
-            status = "LIVE"
-
+        
         winner = None
         if status == "COMPLETED":
             w = m.get("event_winner", "")
@@ -174,56 +183,56 @@ def process_matches(matches):
             time_str = dt.strftime("%d.%m.%Y %H:%M")
         except: pass
 
+        # Возвращаем список данных (для таблицы)
         processed.append([m_id, t_clean, status, clean_round(m.get("tournament_round")), time_str, translate(p1_raw), translate(m.get("event_second_player")), score_str, winner])
     return processed
 
 # =========================================================
-# ГЛАВНАЯ ФУНКЦИЯ: SMART MERGE (История + Очистка мусора)
+# ГЛАВНАЯ ФУНКЦИЯ: SMART CLEANUP (ИСТОРИЯ + ЧИСТКА)
 # =========================================================
 def update_google_sheet_from_api():
-    if not PLAYER_DICT: load_dictionary_from_sheets()
+    if not PLAYER_DICT:
+        load_dictionary_from_sheets()
 
     # 1. API: Качаем Вчера, Сегодня, Завтра
-    # Это наше "Окно Активности". Все, что попадает в эти даты, должно соответствовать API.
-    # Всё, чего нет в API за эти даты -> УДАЛЯЕТСЯ (мусор).
-    
+    # Это "Окно Активности". Все, что в нем, должно совпадать с API.
     dates = [
         (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
         datetime.now().strftime("%Y-%m-%d"),
         (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
     ]
     
-    raw_matches = []
+    api_map = {}
     for d in dates:
-        raw_matches += fetch_from_api(d)
-        
-    if not raw_matches:
-        logger.warning("API Empty. Skipping update.")
+        raw = fetch_from_api(d)
+        if not raw: continue
+        processed = process_matches(raw)
+        for item in processed:
+            m_id = str(item[0]) 
+            api_map[m_id] = item
+
+    if not api_map:
+        logger.warning("API returned 0 valid matches. Skipping update to be safe.")
         return
 
-    # Готовим словарь свежих данных {ID: Data}
-    api_processed = process_matches(raw_matches)
-    api_map = {item[0]: item for item in api_processed} # item[0] это ID
-
-    # 2. Читаем Гугл Таблицу (Текущее состояние)
+    # 2. Подключаемся к Гуглу
     client = get_google_client()
     if not client: return
     
     try:
-        ws = client.open_by_key(os.getenv("GOOGLE_SHEET_ID")).worksheet("DAILY_MATCHES")
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        ws = client.open_by_key(sheet_id).worksheet("DAILY_MATCHES")
         existing_data = ws.get_all_values()
         
         header = ["ID", "Tournament", "Status", "Round", "Time", "Player 1", "Player 2", "Score", "Winner", "Manual Block"]
         final_rows = []
         
-        # Определяем границы "Окна Активности" (для фильтрации мусора)
-        # Матчи старше window_start считаем Историей (не трогаем).
-        # Матчи внутри окна, которых нет в API, считаем Мусором.
+        # Окно чистки: от начала Вчера до конца Завтра
         now = datetime.now()
-        window_start = now - timedelta(days=1, hours=12) # Вчерашнее утро
-        window_end = now + timedelta(days=2) # Послезавтра
+        window_start = datetime.strptime(dates[0], "%Y-%m-%d")
+        window_end = datetime.strptime(dates[2], "%Y-%m-%d") + timedelta(days=1)
         
-        # 3. ПРОХОДИМ ПО СУЩЕСТВУЮЩИМ СТРОКАМ
+        # 3. ФИЛЬТРАЦИЯ СУЩЕСТВУЮЩЕГО
         if existing_data:
             for row in existing_data[1:]: # Пропуск хедера
                 if not row or len(row) < 5: continue
@@ -232,42 +241,40 @@ def update_google_sheet_from_api():
                 match_time_str = row[4].strip()
                 
                 # Парсим дату матча из таблицы
+                is_in_window = False
                 try:
                     m_date = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
+                    if window_start <= m_date <= window_end:
+                        is_in_window = True
                 except:
-                    # Если дата битая, считаем матч "Архивным" и оставляем как есть, чтобы не потерять
-                    final_rows.append(row)
-                    continue
+                    is_in_window = True # Если дата битая - считаем подозрительным
 
-                # --- ЛОГИКА ---
+                # ЛОГИКА СЛИЯНИЯ:
                 if m_id in api_map:
                     # А. Матч ЕСТЬ в API -> Обновляем (Merge)
-                    # Берем свежие данные
                     new_data = api_map[m_id]
-                    # Сохраняем ручной блок (X), если был
+                    # Сохраняем ручной блок
                     manual_block = row[9] if len(row) > 9 else ""
-                    # Добавляем в список
                     final_rows.append(new_data + [manual_block])
-                    # Удаляем из api_map, чтобы потом знать, какие НОВЫЕ остались
+                    # Удаляем из api_map, чтобы не дублировать при добавлении новых
                     del api_map[m_id]
                     
-                elif window_start <= m_date <= window_end:
-                    # Б. Матча НЕТ в API, но дата внутри "Окна Активности"
-                    # ЗНАЧИТ ЭТО МУСОР (Отмена, Квал, Ошибка расписания)
-                    # -> ПРОПУСКАЕМ (Удаляем из таблицы)
-                    # logger.info(f"🗑️ Garbage Match Removed: {m_id}")
+                elif is_in_window:
+                    # Б. Матч в окне (Вчера/Сегодня/Завтра), но ЕГО НЕТ В API
+                    # Значит это мусор (Квалификация, отмена, перенос) -> УДАЛЯЕМ
+                    # (Просто не добавляем в final_rows)
+                    logger.info(f"🗑️ Cleaned up garbage match: {m_id} {row[1]}")
                     continue
                     
                 else:
-                    # В. Матч СТАРЫЙ (вне окна) или БУДУЩИЙ (далеко)
-                    # -> ОСТАВЛЯЕМ КАК ЕСТЬ (История)
+                    # В. Матч СТАРЫЙ (Архив) -> Оставляем как есть
                     final_rows.append(row)
 
-        # 4. ДОБАВЛЯЕМ ОСТАВШИЕСЯ НОВЫЕ ИЗ API
-        for new_match in api_map.values():
-            final_rows.append(new_match + [""])
+        # 4. Добавляем НОВЫЕ матчи (из API, которых не было в таблице)
+        for data in api_map.values():
+            final_rows.append(data + [""])
 
-        # 5. СОРТИРОВКА И ЗАПИСЬ
+        # 5. Сортировка и Запись
         def parse_sort(r):
             try: return datetime.strptime(r[4], "%d.%m.%Y %H:%M")
             except: return datetime.min
@@ -275,18 +282,20 @@ def update_google_sheet_from_api():
         
         all_data = [header] + final_rows
         
+        # Пишем в таблицу
         ws.update(range_name=f"A1:J{len(all_data)}", values=all_data)
         
-        # Чистим хвост (если мусора было много и таблица уменьшилась)
+        # Чистим хвост (удаленные строки)
         if len(all_data) < len(existing_data):
              ws.batch_clear([f"A{len(all_data)+1}:J{len(existing_data)+20}"])
              
-        logger.info(f"✅ Sync Complete. Total rows: {len(final_rows)}")
+        logger.info(f"✅ Sync Complete. Rows: {len(final_rows)}")
 
     except Exception as e:
         logger.error(f"Sheet Update Error: {e}")
 
-# Функцию update_daily_matches_direct можно удалить или оставить пустой,
-# так как теперь мы используем цепочку: API -> Sheet -> DB (через sync_service)
+# Эта функция используется для запуска через шедулер
 def update_daily_matches_direct():
+    # Эта функция больше не нужна для прямого обновления БД, 
+    # так как мы теперь обновляем Гугл Таблицу, а БД обновляется через sync_service
     pass
