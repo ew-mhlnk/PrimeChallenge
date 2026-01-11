@@ -31,12 +31,17 @@ def get_google_client():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds_json = os.getenv("GOOGLE_CREDENTIALS") or os.getenv("GOOGLE_SHEETS_CREDENTIALS")
+        
         if not creds_json:
             if os.path.exists("google-credentials.json"):
                 return ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope)
             return None
-        if isinstance(creds_json, str): creds_dict = json.loads(creds_json)
-        else: creds_dict = creds_json
+            
+        if isinstance(creds_json, str):
+            creds_dict = json.loads(creds_json)
+        else:
+            creds_dict = creds_json
+            
         return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope))
     except Exception as e:
         logger.error(f"Google Auth Error: {e}")
@@ -46,21 +51,32 @@ def load_dictionary_from_sheets():
     global PLAYER_DICT
     client = get_google_client()
     if not client: return
+
     try:
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
         ws = client.open_by_key(sheet_id).worksheet("DICTIONARY")
         rows = ws.get_all_values()
         new_dict = {}
         for row in rows[1:]:
-            if len(row) <= 8: continue
-            full_eng = row[0].strip(); short_eng = row[3].strip(); flag = row[5].strip(); rus_name = row[8].strip()
+            # Нам нужна колонка J (индекс 9), поэтому длина строки минимум 10
+            if len(row) <= 9: continue
+            
+            full_eng = row[0].strip() # A
+            short_eng = row[3].strip() # D
+            flag = row[5].strip() # F
+            
+            # ИСПРАВЛЕНИЕ: Берем колонку J (индекс 9)
+            rus_name = row[9].strip() 
+            
             if rus_name:
                 final_str = f"{flag} {rus_name}".strip()
                 if full_eng: new_dict[full_eng.lower()] = final_str
                 if short_eng: new_dict[short_eng.lower()] = final_str
+                
         PLAYER_DICT = new_dict
         logger.info(f"📚 Dictionary loaded: {len(PLAYER_DICT)}")
-    except: pass
+    except Exception as e:
+        logger.error(f"Dict load error: {e}")
 
 # === ХЕЛПЕРЫ ===
 def translate(name: str) -> str:
@@ -156,7 +172,15 @@ def process_matches(matches):
         elif is_api_live or any(x in st_raw for x in ["live", "set", "game"]): status = "LIVE"
         
         score_str = build_score(m)
-        if status == "PLANNED" and score_str and any(c.isdigit() for c in score_str): status = "LIVE"
+        
+        # ИСПРАВЛЕННЫЙ ДЕТЕКТОР ЛАЙВА:
+        # Ставим LIVE, только если в счете есть ЦИФРЫ и счет не равен "0-0"
+        if status == "PLANNED" and score_str:
+            has_digits = any(c.isdigit() for c in score_str)
+            is_not_zero = score_str.strip() != "0-0"
+            
+            if has_digits and is_not_zero:
+                status = "LIVE"
 
         winner = None
         if status == "COMPLETED":
@@ -176,33 +200,31 @@ def process_matches(matches):
     return processed
 
 # =========================================================
-# ГЛАВНАЯ ФУНКЦИЯ (v12 - SAFE GUARD)
+# ГЛАВНАЯ ФУНКЦИЯ (v12.1 - Safe Sync)
 # =========================================================
 def update_google_sheet_from_api():
     if not PLAYER_DICT: load_dictionary_from_sheets()
 
-    # Берем широкий диапазон, чтобы точно захватить всё
     dates = [
-        (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"), # Позавчера
-        (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"), # Вчера
-        datetime.now().strftime("%Y-%m-%d"),                       # Сегодня
-        (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")  # Завтра
+        (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
+        (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"), 
+        datetime.now().strftime("%Y-%m-%d"),                       
+        (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")  
     ]
     
     api_map = {}
-    dates_with_data = set() # Запоминаем дни, когда API ответил ДАННЫМИ
+    dates_with_data = set() 
     
     for d in dates:
         raw = fetch_from_api(d)
         if raw:
             processed = process_matches(raw)
             if processed:
-                dates_with_data.add(d) # Ага, за эту дату есть валидные матчи, значит можно чистить
+                dates_with_data.add(d) 
                 for item in processed:
                     api_map[str(item[0])] = item
 
-    if not api_map:
-        return
+    if not api_map: return
 
     client = get_google_client()
     if not client: return
@@ -221,39 +243,29 @@ def update_google_sheet_from_api():
                 m_id = str(row[0]).strip()
                 match_time_str = row[4].strip()
                 
-                # Парсим дату
                 m_date_str = ""
                 try:
                     m_date = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
                     m_date_str = m_date.strftime("%Y-%m-%d")
                 except: pass
 
-                # --- ЛОГИКА БЕЗОПАСНОСТИ ---
-                
                 if m_id in api_map:
-                    # 1. Матч есть в API -> ОБНОВЛЯЕМ
                     new_data = api_map[m_id]
                     manual_block = row[9] if len(row) > 9 else ""
                     final_rows.append(new_data + [manual_block])
                     del api_map[m_id]
                     
                 elif m_date_str in dates_with_data:
-                    # 2. Матча НЕТ в API, но дата входит в "Проверенные Дни"
-                    # Значит это МУСОР (API сказал, что матчей в этот день много, но ЭТОГО нет)
-                    # -> УДАЛЯЕМ (не добавляем в final_rows)
+                    # Чистим только если для этой даты API вернул данные, а этого матча там нет
                     logger.info(f"🗑️ Safe Clean: {m_id} on {m_date_str}")
                     continue
                     
                 else:
-                    # 3. Матч на дату, которую API не вернул (или старая)
-                    # -> СОХРАНЯЕМ (на всякий случай, вдруг API глючит)
                     final_rows.append(row)
 
-        # 4. Добавляем Новые
         for data in api_map.values():
             final_rows.append(data + [""])
 
-        # 5. Сортировка и Запись
         def parse_sort(r):
             try: return datetime.strptime(r[4], "%d.%m.%Y %H:%M")
             except: return datetime.min
