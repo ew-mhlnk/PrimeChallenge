@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from sqladmin import Admin
 
 # Импорты базы данных
 from database.db import init_db, engine
@@ -11,13 +10,10 @@ from database.db import init_db, engine
 from routers import auth, tournaments, picks, users, leaderboard, daily
 
 # Импорты Сервисов Синхронизации
-# 1. Старый сервис для Турниров (Брекетов) - все еще читает из Гугл Таблицы
+# 1. Bracket: Читаем из Гугл Таблицы (как и раньше)
 from services.sync_service import sync_google_sheets_with_db
-# 2. Новый сервис для Дейли - читает НАПРЯМУЮ из API (замена парсеру)
-from services.tennis_service import update_daily_matches_direct
-
-# Импорты для Админки
-from admin_panel import UserAdmin, TournamentAdmin, DailyMatchAdmin, DailyPickAdmin
+# 2. Daily: Внутренний парсер (API Tennis) + Загрузка словаря
+from services.tennis_service import update_daily_matches_direct, load_dictionary_from_sheets
 
 # Настройка логирования
 logging.basicConfig(
@@ -54,13 +50,6 @@ async def log_requests(request: Request, call_next):
         logger.error(f"Request failed: {e}")
         raise
 
-# === ПОДКЛЮЧЕНИЕ АДМИНКИ ===
-admin = Admin(app, engine)
-admin.add_view(UserAdmin)
-admin.add_view(TournamentAdmin)
-admin.add_view(DailyMatchAdmin)
-admin.add_view(DailyPickAdmin)
-
 # === ОСНОВНЫЕ РОУТЫ ===
 @app.get("/")
 async def root():
@@ -73,9 +62,11 @@ async def ping():
 # Ручной запуск синхронизации (на всякий случай)
 @app.get("/sync")
 async def manual_sync():
-    # Запускаем турниры
+    # 1. Обновляем словарь имен
+    load_dictionary_from_sheets()
+    # 2. Запускаем турниры
     await sync_google_sheets_with_db(engine)
-    # Запускаем дейли (прямой API)
+    # 3. Запускаем дейли (прямой API)
     update_daily_matches_direct() 
     return {"message": "All Syncs triggered"}
 
@@ -97,14 +88,17 @@ async def startup_event():
     # 1. Инициализация таблиц БД
     init_db()
     
-    # 2. Задача: Синхронизация Турниров (Bracket) из Google Sheets
-    # Запускаем раз в 5 минут
+    # 2. Загружаем словарь имен из Гугл Таблицы при старте
+    load_dictionary_from_sheets()
+    
+    # 3. Задача: Синхронизация Турниров (Bracket) из Google Sheets (раз в 5 минут)
     scheduler.add_job(sync_google_sheets_with_db, "interval", minutes=5, args=[engine])
     
-    # 3. Задача: Обновление Daily Challenge напрямую из API Tennis
-    # Запускаем раз в 1 минуту (LIVE режим)
-    # Это заменяет внешний парсер на Amvera
+    # 4. Задача: Обновление Daily Challenge напрямую из API Tennis (раз в 1 минуту)
     scheduler.add_job(update_daily_matches_direct, "interval", minutes=1)
     
+    # 5. Задача: Обновление словаря имен (раз в 1 час)
+    scheduler.add_job(load_dictionary_from_sheets, "interval", minutes=60)
+    
     scheduler.start()
-    logger.info("Scheduler started: Bracket(Sheets/5min) + Daily(DirectAPI/1min)")
+    logger.info("Scheduler started: Bracket + Daily API + Dictionary")
