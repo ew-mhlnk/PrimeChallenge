@@ -1,422 +1,250 @@
 import logging
-import json
-import os
-import gspread
-from sqlalchemy import Engine, text
-from sqlalchemy.orm import Session
-from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+import requests
 import re
-import pytz 
-
+import os
+import json
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
 from database.db import SessionLocal
-from database.models import (
-    Tournament, TrueDraw, UserPick, UserScore, Leaderboard, User,
-    DailyMatch, DailyPick, DailyLeaderboard 
-)
-from utils.score_calculator import update_tournament_leaderboard
+from database.models import DailyMatch
 from utils.daily_calculator import process_match_results
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ==========================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-# ==========================================
+API_KEY = os.getenv("TENNIS_API_KEY") 
+API_URL = "https://api.api-tennis.com/tennis/"
 
-def clean_sheet_value(value):
-    if not value: return None
-    v = str(value).strip()
-    upper_v = v.upper()
-    BAD_WORDS = ["#ERROR", "#N/A", "#REF", "#NAME", "LOADING", "ЗАГРУЗКА", "ВЫЧИСЛЕНИЕ", "#DIV/0", "ERROR"]
-    for bad in BAD_WORDS:
-        if v.startswith("#") or bad in upper_v:
+# Глобальный словарь в памяти
+PLAYER_DICT = {}
+
+ROUND_MAP = {
+    "1/32-finals": "R64", "1/16-finals": "R32", "1/8-finals": "R16",
+    "Quarter-finals": "QF", "Semi-finals": "SF", "Final": "F",
+    "Qualification": "Q", "Preliminary": "Q"
+}
+
+INVALID_TYPES = ["Doubles", "Challenger", "ITF", "Boys", "Girls", "Juniors"]
+
+# === ГУГЛ ДЛЯ СЛОВАРЯ ===
+def get_google_client():
+    try:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds_json = os.getenv("GOOGLE_CREDENTIALS") or os.getenv("GOOGLE_SHEETS_CREDENTIALS")
+        if not creds_json:
+            logger.warning("No GOOGLE_CREDENTIALS found. Dictionary won't load.")
             return None
-    return v
-
-def get_google_sheets_client():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    credentials_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
-    if not credentials_json:
-        raise ValueError("GOOGLE_SHEETS_CREDENTIALS missing")
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(credentials_json), scope)
-    return gspread.authorize(credentials)
-
-def parse_datetime(date_str: str):
-    if not date_str: return None
-    date_str = str(date_str).strip()
-    formats = ["%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y", "%Y-%m-%d %H:%M:%S"]
-    msk_tz = pytz.timezone('Europe/Moscow')
-    for fmt in formats:
-        try:
-            dt_naive = datetime.strptime(date_str, fmt)
-            dt_msk = msk_tz.localize(dt_naive)
-            return dt_msk.astimezone(pytz.UTC)
-        except ValueError:
-            continue
-    return None
-
-def normalize_name(name: str) -> str:
-    if not name: return ""
-    name = re.sub(r'\s*\(.*?\)', '', str(name))
-    clean = re.sub(r'[^\w]', '', name).strip().lower()
-    return clean
-
-def is_same_player(p1_raw, p2_raw):
-    n1 = normalize_name(p1_raw)
-    n2 = normalize_name(p2_raw)
-    if not n1 or not n2: return False
-    if n1 == n2: return True
-    if len(n1) > 3 and len(n2) > 3:
-        if n1 in n2 or n2 in n1: return True
-    return False
-
-def get_match_rows(round_name: str, draw_size: int):
-    rounds_order = ["F", "SF", "QF", "R16", "R32", "R64", "R128"]
-    if round_name not in rounds_order: return []
-    
-    if draw_size == 128:
-        base_map = {"R128": (1, 4), "R64": (3, 8), "R32": (7, 16), "R16": (15, 32), "QF": (31, 64), "SF": (63, 128), "F": (127, 256)}
-    elif draw_size == 64:
-        # === ИСПРАВЛЕННЫЕ ИНДЕКСЫ ===
-        base_map = {
-            "R64": (1, 4), 
-            "R32": (3, 8), 
-            "R16": (7, 16), 
-            "QF": (15, 32), 
-            "SF": (33, 64), # Исправлено
-            "F": (63, 128)  # Исправлено
-        }
-    else: 
-        base_map = {"R32": (1, 4), "R16": (3, 8), "QF": (7, 16), "SF": (15, 32), "F": (31, 64)}
-        
-    if round_name not in base_map: return []
-    start_idx, step = base_map[round_name]
-    if round_name == "F": count = 1
-    elif round_name == "SF": count = 2
-    elif round_name == "QF": count = 4
-    elif round_name == "R16": count = 8
-    elif round_name == "R32": count = 16
-    elif round_name == "R64": count = 32
-    elif round_name == "R128": count = 64
-    else: count = 0
-    indices = []
-    for i in range(count): indices.append(start_idx + (i * step))
-    return indices
-
-# ==========================================
-# SYNC LOGIC
-# ==========================================
-
-async def sync_google_sheets_with_db(engine: Engine) -> None:
-    print("--- STARTING TOURNAMENTS SYNC ---")
-    try:
-        client = get_google_sheets_client()
-        sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(creds_json), scope)
+        return gspread.authorize(creds)
     except Exception as e:
-        logger.error(f"Sheet connect error: {e}")
-        return
+        logger.error(f"Google Auth Error: {e}")
+        return None
 
-    with engine.connect() as conn:
-        try:
-            rows = sheet.worksheet("tournaments").get_all_values()
-        except: return
+def load_dictionary_from_sheets():
+    """Загружает переводы имен из Гугл Таблицы (Лист DICTIONARY)"""
+    global PLAYER_DICT
+    client = get_google_client()
+    if not client: return
 
-        tournaments_to_sync = []
-        now = datetime.now(pytz.UTC)
-
-        for row in rows[1:]:
-            if len(row) < 1: continue
-            tid_str = str(row[0]).strip()
-            if not tid_str.isdigit(): continue
-            row += [""] * (16 - len(row))
-
-            with conn.begin_nested():
-                try:
-                    tid = int(tid_str)
-                    name = row[1]
-                    dates = row[2]
-                    status_raw = str(row[3]).upper().strip()
-                    sheet_name = row[4]
-                    s_round = row[5]
-                    t_type = row[6]
-                    start = row[7]
-                    close = row[8]
-                    tag = row[9]
-                    surface = row[10]
-                    defending = row[11]
-                    info = row[12]
-                    matches_count = row[13]
-                    month_val = row[14]
-                    img_url = row[15]
-
-                    status = status_raw
-                    start_dt = parse_datetime(start)
-                    close_dt = parse_datetime(close)
-                    
-                    if status in ["COMPLETED", "CLOSED"]: pass 
-                    elif close_dt and now >= close_dt: status = "CLOSED"
-                    elif start_dt and now >= start_dt and sheet_name and sheet_name.strip(): status = "ACTIVE"
-                    else: status = "PLANNED"
-
-                    conn.execute(text("""
-                        INSERT INTO tournaments (
-                            id, name, dates, status, sheet_name, starting_round, type, start, close, tag,
-                            surface, defending_champion, description, matches_count, month, image_url
-                        )
-                        VALUES (:id, :name, :dates, :status, :sheet, :sr, :type, :start, :close, :tag,
-                                :surf, :defend, :desc, :mc, :month, :img)
-                        ON CONFLICT (id) DO UPDATE SET 
-                        name=EXCLUDED.name, dates=EXCLUDED.dates, status=EXCLUDED.status, 
-                        sheet_name=EXCLUDED.sheet_name, starting_round=EXCLUDED.starting_round,
-                        type=EXCLUDED.type, start=EXCLUDED.start, close=EXCLUDED.close, tag=EXCLUDED.tag,
-                        surface=EXCLUDED.surface, defending_champion=EXCLUDED.defending_champion,
-                        description=EXCLUDED.description, matches_count=EXCLUDED.matches_count,
-                        month=EXCLUDED.month, image_url=EXCLUDED.image_url
-                    """), {
-                        "id": tid, "name": name, "dates": dates, "status": status, 
-                        "sheet": sheet_name, "sr": s_round, "type": t_type, 
-                        "start": start, "close": close, "tag": tag,
-                        "surf": surface, "defend": defending, "desc": info, 
-                        "mc": matches_count, "month": month_val, "img": img_url
-                    })
-                    
-                    draw_size = 32
-                    s_round_clean = s_round.strip().upper()
-                    if s_round_clean == "R128": draw_size = 128
-                    elif s_round_clean == "R64": draw_size = 64
-                    elif s_round_clean == "R32": draw_size = 32
-                    else:
-                        t_type_lower = t_type.lower()
-                        if "1000" in t_type_lower: draw_size = 64
-                        elif "slam" in t_type_lower or "тбш" in tag.lower(): draw_size = 128
-                    
-                    if status != "PLANNED":
-                        tournaments_to_sync.append((tid, sheet_name, draw_size))
-                except Exception as e:
-                    logger.error(f"Row parsing error ID={tid_str}: {e}")
-        conn.commit()
-
-        for tid, sheet_name, draw_size in tournaments_to_sync:
-             print(f"Syncing Matches for T{tid} ({sheet_name}) - Draw {draw_size}...")
-             try:
-                try:
-                    ws = sheet.worksheet(sheet_name)
-                    data = ws.get_all_values()
-                except: 
-                    print(f"Sheet {sheet_name} not found")
-                    continue
-                if len(data) < 2: continue
-                headers = data[0]
-                cols = {h.strip(): i for i, h in enumerate(headers) if h.strip()}
-                rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F"]
-                champion = None
-                if "Champion" in cols and len(data) > 1:
-                    champ_col = cols["Champion"]
-                    for r_idx in range(1, len(data)):
-                        if champ_col < len(data[r_idx]):
-                            val = data[r_idx][champ_col].strip()
-                            if val: champion = val; break
-                
-                with conn.begin_nested():
-                    for round_name in rounds_order:
-                        if round_name not in cols: continue
-                        col_idx = cols[round_name]
-                        row_indices = get_match_rows(round_name, draw_size)
-                        
-                        for i, r_idx in enumerate(row_indices):
-                            match_number = i + 1
-                            if r_idx + 1 >= len(data): continue
-                            row1 = data[r_idx]; row2 = data[r_idx+1]
-                            
-                            raw_p1 = row1[col_idx] if col_idx < len(row1) else ""
-                            raw_p2 = row2[col_idx] if col_idx < len(row2) else ""
-                            p1 = clean_sheet_value(raw_p1) or ""
-                            p2 = clean_sheet_value(raw_p2) or ""
-                            winner = None
-                            
-                            if p1 and p2:
-                                if p2.lower() == "bye": winner = p1
-                                elif p1.lower() == "bye": winner = p2
-                                elif round_name != "F":
-                                    curr_r_idx_list = rounds_order.index(round_name)
-                                    next_round_name = None
-                                    for k in range(curr_r_idx_list + 1, len(rounds_order)):
-                                        if rounds_order[k] in cols: next_round_name = rounds_order[k]; break
-                                    
-                                    if next_round_name:
-                                        next_col = cols[next_round_name]
-                                        next_round_indices = get_match_rows(next_round_name, draw_size)
-                                        target_match_idx = i // 2
-                                        if target_match_idx < len(next_round_indices):
-                                            next_r_start = next_round_indices[target_match_idx]
-                                            candidates = []
-                                            if next_r_start < len(data) and next_col < len(data[next_r_start]): 
-                                                candidates.append(clean_sheet_value(data[next_r_start][next_col]))
-                                            if next_r_start + 1 < len(data) and next_col < len(data[next_r_start+1]): 
-                                                candidates.append(clean_sheet_value(data[next_r_start+1][next_col]))
-                                            for cand in candidates:
-                                                if not cand: continue
-                                                if is_same_player(p1, cand): winner = p1; break
-                                                elif is_same_player(p2, cand): winner = p2; break
-                            
-                            if round_name == "F" and champion:
-                                if p1 and is_same_player(p1, champion): winner = p1
-                                elif p2 and is_same_player(p2, champion): winner = p2
-                            
-                            scores = []
-                            for s_off in range(1, 6):
-                                sc_idx = col_idx + s_off
-                                if sc_idx >= len(row1): scores.append(None); continue
-                                if sc_idx < len(headers) and headers[sc_idx].strip() in rounds_order: scores.append(None); continue
-                                s1_val = clean_sheet_value(row1[sc_idx])
-                                s2_val = clean_sheet_value(row2[sc_idx])
-                                if s1_val and s2_val: scores.append(f"{s1_val}-{s2_val}")
-                                else: scores.append(None)
-                            s1, s2, s3, s4, s5 = (scores + [None]*5)[:5]
-                            
-                            conn.execute(text("""
-                                INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner, set1, set2, set3, set4, set5)
-                                VALUES (:tid, :rnd, :mn, :p1, :p2, :win, :s1, :s2, :s3, :s4, :s5)
-                                ON CONFLICT (tournament_id, round, match_number) DO UPDATE
-                                SET player1=EXCLUDED.player1, player2=EXCLUDED.player2, winner=EXCLUDED.winner,
-                                    set1=EXCLUDED.set1, set2=EXCLUDED.set2, set3=EXCLUDED.set3, set4=EXCLUDED.set4, set5=EXCLUDED.set5
-                            """), {
-                                "tid": tid, "rnd": round_name, "mn": match_number, 
-                                "p1": p1, "p2": p2, "win": winner, 
-                                "s1": s1, "s2": s2, "s3": s3, "s4": s4, "s5": s5
-                            })
-                    if champion:
-                        conn.execute(text("""
-                            INSERT INTO true_draw (tournament_id, round, match_number, player1, player2, winner)
-                            VALUES (:tid, 'Champion', 1, :name, NULL, :name)
-                            ON CONFLICT (tournament_id, round, match_number) DO UPDATE
-                            SET winner=EXCLUDED.winner, player1=EXCLUDED.player1
-                        """), {"tid": tid, "name": champion})
-                        conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": tid})
-                conn.commit()
-                db_session = SessionLocal()
-                try: update_tournament_leaderboard(tid, db_session)
-                except Exception as ex: logger.error(str(ex))
-                finally: db_session.close()
-             except Exception as e: logger.error(f"Sync error T{tid}: {e}")
-        conn.commit()
-        print("--- TOURNAMENTS SYNC FINISHED ---")
-
-# --- DAILY CHALLENGE SYNC WITH MANUAL BLOCK LOGIC ---
-async def sync_daily_challenge(engine: Engine) -> None:
     try:
-        client = get_google_sheets_client()
-        sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
-        try:
-            ws = sheet.worksheet("DAILY_MATCHES")
-        except: return
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        ws = client.open_by_key(sheet_id).worksheet("DICTIONARY")
         rows = ws.get_all_values()
-    except Exception as e:
-        logger.error(f"Google Sheet error: {e}")
-        return
-
-    if len(rows) < 2: return
-    session = SessionLocal()
-    
-    try:
-        valid_sheet_ids = set()
-        ids_to_delete = set()
+        
+        new_dict = {}
+        # Предполагаем структуру: A=FullEng, D=ShortEng, F=Flag, I=Rus
+        # Индексы: A=0, D=3, F=5, I=8
         
         for row in rows[1:]:
-            while len(row) < 10: row.append("")
+            if len(row) <= 8: continue
             
-            m_id = str(row[0]).strip()
-            if not m_id: continue
+            full_eng = row[0].strip()
+            short_eng = row[3].strip()
+            flag = row[5].strip()
+            rus_name = row[8].strip()
             
-            # ПРОВЕРКА РУЧНОГО БЛОКА (Колонка J)
-            manual_block = str(row[9]).strip().upper()
-            if manual_block == "X":
-                ids_to_delete.add(m_id)
-                continue 
-            
-            valid_sheet_ids.add(m_id)
-            
-            tour_name = row[1].strip()
-            status_raw = row[2].strip().upper()
-            round_name = row[3].strip()
-            time_str = row[4].strip()
-            p1 = row[5].strip()
-            p2 = row[6].strip()
-            score_text = row[7].strip()
-            winner_raw = row[8].strip()
+            if rus_name:
+                final_str = f"{flag} {rus_name}".strip()
+                if full_eng: new_dict[full_eng.lower()] = final_str
+                if short_eng: new_dict[short_eng.lower()] = final_str
+        
+        PLAYER_DICT = new_dict
+        logger.info(f"📚 Dictionary loaded from Google: {len(PLAYER_DICT)} entries")
+        
+    except Exception as e:
+        logger.error(f"Failed to load dictionary: {e}")
 
-            match_date = None
-            if time_str:
-                try: match_date = datetime.strptime(time_str, "%d.%m.%Y %H:%M")
-                except: pass
-            
-            winner_val = None
-            if winner_raw == "1": winner_val = 1
-            elif winner_raw == "2": winner_val = 2
-            
-            if winner_val is not None:
-                status_raw = "COMPLETED"
+# === ОСНОВНЫЕ ФУНКЦИИ ===
 
-            match = session.query(DailyMatch).filter(DailyMatch.id == m_id).first()
-            if not match:
-                match = DailyMatch(
-                    id=m_id, tournament=tour_name, status=status_raw, round=round_name,
-                    start_time=match_date, player1=p1, player2=p2, score=score_text, winner=winner_val
+def translate(name: str) -> str:
+    if not name: return "TBD"
+    clean_key = name.strip().lower()
+    # Ищем в словаре, если нет - возвращаем оригинал
+    return PLAYER_DICT.get(clean_key, name.strip())
+
+def clean_round(raw: str) -> str:
+    if not raw: return ""
+    temp = raw.split(" - ")[-1].strip()
+    return ROUND_MAP.get(temp, temp) if temp in ROUND_MAP else temp
+
+def format_set_score(val):
+    if val is None: return ""
+    v_str = str(val).strip()
+    if "." in v_str:
+        parts = v_str.split(".")
+        if len(parts) > 1 and parts[1] != "0": return f"{parts[0]}({parts[1]})"
+        return parts[0]
+    return v_str
+
+def build_score(match):
+    sets = []
+    scores_arr = match.get("scores", [])
+    if scores_arr:
+        for s in scores_arr:
+            s1 = format_set_score(s.get("score_first"))
+            s2 = format_set_score(s.get("score_second"))
+            if s1 and s2: sets.append(f"{s1}-{s2}")
+    
+    if not sets:
+        txt = match.get("event_live_result") or match.get("event_final_result")
+        if txt and txt not in ["2 - 0", "2 - 1", "0 - 2", "1 - 2"]:
+            parts = txt.replace(" - ", "-").split(" ")
+            for p in parts:
+                if "-" in p:
+                    sub = p.split("-")
+                    if len(sub) == 2:
+                        sp1 = format_set_score(sub[0])
+                        sp2 = format_set_score(sub[1])
+                        sets.append(f"{sp1}-{sp2}")
+
+    res = ", ".join(sets)
+    game = str(match.get("event_game_result", ""))
+    if game and game not in ["-", "None"]:
+        clean_game = game.replace(" - ", ":").replace("-", ":").replace(" : ", ":")
+        res += f" ({clean_game})"
+    return res
+
+def fetch_from_api(date_str):
+    if not API_KEY: return []
+    params = {
+        "method": "get_fixtures", "APIkey": API_KEY,
+        "date_start": date_str, "date_stop": date_str, "timezone": "Europe/Moscow"
+    }
+    try:
+        resp = requests.get(API_URL, params=params, timeout=10)
+        data = resp.json()
+        if isinstance(data, dict) and "result" in data: return data["result"]
+        if isinstance(data, list): return data
+        return []
+    except Exception as e:
+        logger.error(f"API Request failed: {e}")
+        return []
+
+def update_daily_matches_direct():
+    """
+    Запускается шедулером.
+    """
+    # 1. Если словарь пустой, пробуем загрузить
+    if not PLAYER_DICT:
+        load_dictionary_from_sheets()
+
+    session = SessionLocal()
+    try:
+        dates = [
+            (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"),
+            datetime.now().strftime("%Y-%m-%d"),
+            (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        ]
+        
+        raw_matches = []
+        for d in dates:
+            raw_matches += fetch_from_api(d)
+            
+        if not raw_matches: return
+
+        for m in raw_matches:
+            qual_val = str(m.get("event_qualification", "")).lower()
+            if qual_val in ["true", "1"]: continue
+            
+            r_raw = str(m.get("tournament_round", "")).lower()
+            if "qual" in r_raw or "prelim" in r_raw: continue
+
+            etype = str(m.get("event_type_type", "")).title()
+            if any(b in etype for b in INVALID_TYPES): continue
+            
+            is_singles = "Singles" in etype or "United Cup" in etype
+            is_major = any(x in etype for x in ["Atp", "Wta", "Open", "Slam", "Cup"])
+            if not (is_singles and is_major): continue
+            
+            p1_raw = m.get("event_first_player", "")
+            if "/" in p1_raw: continue
+
+            m_id = str(m.get("event_key"))
+            t_raw = m.get("tournament_name") or ""
+            t_clean = t_raw.replace(" Singles", "").strip()
+            if "Wta" in etype and "WTA" not in t_clean: t_clean = f"WTA {t_clean}"
+            elif "Atp" in etype and "ATP" not in t_clean: t_clean = f"ATP {t_clean}"
+            
+            st_raw = str(m.get("event_status", "")).lower()
+            status = "PLANNED"
+            is_api_live = str(m.get("event_live", "0")) == "1"
+            
+            if any(x in st_raw for x in ["can", "int", "walk", "w/o"]): status = "CANCELLED"
+            elif any(x in st_raw for x in ["fin", "aft", "ret"]): status = "COMPLETED"
+            elif is_api_live or any(x in st_raw for x in ["live", "set", "game"]): status = "LIVE"
+            
+            score_str = build_score(m)
+            if status == "PLANNED" and score_str and any(c.isdigit() for c in score_str):
+                status = "LIVE"
+
+            winner = None
+            if status == "COMPLETED":
+                w = m.get("event_winner", "")
+                if "First" in w or "Home" in w: winner = 1
+                elif "Second" in w or "Away" in w: winner = 2
+
+            d_part = m.get("event_date", "")
+            t_part = m.get("event_time", "")
+            start_dt = None
+            try:
+                start_dt = datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M")
+            except: pass
+
+            # DB Update
+            existing = session.query(DailyMatch).filter(DailyMatch.id == m_id).first()
+            
+            # --- ЗДЕСЬ ПРИМЕНЯЕМ ПЕРЕВОД ---
+            p1_ru = translate(p1_raw)
+            p2_ru = translate(m.get("event_second_player"))
+            
+            if not existing:
+                new_match = DailyMatch(
+                    id=m_id, tournament=t_clean, status=status,
+                    round=clean_round(m.get("tournament_round")),
+                    start_time=start_dt,
+                    player1=p1_ru, player2=p2_ru, # Используем перевод
+                    score=score_str, winner=winner
                 )
-                session.add(match)
+                session.add(new_match)
             else:
-                match.tournament = tour_name
-                match.status = status_raw
-                match.round = round_name
-                match.start_time = match_date
-                match.player1 = p1
-                match.player2 = p2
-                match.score = score_text
-                match.winner = winner_val
+                existing.status = status
+                existing.score = score_str
+                existing.winner = winner
+                if start_dt: existing.start_time = start_dt
+                # Обновляем имена (вдруг добавили перевод в словарь)
+                existing.player1 = p1_ru
+                existing.player2 = p2_ru
             
             session.flush()
             
-            if match.status == "COMPLETED" and match.winner is not None:
-                process_match_results(match.id, session)
+            if status == "COMPLETED" and winner is not None:
+                process_match_results(m_id, session)
 
-        # CLEANUP: Delete matches marked with X or removed from sheet
-        db_matches = session.query(DailyMatch).all()
-        matches_to_remove = []
-        
-        for db_m in db_matches:
-            if db_m.id in ids_to_delete or db_m.id not in valid_sheet_ids:
-                matches_to_remove.append(db_m.id)
-        
-        if matches_to_remove:
-            logger.info(f"Cleaning up {len(matches_to_remove)} matches...")
-            
-            session.execute(
-                text("DELETE FROM daily_picks WHERE match_id IN :ids"),
-                {"ids": tuple(matches_to_remove)}
-            )
-            
-            session.execute(
-                text("DELETE FROM daily_matches WHERE id IN :ids"),
-                {"ids": tuple(matches_to_remove)}
-            )
-            
-            # Recalculate Leaderboard
-            session.execute(text("DELETE FROM daily_leaderboard"))
-            session.execute(text("""
-                INSERT INTO daily_leaderboard (user_id, total_points, correct_picks, total_picks)
-                SELECT 
-                    user_id, 
-                    COALESCE(SUM(points), 0),
-                    COUNT(CASE WHEN is_correct = true THEN 1 END),
-                    COUNT(*)
-                FROM daily_picks
-                GROUP BY user_id
-            """))
-            
         session.commit()
+        
     except Exception as e:
+        logger.error(f"Direct Sync Error: {e}")
         session.rollback()
-        logger.error(f"Daily Sync DB Error: {e}")
     finally:
         session.close()

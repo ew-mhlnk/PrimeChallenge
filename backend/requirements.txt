@@ -9,3 +9,6 @@ python-dotenv==1.0.1
 pydantic==2.5.3
 git+https://github.com/nimaxin/init-data-py.git
 apscheduler==3.10.4
+sqladmin==0.16.0
+itsdangerous==2.1.2
+requests==2.31.0
