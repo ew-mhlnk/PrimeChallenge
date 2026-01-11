@@ -3,19 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# Импорты базы данных
 from database.db import init_db, engine
-
-# Импорты Роутеров
 from routers import auth, tournaments, picks, users, leaderboard, daily
 
-# Импорты Сервисов Синхронизации
-# 1. Bracket: Читаем из Гугл Таблицы (как и раньше)
-from services.sync_service import sync_google_sheets_with_db
-# 2. Daily: Внутренний парсер (API Tennis) + Загрузка словаря
-from services.tennis_service import update_daily_matches_direct, load_dictionary_from_sheets
+# СИНХРОНИЗАЦИЯ:
+# 1. Читает из Гугл Таблицы в БД (И Daily, и Bracket)
+from services.sync_service import sync_google_sheets_with_db, sync_daily_challenge
+# 2. Пишет В Гугл Таблицу из API
+from services.tennis_service import update_google_sheet_from_api, load_dictionary_from_sheets
 
-# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -24,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# === CORS ===
 origins = [
     "http://localhost:3000",
     "https://prime-challenge.vercel.app",
@@ -40,7 +35,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# === MIDDLEWARE (Логирование запросов) ===
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     try:
@@ -50,7 +44,6 @@ async def log_requests(request: Request, call_next):
         logger.error(f"Request failed: {e}")
         raise
 
-# === ОСНОВНЫЕ РОУТЫ ===
 @app.get("/")
 async def root():
     return {"status": "ok", "service": "Prime Bracket Backend"}
@@ -59,18 +52,16 @@ async def root():
 async def ping():
     return {"message": "pong"}
 
-# Ручной запуск синхронизации (на всякий случай)
 @app.get("/sync")
 async def manual_sync():
-    # 1. Обновляем словарь имен
     load_dictionary_from_sheets()
-    # 2. Запускаем турниры
+    # 1. API -> GSheet
+    update_google_sheet_from_api() 
+    # 2. GSheet -> DB
     await sync_google_sheets_with_db(engine)
-    # 3. Запускаем дейли (прямой API)
-    update_daily_matches_direct() 
-    return {"message": "All Syncs triggered"}
+    await sync_daily_challenge(engine)
+    return {"message": "Full Sync Cycle triggered"}
 
-# === ПОДКЛЮЧЕНИЕ РОУТЕРОВ ===
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(tournaments.router, prefix="", tags=["tournaments"])
 app.include_router(picks.router, prefix="/picks", tags=["picks"])
@@ -78,27 +69,27 @@ app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(leaderboard.router, prefix="/leaderboard", tags=["leaderboard"])
 app.include_router(daily.router, prefix="/daily", tags=["daily"])
 
-# === ПЛАНИРОВЩИК (SCHEDULER) ===
 scheduler = AsyncIOScheduler()
 
 @app.on_event("startup")
 async def startup_event():
     logger.info("Application startup")
-    
-    # 1. Инициализация таблиц БД
     init_db()
-    
-    # 2. Загружаем словарь имен из Гугл Таблицы при старте
     load_dictionary_from_sheets()
     
-    # 3. Задача: Синхронизация Турниров (Bracket) из Google Sheets (раз в 5 минут)
+    # --- РАСПИСАНИЕ ---
+    
+    # 1. API -> Google Sheet (раз в 1 мин) - Это наш "Внутренний Парсер"
+    scheduler.add_job(update_google_sheet_from_api, "interval", minutes=1)
+    
+    # 2. Google Sheet -> DB (раз в 1 мин) - Это забирает данные в базу
+    scheduler.add_job(sync_daily_challenge, "interval", minutes=1, args=[engine])
+    
+    # 3. Bracket (раз в 5 мин)
     scheduler.add_job(sync_google_sheets_with_db, "interval", minutes=5, args=[engine])
     
-    # 4. Задача: Обновление Daily Challenge напрямую из API Tennis (раз в 1 минуту)
-    scheduler.add_job(update_daily_matches_direct, "interval", minutes=1)
-    
-    # 5. Задача: Обновление словаря имен (раз в 1 час)
+    # 4. Dictionary (раз в час)
     scheduler.add_job(load_dictionary_from_sheets, "interval", minutes=60)
     
     scheduler.start()
-    logger.info("Scheduler started: Bracket + Daily API + Dictionary")
+    logger.info("Scheduler started: Full Cycle (API->Sheet->DB)")

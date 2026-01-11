@@ -3,16 +3,25 @@ import json
 import os
 import gspread
 from sqlalchemy import Engine, text
+from sqlalchemy.orm import Session
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import re
 import pytz 
 
 from database.db import SessionLocal
+from database.models import (
+    DailyMatch, DailyPick, DailyLeaderboard 
+)
 from utils.score_calculator import update_tournament_leaderboard
+from utils.daily_calculator import process_match_results
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ==========================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ==========================================
 
 def clean_sheet_value(value):
     if not value: return None
@@ -26,9 +35,9 @@ def clean_sheet_value(value):
 
 def get_google_sheets_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    credentials_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS") or os.getenv("GOOGLE_CREDENTIALS")
+    credentials_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
     if not credentials_json:
-        raise ValueError("GOOGLE_CREDENTIALS missing")
+        raise ValueError("GOOGLE_SHEETS_CREDENTIALS missing")
     credentials = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(credentials_json), scope)
     return gspread.authorize(credentials)
 
@@ -68,9 +77,14 @@ def get_match_rows(round_name: str, draw_size: int):
     if draw_size == 128:
         base_map = {"R128": (1, 4), "R64": (3, 8), "R32": (7, 16), "R16": (15, 32), "QF": (31, 64), "SF": (63, 128), "F": (127, 256)}
     elif draw_size == 64:
+        # Индексы под вашу таблицу (WTA 500)
         base_map = {
-            "R64": (1, 4), "R32": (3, 8), "R16": (7, 16), 
-            "QF": (15, 32), "SF": (33, 64), "F": (63, 128)
+            "R64": (1, 4), 
+            "R32": (3, 8), 
+            "R16": (7, 16), 
+            "QF": (15, 32), 
+            "SF": (33, 64), 
+            "F": (63, 128)
         }
     else: 
         base_map = {"R32": (1, 4), "R16": (3, 8), "QF": (7, 16), "SF": (15, 32), "F": (31, 64)}
@@ -91,7 +105,10 @@ def get_match_rows(round_name: str, draw_size: int):
     for i in range(count): indices.append(start_idx + (i * step))
     return indices
 
-# === ОСНОВНАЯ ФУНКЦИЯ СИНХРОНИЗАЦИИ ТУРНИРОВ ===
+# ==========================================
+# 1. СИНХРОНИЗАЦИЯ ТУРНИРОВ (BRACKET)
+# ==========================================
+
 async def sync_google_sheets_with_db(engine: Engine) -> None:
     # logger.info("--- STARTING TOURNAMENTS SYNC ---")
     try:
@@ -182,7 +199,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
         conn.commit()
 
         for tid, sheet_name, draw_size in tournaments_to_sync:
-             # print(f"Syncing T{tid}...")
              try:
                 try:
                     ws = sheet.worksheet(sheet_name)
@@ -284,3 +300,130 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                 finally: db_session.close()
              except Exception as e: logger.error(f"Sync error T{tid}: {e}")
         conn.commit()
+        # print("--- TOURNAMENTS SYNC FINISHED ---")
+
+# ==========================================
+# 2. СИНХРОНИЗАЦИЯ DAILY CHALLENGE
+# ==========================================
+
+async def sync_daily_challenge(engine: Engine) -> None:
+    try:
+        client = get_google_sheets_client()
+        sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
+        try:
+            ws = sheet.worksheet("DAILY_MATCHES")
+        except:
+            return
+        rows = ws.get_all_values()
+    except Exception as e:
+        logger.error(f"Google Sheet error: {e}")
+        return
+
+    if len(rows) < 2: return
+    session = SessionLocal()
+    
+    try:
+        valid_sheet_ids = set()
+        ids_to_delete = set()
+        
+        # 1. UPSERT (Вставка/Обновление)
+        for row in rows[1:]:
+            while len(row) < 10: row.append("")
+            
+            m_id = str(row[0]).strip()
+            if not m_id: continue
+            
+            # --- ПРОВЕРКА РУЧНОГО БЛОКА (X) ---
+            manual_block = str(row[9]).strip().upper()
+            if manual_block == "X":
+                ids_to_delete.add(m_id)
+                continue # Не добавляем в БД
+            
+            valid_sheet_ids.add(m_id)
+            
+            tour_name = row[1].strip()
+            status_raw = row[2].strip().upper()
+            round_name = row[3].strip()
+            time_str = row[4].strip()
+            p1 = row[5].strip()
+            p2 = row[6].strip()
+            score_text = row[7].strip()
+            winner_raw = row[8].strip()
+
+            match_date = None
+            if time_str:
+                try: match_date = datetime.strptime(time_str, "%d.%m.%Y %H:%M")
+                except: pass
+            
+            winner_val = None
+            if winner_raw == "1": winner_val = 1
+            elif winner_raw == "2": winner_val = 2
+            
+            if winner_val is not None:
+                status_raw = "COMPLETED"
+
+            match = session.query(DailyMatch).filter(DailyMatch.id == m_id).first()
+            if not match:
+                match = DailyMatch(
+                    id=m_id, tournament=tour_name, status=status_raw, round=round_name,
+                    start_time=match_date, player1=p1, player2=p2, score=score_text, winner=winner_val
+                )
+                session.add(match)
+            else:
+                match.tournament = tour_name
+                match.status = status_raw
+                match.round = round_name
+                match.start_time = match_date
+                match.player1 = p1
+                match.player2 = p2
+                match.score = score_text
+                match.winner = winner_val
+            
+            session.flush()
+            
+            if match.status == "COMPLETED" and match.winner is not None:
+                process_match_results(match.id, session)
+
+        # 2. CLEANUP (Чистка мусора и заблокированных)
+        db_matches = session.query(DailyMatch).all()
+        matches_to_remove = []
+        
+        for db_m in db_matches:
+            # Удаляем, если стоит X в таблице ИЛИ если матча вообще нет в таблице
+            if db_m.id in ids_to_delete or db_m.id not in valid_sheet_ids:
+                matches_to_remove.append(db_m.id)
+        
+        if matches_to_remove:
+            logger.info(f"Cleaning up {len(matches_to_remove)} matches from DB...")
+            
+            # А. Удаляем пики
+            session.execute(
+                text("DELETE FROM daily_picks WHERE match_id IN :ids"),
+                {"ids": tuple(matches_to_remove)}
+            )
+            
+            # Б. Удаляем матчи
+            session.execute(
+                text("DELETE FROM daily_matches WHERE id IN :ids"),
+                {"ids": tuple(matches_to_remove)}
+            )
+            
+            # В. Пересчитываем лидерборд
+            session.execute(text("DELETE FROM daily_leaderboard"))
+            session.execute(text("""
+                INSERT INTO daily_leaderboard (user_id, total_points, correct_picks, total_picks)
+                SELECT 
+                    user_id, 
+                    COALESCE(SUM(points), 0),
+                    COUNT(CASE WHEN is_correct = true THEN 1 END),
+                    COUNT(*)
+                FROM daily_picks
+                GROUP BY user_id
+            """))
+            
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Daily Sync DB Error: {e}")
+    finally:
+        session.close()
