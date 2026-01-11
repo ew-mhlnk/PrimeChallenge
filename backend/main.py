@@ -1,13 +1,25 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-from database.db import init_db, engine
-from routers import auth, tournaments, picks, users, leaderboard
-# Импортируем ОБЕ функции синхронизации
-from services.sync_service import sync_google_sheets_with_db, sync_daily_challenge
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from routers import auth, tournaments, picks, users, leaderboard, daily # <--- Добавили daily
+from sqladmin import Admin
 
+# Импорты базы данных
+from database.db import init_db, engine
+
+# Импорты Роутеров
+from routers import auth, tournaments, picks, users, leaderboard, daily
+
+# Импорты Сервисов Синхронизации
+# 1. Старый сервис для Турниров (Брекетов) - все еще читает из Гугл Таблицы
+from services.sync_service import sync_google_sheets_with_db
+# 2. Новый сервис для Дейли - читает НАПРЯМУЮ из API (замена парсеру)
+from services.tennis_service import update_daily_matches_direct
+
+# Импорты для Админки
+from admin_panel import UserAdmin, TournamentAdmin, DailyMatchAdmin, DailyPickAdmin
+
+# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -32,10 +44,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# === MIDDLEWARE (Логирование запросов) ===
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    origin = request.headers.get("origin")
-    # logger.info(f"Request from Origin: {origin} → {request.method} {request.url}")
     try:
         response = await call_next(request)
         return response
@@ -43,25 +54,30 @@ async def log_requests(request: Request, call_next):
         logger.error(f"Request failed: {e}")
         raise
 
-# === ОСНОВНЫЕ РОУТЫ ===
+# === ПОДКЛЮЧЕНИЕ АДМИНКИ ===
+admin = Admin(app, engine)
+admin.add_view(UserAdmin)
+admin.add_view(TournamentAdmin)
+admin.add_view(DailyMatchAdmin)
+admin.add_view(DailyPickAdmin)
 
+# === ОСНОВНЫЕ РОУТЫ ===
 @app.get("/")
 async def root():
     return {"status": "ok", "service": "Prime Bracket Backend"}
 
 @app.get("/ping")
 async def ping():
-    return {"message": "pong", "cors": "fixed"}
+    return {"message": "pong"}
 
-# Обновленный ручной синк
+# Ручной запуск синхронизации (на всякий случай)
 @app.get("/sync")
-@app.post("/sync")
 async def manual_sync():
-    # Запускаем синхронизацию турниров
+    # Запускаем турниры
     await sync_google_sheets_with_db(engine)
-    # Запускаем синхронизацию дейли
-    await sync_daily_challenge(engine)
-    return {"message": "All Syncs completed successfully"}
+    # Запускаем дейли (прямой API)
+    update_daily_matches_direct() 
+    return {"message": "All Syncs triggered"}
 
 # === ПОДКЛЮЧЕНИЕ РОУТЕРОВ ===
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -71,19 +87,24 @@ app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(leaderboard.router, prefix="/leaderboard", tags=["leaderboard"])
 app.include_router(daily.router, prefix="/daily", tags=["daily"])
 
-# === ПЛАНИРОВЩИК ===
+# === ПЛАНИРОВЩИК (SCHEDULER) ===
 scheduler = AsyncIOScheduler()
 
 @app.on_event("startup")
 async def startup_event():
     logger.info("Application startup")
+    
+    # 1. Инициализация таблиц БД
     init_db()
     
-    # Синхронизация турниров (каждые 5 минут)
+    # 2. Задача: Синхронизация Турниров (Bracket) из Google Sheets
+    # Запускаем раз в 5 минут
     scheduler.add_job(sync_google_sheets_with_db, "interval", minutes=5, args=[engine])
     
-    # Синхронизация Daily Challenge (каждую 1 минуту - для лайва)
-    scheduler.add_job(sync_daily_challenge, "interval", minutes=1, args=[engine])
+    # 3. Задача: Обновление Daily Challenge напрямую из API Tennis
+    # Запускаем раз в 1 минуту (LIVE режим)
+    # Это заменяет внешний парсер на Amvera
+    scheduler.add_job(update_daily_matches_direct, "interval", minutes=1)
     
     scheduler.start()
-    logger.info("Scheduler started with both jobs")
+    logger.info("Scheduler started: Bracket(Sheets/5min) + Daily(DirectAPI/1min)")
