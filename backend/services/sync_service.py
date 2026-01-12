@@ -1,3 +1,5 @@
+import asyncio
+from functools import partial
 import logging
 import json
 import os
@@ -77,7 +79,6 @@ def get_match_rows(round_name: str, draw_size: int):
     if draw_size == 128:
         base_map = {"R128": (1, 4), "R64": (3, 8), "R32": (7, 16), "R16": (15, 32), "QF": (31, 64), "SF": (63, 128), "F": (127, 256)}
     elif draw_size == 64:
-        # Индексы под вашу таблицу (WTA 500)
         base_map = {
             "R64": (1, 4), 
             "R32": (3, 8), 
@@ -109,8 +110,8 @@ def get_match_rows(round_name: str, draw_size: int):
 # 1. СИНХРОНИЗАЦИЯ ТУРНИРОВ (BRACKET)
 # ==========================================
 
-async def sync_google_sheets_with_db(engine: Engine) -> None:
-    # logger.info("--- STARTING TOURNAMENTS SYNC ---")
+def _sync_tournaments_logic(engine: Engine) -> None:
+    # logger.info("--- STARTING TOURNAMENTS SYNC (THREAD) ---")
     try:
         client = get_google_sheets_client()
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
@@ -300,13 +301,21 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
                 finally: db_session.close()
              except Exception as e: logger.error(f"Sync error T{tid}: {e}")
         conn.commit()
-        # print("--- TOURNAMENTS SYNC FINISHED ---")
+
+async def sync_google_sheets_with_db(engine: Engine) -> None:
+    """
+    Асинхронная обертка для синхронизации турниров.
+    Запускает синхронную логику в отдельном потоке, чтобы не блокировать API.
+    """
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, _sync_tournaments_logic, engine)
 
 # ==========================================
 # 2. СИНХРОНИЗАЦИЯ DAILY CHALLENGE
 # ==========================================
 
-async def sync_daily_challenge(engine: Engine) -> None:
+def _sync_daily_logic(engine: Engine) -> None:
+    # logger.info("--- STARTING DAILY SYNC (THREAD) ---")
     try:
         client = get_google_sheets_client()
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
@@ -394,7 +403,7 @@ async def sync_daily_challenge(engine: Engine) -> None:
                 matches_to_remove.append(db_m.id)
         
         if matches_to_remove:
-            logger.info(f"Cleaning up {len(matches_to_remove)} matches from DB...")
+            # logger.info(f"Cleaning up {len(matches_to_remove)} matches from DB...")
             
             # А. Удаляем пики
             session.execute(
@@ -427,3 +436,10 @@ async def sync_daily_challenge(engine: Engine) -> None:
         logger.error(f"Daily Sync DB Error: {e}")
     finally:
         session.close()
+
+async def sync_daily_challenge(engine: Engine) -> None:
+    """
+    Асинхронная обертка для синхронизации Daily Challenge.
+    """
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, _sync_daily_logic, engine)
