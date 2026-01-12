@@ -193,8 +193,12 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                         if "1000" in t_type_lower: draw_size = 64
                         elif "slam" in t_type_lower or "тбш" in tag.lower(): draw_size = 128
                     
-                    if status != "PLANNED":
+                    # === ОПТИМИЗАЦИЯ ===
+                    # Обновляем матчи и пересчитываем очки ТОЛЬКО для активных турниров.
+                    # Старые (COMPLETED/CLOSED) и будущие (PLANNED) не трогаем.
+                    if status == "ACTIVE":
                         tournaments_to_sync.append((tid, sheet_name, draw_size))
+                        
                 except Exception as e:
                     logger.error(f"Row parsing error ID={tid_str}: {e}")
         conn.commit()
