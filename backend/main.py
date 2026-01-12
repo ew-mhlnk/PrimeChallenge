@@ -110,11 +110,11 @@ async def startup_event():
     
     # 5. Bracket Sync (Турниры)
     # Забираем данные турниров раз в 10 минут
-    scheduler.add_job(sync_google_sheets_with_db, "interval", minutes=10, args=[engine])
+    scheduler.add_job(sync_google_sheets_with_db, "interval", minutes=5, args=[engine])
     
     # [ОТКЛЮЧЕНО] 6. Dictionary Update
     # Внешний сервис теперь обновляет это для себя, а здесь обновлять не обязательно так часто
     # scheduler.add_job(load_dictionary_from_sheets, "interval", minutes=60)
     
     scheduler.start()
-    logger.info("Scheduler started: Daily Sync(2min) + Bracket(10min). Parser disabled (external).")
+    logger.info("Scheduler started: Daily Sync(2min) + Bracket(5min). Parser disabled (external).")
