@@ -60,17 +60,19 @@ async def root():
 async def ping():
     return {"message": "pong"}
 
-# Ручной запуск синхронизации (на случай форс-мажора)
+# Ручной запуск синхронизации (Аварийная кнопка)
+# Если внешний парсер упал, можно дернуть этот ручку, 
+# и бэкенд сам обновит таблицу через update_google_sheet_from_api
 @app.get("/sync")
 async def manual_sync():
     logger.info("Manual Sync Triggered")
-    # 1. API -> Sheet
+    # 1. API -> Sheet (Синхронно, может заблокировать на пару сек, но для ручного теста ок)
     update_google_sheet_from_api() 
-    # 2. Sheet -> DB (Daily)
+    # 2. Sheet -> DB (Daily) - теперь асинхронно
     await sync_daily_challenge(engine)
-    # 3. Sheet -> DB (Bracket)
+    # 3. Sheet -> DB (Bracket) - теперь асинхронно
     await sync_google_sheets_with_db(engine)
-    return {"message": "Sync started in background (check logs)"}
+    return {"message": "Sync started (Check Google Sheet & DB Logs)"}
 
 # === ПОДКЛЮЧЕНИЕ РОУТЕРОВ ===
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -90,27 +92,29 @@ async def startup_event():
     # 1. Инициализация таблиц БД
     init_db()
     
-    # 2. Загружаем словарь имен при старте
-    load_dictionary_from_sheets()
+    # 2. Загружаем словарь имен при старте (для корректной работы ручного синка)
+    try:
+        load_dictionary_from_sheets()
+    except Exception as e:
+        logger.error(f"Failed to load dictionary: {e}")
     
-    # --- РАСПИСАНИЕ ЗАДАЧ (Оптимизированное) ---
+    # --- РАСПИСАНИЕ ЗАДАЧ ---
     
-    # 3. Daily Parser (API -> Google Sheet)
-    # Раз в 2 минуты (чтобы не перегружать API и сервер)
-    scheduler.add_job(update_google_sheet_from_api, "interval", minutes=2)
+    # [ОТКЛЮЧЕНО] 3. Daily Parser (API -> Google Sheet)
+    # Теперь это делает отдельный сервис parser_service.
+    # scheduler.add_job(update_google_sheet_from_api, "interval", minutes=2)
     
     # 4. Daily Sync (Google Sheet -> DB)
-    # Раз в 2 минуты (синхронно с парсером, но через БД)
-    # Это также чистит мусор (крестики X) и считает очки
+    # Забираем данные из таблицы в базу раз в 2 минуты
     scheduler.add_job(sync_daily_challenge, "interval", minutes=2, args=[engine])
     
     # 5. Bracket Sync (Турниры)
-    # Раз в 10 минут! (Потому что пересчет 9 турниров тяжелый, чаще не надо)
+    # Забираем данные турниров раз в 10 минут
     scheduler.add_job(sync_google_sheets_with_db, "interval", minutes=10, args=[engine])
     
-    # 6. Dictionary Update (Словарь имен)
-    # Раз в час (имена меняются редко)
-    scheduler.add_job(load_dictionary_from_sheets, "interval", minutes=60)
+    # [ОТКЛЮЧЕНО] 6. Dictionary Update
+    # Внешний сервис теперь обновляет это для себя, а здесь обновлять не обязательно так часто
+    # scheduler.add_job(load_dictionary_from_sheets, "interval", minutes=60)
     
     scheduler.start()
-    logger.info("Scheduler started: Daily(2min) + Bracket(10min)")
+    logger.info("Scheduler started: Daily Sync(2min) + Bracket(10min). Parser disabled (external).")
