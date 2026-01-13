@@ -84,9 +84,11 @@ def get_match_rows(round_name: str, draw_size: int):
             "R32": (3, 8), 
             "R16": (7, 16), 
             "QF": (15, 32), 
-            "SF": (33, 64), 
+            # ИСПРАВЛЕНО: Было 33, стало 31 (строки 32/33 в таблице)
+            "SF": (31, 64), 
             "F": (63, 128)
         }
+
     else: 
         base_map = {"R32": (1, 4), "R16": (3, 8), "QF": (7, 16), "SF": (15, 32), "F": (31, 64)}
         
@@ -194,10 +196,8 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                         elif "slam" in t_type_lower or "тбш" in tag.lower(): draw_size = 128
                     
                     # === ОПТИМИЗАЦИЯ ===
-                    # ACTIVE: Открыт прием прогнозов, сетка может меняться (квалифаеры и т.д.)
-                    # CLOSED: Турнир идет прямо сейчас, нужно обновлять результаты и очки!
-                    # COMPLETED: Архив. Не трогаем.
-                    
+                    # ACTIVE: Прием прогнозов
+                    # CLOSED: Идет прямо сейчас (нужен пересчет очков!)
                     if status in ["ACTIVE", "CLOSED"]:
                         tournaments_to_sync.append((tid, sheet_name, draw_size))
                         
@@ -299,7 +299,12 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                             ON CONFLICT (tournament_id, round, match_number) DO UPDATE
                             SET winner=EXCLUDED.winner, player1=EXCLUDED.player1
                         """), {"tid": tid, "name": champion})
-                        conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": tid})
+                        
+                        # === АВТО-ЗАКРЫТИЕ ОТКЛЮЧЕНО ===
+                        # Турнир остается ACTIVE/CLOSED, чтобы мы могли проверить очки.
+                        # Статус COMPLETED ставится вручную в Гугл Таблице.
+                        # conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": tid})
+                
                 conn.commit()
                 db_session = SessionLocal()
                 try: update_tournament_leaderboard(tid, db_session)
@@ -311,7 +316,6 @@ def _sync_tournaments_logic(engine: Engine) -> None:
 async def sync_google_sheets_with_db(engine: Engine) -> None:
     """
     Асинхронная обертка для синхронизации турниров.
-    Запускает синхронную логику в отдельном потоке, чтобы не блокировать API.
     """
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, _sync_tournaments_logic, engine)
@@ -374,7 +378,12 @@ def _sync_daily_logic(engine: Engine) -> None:
             if winner_raw == "1": winner_val = 1
             elif winner_raw == "2": winner_val = 2
             
-            if winner_val is not None:
+            # === ФИКС LIVE СТАТУСА ===
+            # Если написано LIVE, игнорируем победителя (это баг API или ошибка ввода)
+            if status_raw == "LIVE":
+                winner_val = None
+            # Если не LIVE, но есть победитель -> значит матч завершен
+            elif winner_val is not None:
                 status_raw = "COMPLETED"
 
             match = session.query(DailyMatch).filter(DailyMatch.id == m_id).first()
