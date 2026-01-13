@@ -6,19 +6,14 @@ import json
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
-import pytz
+from sqlalchemy.orm import Session
+from database.db import SessionLocal
+from database.models import DailyMatch
+from utils.daily_calculator import process_match_results
 
-# Настройка логгера
 logger = logging.getLogger(__name__)
 
-# Импортируем конфиги
-try:
-    from config import TENNIS_API_KEY, GOOGLE_SHEET_ID, GOOGLE_CREDENTIALS
-except ImportError:
-    TENNIS_API_KEY = os.getenv("TENNIS_API_KEY")
-    GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
-    GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
-
+API_KEY = os.getenv("TENNIS_API_KEY") 
 API_URL = "https://api.api-tennis.com/tennis/"
 
 PLAYER_DICT = {}
@@ -35,23 +30,19 @@ INVALID_TYPES = ["Doubles", "Challenger", "ITF", "Boys", "Girls", "Juniors"]
 def get_google_client():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds_json = os.getenv("GOOGLE_CREDENTIALS") or os.getenv("GOOGLE_SHEETS_CREDENTIALS")
         
-        # 1. Пробуем взять из переменной (для Render)
-        if GOOGLE_CREDENTIALS:
-            try:
-                if isinstance(GOOGLE_CREDENTIALS, str):
-                    creds_dict = json.loads(GOOGLE_CREDENTIALS)
-                else:
-                    creds_dict = GOOGLE_CREDENTIALS
-                return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope))
-            except Exception:
-                pass
-        
-        # 2. Пробуем взять из файла (локально)
-        if os.path.exists("google-credentials.json"):
-            return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope))
+        if not creds_json:
+            if os.path.exists("google-credentials.json"):
+                return ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope)
+            return None
             
-        return None
+        if isinstance(creds_json, str):
+            creds_dict = json.loads(creds_json)
+        else:
+            creds_dict = creds_json
+            
+        return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope))
     except Exception as e:
         logger.error(f"Google Auth Error: {e}")
         return None
@@ -62,15 +53,19 @@ def load_dictionary_from_sheets():
     if not client: return
 
     try:
-        ws = client.open_by_key(GOOGLE_SHEET_ID).worksheet("DICTIONARY")
+        sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        ws = client.open_by_key(sheet_id).worksheet("DICTIONARY")
         rows = ws.get_all_values()
         new_dict = {}
         for row in rows[1:]:
+            # Нам нужна колонка J (индекс 9), поэтому длина строки минимум 10
             if len(row) <= 9: continue
             
-            full_eng = row[0].strip()
-            short_eng = row[3].strip()
-            flag = row[5].strip()
+            full_eng = row[0].strip() # A
+            short_eng = row[3].strip() # D
+            flag = row[5].strip() # F
+            
+            # ИСПРАВЛЕНИЕ: Берем колонку J (индекс 9)
             rus_name = row[9].strip() 
             
             if rus_name:
@@ -129,8 +124,8 @@ def build_score(match):
     return res
 
 def fetch_from_api(date_str):
-    if not TENNIS_API_KEY: return []
-    params = {"method": "get_fixtures", "APIkey": TENNIS_API_KEY, "date_start": date_str, "date_stop": date_str, "timezone": "Europe/Moscow"}
+    if not API_KEY: return []
+    params = {"method": "get_fixtures", "APIkey": API_KEY, "date_start": date_str, "date_stop": date_str, "timezone": "Europe/Moscow"}
     try:
         resp = requests.get(API_URL, params=params, timeout=10)
         data = resp.json()
@@ -178,7 +173,8 @@ def process_matches(matches):
         
         score_str = build_score(m)
         
-        # ИСПРАВЛЕННЫЙ ДЕТЕКТОР ЛАЙВА (Твоя логика)
+        # ИСПРАВЛЕННЫЙ ДЕТЕКТОР ЛАЙВА:
+        # Ставим LIVE, только если в счете есть ЦИФРЫ и счет не равен "0-0"
         if status == "PLANNED" and score_str:
             has_digits = any(c.isdigit() for c in score_str)
             is_not_zero = score_str.strip() != "0-0"
@@ -234,7 +230,7 @@ def update_google_sheet_from_api():
     if not client: return
     
     try:
-        ws = client.open_by_key(GOOGLE_SHEET_ID).worksheet("DAILY_MATCHES")
+        ws = client.open_by_key(os.getenv("GOOGLE_SHEET_ID")).worksheet("DAILY_MATCHES")
         existing_data = ws.get_all_values()
         
         header = ["ID", "Tournament", "Status", "Round", "Time", "Player 1", "Player 2", "Score", "Winner", "Manual Block"]
@@ -260,7 +256,7 @@ def update_google_sheet_from_api():
                     del api_map[m_id]
                     
                 elif m_date_str in dates_with_data:
-                    # Чистим только если для этой даты API вернул данные, а этого матча там нет (Safe Clean)
+                    # Чистим только если для этой даты API вернул данные, а этого матча там нет
                     logger.info(f"🗑️ Safe Clean: {m_id} on {m_date_str}")
                     continue
                     
@@ -286,3 +282,6 @@ def update_google_sheet_from_api():
 
     except Exception as e:
         logger.error(f"Sheet Update Error: {e}")
+
+def update_daily_matches_direct():
+    pass
