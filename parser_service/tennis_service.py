@@ -1,5 +1,6 @@
 import logging
 import requests
+import re
 import os
 import json
 import gspread
@@ -10,11 +11,10 @@ import pytz
 # Настройка логгера
 logger = logging.getLogger(__name__)
 
-# Импортируем конфиги (или берем из os)
+# Импортируем конфиги
 try:
     from config import TENNIS_API_KEY, GOOGLE_SHEET_ID, GOOGLE_CREDENTIALS
 except ImportError:
-    # Fallback если запуск не через main.py
     TENNIS_API_KEY = os.getenv("TENNIS_API_KEY")
     GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
     GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
@@ -36,17 +36,20 @@ def get_google_client():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         
-        # Если credentials переданы как JSON-строка (обычно на Render)
+        # 1. Пробуем взять из переменной (для Render)
         if GOOGLE_CREDENTIALS:
             try:
-                creds_dict = json.loads(GOOGLE_CREDENTIALS)
+                if isinstance(GOOGLE_CREDENTIALS, str):
+                    creds_dict = json.loads(GOOGLE_CREDENTIALS)
+                else:
+                    creds_dict = GOOGLE_CREDENTIALS
                 return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope))
             except Exception:
-                pass # Попробуем файл
+                pass
         
-        # Если локально есть файл
+        # 2. Пробуем взять из файла (локально)
         if os.path.exists("google-credentials.json"):
-             return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope))
+            return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope))
             
         return None
     except Exception as e:
@@ -92,7 +95,7 @@ def clean_round(raw: str) -> str:
 
 def format_set_score(val):
     if val is None: return ""
-    v_str = str(val).strip() # <--- Исправил имя переменной здесь
+    v_str = str(val).strip()
     if "." in v_str:
         parts = v_str.split(".")
         if len(parts) > 1 and parts[1] != "0": return f"{parts[0]}({parts[1]})"
@@ -104,28 +107,20 @@ def build_score(match):
     scores_arr = match.get("scores", [])
     if scores_arr:
         for s in scores_arr:
-            def fmt(val):
-                if val is None: return ""
-                v_str = str(val).strip()
-                if "." in v_str:
-                    parts = v_str.split(".")
-                    if len(parts) > 1 and parts[1] != "0": return f"{parts[0]}({parts[1]})"
-                    return parts[0]
-                return v_str
-            
-            s1 = fmt(s.get("score_first"))
-            s2 = fmt(s.get("score_second"))
+            s1 = format_set_score(s.get("score_first"))
+            s2 = format_set_score(s.get("score_second"))
             if s1 and s2: sets.append(f"{s1}-{s2}")
-            
     if not sets:
         txt = match.get("event_live_result") or match.get("event_final_result")
         if txt and txt not in ["2 - 0", "2 - 1", "0 - 2", "1 - 2"]:
             parts = txt.replace(" - ", "-").split(" ")
             for p in parts:
                 if "-" in p:
-                    # Простая чистка счета
-                    sets.append(p)
-                    
+                    sub = p.split("-")
+                    if len(sub) == 2:
+                        sp1 = format_set_score(sub[0])
+                        sp2 = format_set_score(sub[1])
+                        sets.append(f"{sp1}-{sp2}")
     res = ", ".join(sets)
     game = str(match.get("event_game_result", ""))
     if game and game not in ["-", "None"]:
@@ -134,17 +129,8 @@ def build_score(match):
     return res
 
 def fetch_from_api(date_str):
-    if not TENNIS_API_KEY: 
-        logger.error("No API Key")
-        return []
-        
-    params = {
-        "method": "get_fixtures", 
-        "APIkey": TENNIS_API_KEY, 
-        "date_start": date_str, 
-        "date_stop": date_str, 
-        "timezone": "Europe/Moscow"
-    }
+    if not TENNIS_API_KEY: return []
+    params = {"method": "get_fixtures", "APIkey": TENNIS_API_KEY, "date_start": date_str, "date_stop": date_str, "timezone": "Europe/Moscow"}
     try:
         resp = requests.get(API_URL, params=params, timeout=10)
         data = resp.json()
@@ -161,6 +147,7 @@ def process_matches(matches):
     for m in matches:
         m_id = str(m.get("event_key"))
         
+        # Строгие фильтры
         q_field = str(m.get("event_qualification", "")).lower()
         if q_field in ["true", "1"]: continue
         r_raw = str(m.get("tournament_round", "")).lower()
@@ -191,9 +178,11 @@ def process_matches(matches):
         
         score_str = build_score(m)
         
+        # ИСПРАВЛЕННЫЙ ДЕТЕКТОР ЛАЙВА (Твоя логика)
         if status == "PLANNED" and score_str:
             has_digits = any(c.isdigit() for c in score_str)
             is_not_zero = score_str.strip() != "0-0"
+            
             if has_digits and is_not_zero:
                 status = "LIVE"
 
@@ -215,13 +204,13 @@ def process_matches(matches):
     return processed
 
 # =========================================================
-# ГЛАВНАЯ ФУНКЦИЯ (Sheet Updater)
+# ГЛАВНАЯ ФУНКЦИЯ (v12.1 - Safe Sync)
 # =========================================================
 def update_google_sheet_from_api():
     if not PLAYER_DICT: load_dictionary_from_sheets()
 
-    # Берем диапазон дат (Вчера, Сегодня, Завтра)
     dates = [
+        (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
         (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"), 
         datetime.now().strftime("%Y-%m-%d"),                       
         (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")  
@@ -229,8 +218,6 @@ def update_google_sheet_from_api():
     
     api_map = {}
     dates_with_data = set() 
-    
-    logger.info(f"Fetching matches for: {dates}")
     
     for d in dates:
         raw = fetch_from_api(d)
@@ -241,9 +228,7 @@ def update_google_sheet_from_api():
                 for item in processed:
                     api_map[str(item[0])] = item
 
-    if not api_map: 
-        logger.info("No matches found in API.")
-        return
+    if not api_map: return
 
     client = get_google_client()
     if not client: return
@@ -270,19 +255,18 @@ def update_google_sheet_from_api():
 
                 if m_id in api_map:
                     new_data = api_map[m_id]
-                    # Сохраняем Manual Block (колонка J, индекс 9)
                     manual_block = row[9] if len(row) > 9 else ""
                     final_rows.append(new_data + [manual_block])
                     del api_map[m_id]
                     
                 elif m_date_str in dates_with_data:
-                    # Если API вернул данные за эту дату, но этого матча там нет -> удаляем его
-                    pass 
+                    # Чистим только если для этой даты API вернул данные, а этого матча там нет (Safe Clean)
+                    logger.info(f"🗑️ Safe Clean: {m_id} on {m_date_str}")
+                    continue
+                    
                 else:
-                    # Оставляем старые матчи (если дата не обновлялась сегодня)
                     final_rows.append(row)
 
-        # Добавляем новые
         for data in api_map.values():
             final_rows.append(data + [""])
 
@@ -295,11 +279,10 @@ def update_google_sheet_from_api():
         
         ws.update(range_name=f"A1:J{len(all_data)}", values=all_data)
         
-        # Очистка хвостов
         if len(all_data) < len(existing_data):
              ws.batch_clear([f"A{len(all_data)+1}:J{len(existing_data)+50}"])
              
-        logger.info(f"✅ Sheet Updated. Rows: {len(final_rows)}")
+        logger.info(f"✅ Safe Sync Complete. Rows: {len(final_rows)}")
 
     except Exception as e:
         logger.error(f"Sheet Update Error: {e}")
