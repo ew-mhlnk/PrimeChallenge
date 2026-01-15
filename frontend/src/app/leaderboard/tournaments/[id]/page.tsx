@@ -3,14 +3,14 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import useSWR from 'swr'; // ИМПОРТ SWR
+import useSWR from 'swr';
+import Link from 'next/link'; // <--- Импорт Link
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import { LeaderboardEntry, Tournament } from '@/types';
 
 // --- ХЕЛПЕРЫ ---
 const getInitials = (name: string) => name.slice(0, 2).toUpperCase();
 
-// Функция-фетчер для SWR
 const fetcher = async (url: string) => {
     let attempts = 0;
     while (typeof window !== 'undefined' && !window.Telegram?.WebApp?.initData && attempts < 20) {
@@ -80,19 +80,16 @@ export default function TournamentLeaderboardPage({ params }: { params: Promise<
       }
   }, []);
 
-  // --- SWR: Кэшируем данные ---
-  // 1. Лидерборд
   const { data: leaderboardData, isLoading: lbLoading } = useSWR<LeaderboardEntry[]>(
       `/api/leaderboard/tournament/${id}`, 
       fetcher,
-      { dedupingInterval: 60000, revalidateOnFocus: false } // Кэш на 1 минуту
+      { dedupingInterval: 60000, revalidateOnFocus: false } 
   );
 
-  // 2. Инфо о турнире (название)
   const { data: tournamentInfo, isLoading: infoLoading } = useSWR<Tournament>(
       `/api/tournament/${id}`,
       fetcher,
-      { dedupingInterval: 300000, revalidateOnFocus: false } // Кэш на 5 минут
+      { dedupingInterval: 300000, revalidateOnFocus: false } 
   );
 
   const leaderboard = leaderboardData || [];
@@ -103,8 +100,13 @@ export default function TournamentLeaderboardPage({ params }: { params: Promise<
   const top3 = leaderboard[2];
   const currentUserEntry = leaderboard.find(u => u.user_id === currentUserId);
 
+  // --- ЛОГИКА ДОСТУПА К ПРОСМОТРУ ---
+  // Смотреть можно только если турнир ЗАКРЫТ для приема прогнозов или ЗАВЕРШЕН
+  const canViewPicks = tournamentInfo?.status === 'CLOSED' || tournamentInfo?.status === 'COMPLETED';
+
   return (
     <div className="min-h-screen bg-[#141414] text-white pb-32">
+        
         <header className="sticky top-0 z-30 bg-[#141414]/95 backdrop-blur-md pt-6 pb-4 px-6 border-b border-white/5">
             <div className="relative flex items-center justify-center min-h-[40px]">
                 <button 
@@ -194,8 +196,9 @@ export default function TournamentLeaderboardPage({ params }: { params: Promise<
                         if (entry.rank === 2) rankColor = "text-[#C0C0C0]";
                         if (entry.rank === 3) rankColor = "text-[#CD7F32]";
 
-                        return (
-                            <div key={entry.user_id} className="leaderboard-card h-[54px] w-full flex items-center justify-between px-4">
+                        // Внутренности карточки
+                        const CardContent = (
+                            <div className="leaderboard-card h-[54px] w-full flex items-center justify-between px-4 transition-transform active:scale-[0.99]">
                                 <div className="flex items-center gap-3">
                                     <span className={`${rankColor} font-bold text-sm w-6 text-center`}>{entry.rank}</span>
                                     <Avatar user={entry} size="sm" rank={entry.rank} />
@@ -209,6 +212,25 @@ export default function TournamentLeaderboardPage({ params }: { params: Promise<
                                 </div>
                             </div>
                         );
+
+                        // УСЛОВИЕ:
+                        // 1. Турнир должен быть CLOSED или COMPLETED
+                        // 2. Это не я сам (свой профиль кликать не обязательно, но можно разрешить)
+                        // Если все ок - заворачиваем в LINK. Если нет - просто DIV.
+                        if (canViewPicks && entry.user_id !== currentUserId) {
+                            return (
+                                <Link 
+                                    key={entry.user_id} 
+                                    href={`/tournament/${id}/user/${entry.user_id}`}
+                                    onClick={() => impact('light')}
+                                >
+                                    {CardContent}
+                                </Link>
+                            );
+                        }
+
+                        // Просто карточка (нельзя нажать)
+                        return <div key={entry.user_id}>{CardContent}</div>;
                     })}
                 </div>
             </main>

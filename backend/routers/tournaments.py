@@ -17,10 +17,7 @@ logger = logging.getLogger(__name__)
 @router.get("/tournaments", response_model=List[dict])
 def get_tournaments(db: Session = Depends(get_db)):
     logger.info("Fetching all tournaments")
-    # Сортируем по ID по возрастанию (1, 2, 3...)
-    # Так старые турниры будут в начале списка (или вверху, если смотреть список), 
-    # а новые добавляться в конец.
-    # Для календаря это логично: Январь, Февраль, Март...
+    # Сортировка: Старые (1) -> Новые (100)
     tournaments = db.query(models.Tournament).order_by(models.Tournament.id.asc()).all()
     
     return [
@@ -44,7 +41,7 @@ def get_tournaments(db: Session = Depends(get_db)):
 
 
 @router.get("/tournament/{id}", response_model=dict)
-def get_tournament_by_id( # <--- УБРАЛИ async
+def get_tournament_by_id(
     id: int,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user)
@@ -56,31 +53,26 @@ def get_tournament_by_id( # <--- УБРАЛИ async
     
     user_id = user["id"]
     
-    # Обработка статуса (поддержка Enum и строки)
     status_val = tournament.status
     status_str = status_val.value if hasattr(status_val, 'value') else str(status_val)
     status_str = status_str.upper()
     
-    # Загрузка реальных матчей и прогнозов пользователя
     true_draws = db.query(models.TrueDraw).filter(models.TrueDraw.tournament_id == id).all()
     user_picks = db.query(models.UserPick).filter(
         models.UserPick.tournament_id == id,
         models.UserPick.user_id == user_id
     ).all()
     
-    # Определение раундов турнира
     all_rounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'Champion']
     start_round_clean = tournament.starting_round.strip() if tournament.starting_round else "R32"
     try:
         starting_index = all_rounds.index(start_round_clean)
     except ValueError:
-        starting_index = 2  # fallback на R32
+        starting_index = 2
     rounds = all_rounds[starting_index:]
     
-    # Генерация базовой сетки
     bracket = generate_bracket(tournament, true_draws, user_picks, rounds)
     
-    # Применение фэнтези-логики для завершённых/закрытых турниров
     if status_str in ["CLOSED", "COMPLETED"]:
         try:
             bracket = reconstruct_fantasy_bracket(bracket, user_picks)
@@ -88,10 +80,8 @@ def get_tournament_by_id( # <--- УБРАЛИ async
         except Exception as e:
             logger.error(f"Error applying fantasy logic: {e}")
     
-    # Проверка наличия прогнозов
     has_picks = any(p.predicted_winner for p in user_picks)
     
-    # Текущий счёт пользователя
     user_score_obj = db.query(models.UserScore).filter_by(
         user_id=user_id,
         tournament_id=tournament.id
@@ -99,11 +89,9 @@ def get_tournament_by_id( # <--- УБРАЛИ async
     current_score = user_score_obj.score if user_score_obj else 0
     current_correct = user_score_obj.correct_picks if user_score_obj else 0
 
-    # Валидация данных через Pydantic схемы
     true_draws_data = [TrueDraw.model_validate(draw) for draw in true_draws]
     user_picks_data = [UserPick.model_validate(pick) for pick in user_picks]
 
-    # Формирование основного объекта турнира с новыми полями
     tournament_data = Tournament(
         id=tournament.id,
         name=tournament.name,
@@ -120,7 +108,7 @@ def get_tournament_by_id( # <--- УБРАЛИ async
         description=tournament.description,
         matches_count=tournament.matches_count,
         month=tournament.month,
-        image_url=tournament.image_url,  # <--- ДОБАВЛЕНО: изображение турнира
+        image_url=tournament.image_url,
         
         true_draws=true_draws_data,
         user_picks=user_picks_data,
@@ -134,4 +122,104 @@ def get_tournament_by_id( # <--- УБРАЛИ async
         "has_picks": has_picks,
         "score": current_score,
         "correct_picks": current_correct
+    }
+
+# === НОВЫЙ ЭНДПОИНТ: ПРОСМОТР ЧУЖОЙ СЕТКИ ===
+@router.get("/tournament/{id}/user/{target_user_id}", response_model=dict)
+def get_other_user_tournament(
+    id: int,
+    target_user_id: int,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user)
+):
+    """
+    Получение сетки ДРУГОГО пользователя.
+    """
+    logger.info(f"User {user['id']} requesting bracket of {target_user_id} for tournament {id}")
+    
+    tournament = db.query(models.Tournament).filter(models.Tournament.id == id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    
+    # Проверка статуса (безопасность на уровне API)
+    status_val = tournament.status
+    status_str = str(status_val.value if hasattr(status_val, 'value') else status_val).upper()
+    
+    # Если турнир идет (ACTIVE) и смотрят чужую сетку - запрещаем
+    if status_str == "ACTIVE" and target_user_id != user['id']:
+        raise HTTPException(status_code=403, detail="Picks are hidden")
+
+    # Берем пики ЦЕЛЕВОГО юзера
+    true_draws = db.query(models.TrueDraw).filter(models.TrueDraw.tournament_id == id).all()
+    user_picks = db.query(models.UserPick).filter(
+        models.UserPick.tournament_id == id,
+        models.UserPick.user_id == target_user_id 
+    ).all()
+    
+    all_rounds = ['R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'Champion']
+    start_round_clean = tournament.starting_round.strip() if tournament.starting_round else "R32"
+    try:
+        starting_index = all_rounds.index(start_round_clean)
+    except ValueError:
+        starting_index = 2
+    rounds = all_rounds[starting_index:]
+    
+    bracket = generate_bracket(tournament, true_draws, user_picks, rounds)
+    
+    # Применяем логику раскраски (потому что мы смотрим историю)
+    try:
+        bracket = reconstruct_fantasy_bracket(bracket, user_picks)
+        bracket = enrich_bracket_with_status(bracket, true_draws)
+    except Exception as e:
+        logger.error(f"Error applying fantasy logic: {e}")
+    
+    has_picks = any(p.predicted_winner for p in user_picks)
+    
+    user_score_obj = db.query(models.UserScore).filter_by(
+        user_id=target_user_id,
+        tournament_id=tournament.id
+    ).first()
+    current_score = user_score_obj.score if user_score_obj else 0
+    current_correct = user_score_obj.correct_picks if user_score_obj else 0
+
+    # Имя юзера для заголовка
+    target_user_db = db.query(models.User).filter(models.User.user_id == target_user_id).first()
+    target_name = "Unknown"
+    if target_user_db:
+        target_name = target_user_db.username if target_user_db.username else target_user_db.first_name
+
+    true_draws_data = [TrueDraw.model_validate(draw) for draw in true_draws]
+    user_picks_data = [UserPick.model_validate(pick) for pick in user_picks]
+
+    tournament_data = Tournament(
+        id=tournament.id,
+        name=tournament.name,
+        dates=tournament.dates,
+        status=tournament.status,
+        sheet_name=tournament.sheet_name,
+        starting_round=tournament.starting_round,
+        type=tournament.type,
+        start=tournament.start,
+        close=tournament.close,
+        tag=tournament.tag,
+        surface=tournament.surface,
+        defending_champion=tournament.defending_champion,
+        description=tournament.description,
+        matches_count=tournament.matches_count,
+        month=tournament.month,
+        image_url=tournament.image_url,
+        
+        true_draws=true_draws_data,
+        user_picks=user_picks_data,
+        scores=None
+    )
+    
+    return {
+        **tournament_data.dict(),
+        "rounds": rounds,
+        "bracket": bracket,
+        "has_picks": has_picks,
+        "score": current_score,
+        "correct_picks": current_correct,
+        "viewing_user_name": target_name
     }
