@@ -80,7 +80,7 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
                 elif db_norm == p2_norm and p2_norm != "tbd":
                     final_predicted_name = current_p2_name
                 else:
-                    # Slot Logic Fallback
+                    # Slot Logic
                     user_slot = 0
                     if predicted_db == orig_p1: user_slot = 1
                     elif predicted_db == orig_p2: user_slot = 2
@@ -92,6 +92,7 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
                     else:
                         final_predicted_name = predicted_db
             
+            # Авто-проход BYE
             if not final_predicted_name:
                 if current_p2_name and normalize_name(current_p2_name) == "bye" and normalize_name(current_p1_name) != "tbd": 
                     final_predicted_name = current_p1_name
@@ -113,15 +114,11 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
 def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List) -> Dict[str, List[Dict]]:
     """
     Раскрашивает сетку.
-    ПРАВИЛА:
-    1. Starting Round = ВСЕГДА СЕРЫЙ (PENDING), если это не Bye.
-    2. Если юзер участвует, но прогноза нет = КРАСНЫЙ (INCORRECT).
     """
     eliminated_players: Set[str] = set()
     real_winners_map = {}
     real_match_players = {}
 
-    # Сбор статистики реальных победителей
     for td in true_draws:
         winner = getattr(td, 'winner', None) or (td.get('winner') if isinstance(td, dict) else None)
         p1 = getattr(td, 'player1', None) or (td.get('player1') if isinstance(td, dict) else None)
@@ -146,14 +143,12 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
 
     rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F", "Champion"]
     
-    # 1. Определяем Стартовый Раунд
     starting_round = None
     for r in rounds_order:
         if r in bracket and len(bracket[r]) > 0:
             starting_round = r
             break
             
-    # 2. Проверяем, участвует ли юзер (есть ли хоть один прогноз)
     has_any_picks = False
     for r in bracket:
         for m in bracket[r]:
@@ -164,7 +159,6 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
 
     for r_name in rounds_order:
         if r_name not in bracket: continue
-        
         is_start_round = (r_name == starting_round)
         
         for match in bracket[r_name]:
@@ -181,7 +175,7 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
             rp2_norm = real_data["p2_norm"] if real_data else "tbd"
             real_winner_norm = real_data["w_norm"] if real_data else "tbd"
 
-            # Статус слота
+            # 1. Сначала вычисляем базовый статус слота (как раньше)
             def get_slot_status(u_norm, r_norm):
                 if u_norm == "tbd": return "PENDING"
                 if u_norm == "bye": return "CORRECT"
@@ -192,41 +186,44 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
 
             p1_stat = get_slot_status(up1_norm, rp1_norm)
             p2_stat = get_slot_status(up2_norm, rp2_norm)
-
             m_stat = "PENDING"
+
+            # 2. ТЕПЕРЬ ПРИМЕНЯЕМ ПРИОРИТЕТЫ
             
-            # === ГЛАВНАЯ ЛОГИКА ===
-            
-            # 1. Если это Старт Раунд и это НЕ Bye -> Всегда СЕРЫЙ (PENDING)
+            # A. Старт Раунд (кроме Bye) всегда Серый
             if is_start_round and pick_norm != "bye":
                 m_stat = "PENDING"
-                # Слоты тоже визуально делаем нейтральными, чтобы не пестрило, 
-                # если только игрок явно не вылетел
+                # Сбрасываем зелень слотов в серый (но оставляем красный, если вылетел)
                 if p1_stat == "CORRECT": p1_stat = "PENDING"
                 if p2_stat == "CORRECT": p2_stat = "PENDING"
                 
-            # 2. Если это Bye -> Всегда Зеленый
+            # B. Bye всегда Зеленый
             elif pick_norm == "bye":
                 m_stat = "CORRECT"
-                
-            # 3. Если прогноза НЕТ (пусто), но юзер участвует в турнире -> КРАСНЫЙ (Ошибка)
+            
+            # C. НЕТ ПРОГНОЗА (КЛЮЧЕВОЙ МОМЕНТ)
             elif pick_norm == "tbd" and has_any_picks:
-                m_stat = "INCORRECT"
-                # Подсветка слотов
-                p1_stat = "PENDING" 
-                p2_stat = "PENDING"
-                
-            # 4. Если прогноза нет и юзер НЕ участвует -> Серый
+                if real_winner_norm != "tbd":
+                    # Если матч завершен, а выбора нет -> КРАСНЫЙ (ПРОИГРЫШ)
+                    m_stat = "INCORRECT"
+                    p1_stat = "INCORRECT"
+                    p2_stat = "INCORRECT"
+                else:
+                    # Матч еще не сыгран -> Серый
+                    m_stat = "PENDING"
+                    p1_stat = "PENDING"
+                    p2_stat = "PENDING"
+                    
+            # D. Нет прогноза и не участвует
             elif pick_norm == "tbd" and not has_any_picks:
                 m_stat = "NO_PICK"
                 
-            # 5. Обычная логика (R2+ при наличии прогноза)
+            # E. Обычная проверка (Прогноз есть)
             elif real_winner_norm != "tbd":
                 is_win = False
                 if pick_norm == real_winner_norm:
                     is_win = True
                 else:
-                    # Fallback Slot logic
                     user_slot = 0
                     if pick_norm == up1_norm: user_slot = 1
                     elif pick_norm == up2_norm: user_slot = 2
@@ -239,6 +236,7 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
                 if is_win: m_stat = "CORRECT"
                 else: m_stat = "INCORRECT"
             else:
+                # Победителя еще нет
                 if pick_norm in eliminated_players: m_stat = "INCORRECT"
                 else: m_stat = "PENDING"
 
