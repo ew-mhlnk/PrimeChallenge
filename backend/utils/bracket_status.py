@@ -12,6 +12,7 @@ def normalize_name(name: str) -> str:
     n = str(name).lower().strip()
     if n == "tbd": return "tbd"
     if n == "bye": return "bye"
+    if n == "none": return "tbd" # Страховка
     
     n = re.sub(r'\s*\(.*?\)', '', n)
     n = re.sub(r'[^\w\s]', '', n)
@@ -80,7 +81,7 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
                 elif db_norm == p2_norm and p2_norm != "tbd":
                     final_predicted_name = current_p2_name
                 else:
-                    # Slot Logic
+                    # Slot Logic Fallback
                     user_slot = 0
                     if predicted_db == orig_p1: user_slot = 1
                     elif predicted_db == orig_p2: user_slot = 2
@@ -92,7 +93,6 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
                     else:
                         final_predicted_name = predicted_db
             
-            # Авто-проход BYE
             if not final_predicted_name:
                 if current_p2_name and normalize_name(current_p2_name) == "bye" and normalize_name(current_p1_name) != "tbd": 
                     final_predicted_name = current_p1_name
@@ -149,6 +149,7 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
             starting_round = r
             break
             
+    # Проверяем участие (есть ли хоть один прогноз)
     has_any_picks = False
     for r in bracket:
         for m in bracket[r]:
@@ -175,7 +176,7 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
             rp2_norm = real_data["p2_norm"] if real_data else "tbd"
             real_winner_norm = real_data["w_norm"] if real_data else "tbd"
 
-            # 1. Сначала вычисляем базовый статус слота (как раньше)
+            # 1. Базовый статус слота (Alive/Dead)
             def get_slot_status(u_norm, r_norm):
                 if u_norm == "tbd": return "PENDING"
                 if u_norm == "bye": return "CORRECT"
@@ -188,57 +189,56 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
             p2_stat = get_slot_status(up2_norm, rp2_norm)
             m_stat = "PENDING"
 
-            # 2. ТЕПЕРЬ ПРИМЕНЯЕМ ПРИОРИТЕТЫ
-            
-            # A. Старт Раунд (кроме Bye) всегда Серый
-            if is_start_round and pick_norm != "bye":
-                m_stat = "PENDING"
-                # Сбрасываем зелень слотов в серый (но оставляем красный, если вылетел)
-                if p1_stat == "CORRECT": p1_stat = "PENDING"
-                if p2_stat == "CORRECT": p2_stat = "PENDING"
-                
-            # B. Bye всегда Зеленый
-            elif pick_norm == "bye":
+            # 2. Логика матча (Match Status)
+            if pick_norm == "bye":
                 m_stat = "CORRECT"
-            
-            # C. НЕТ ПРОГНОЗА (КЛЮЧЕВОЙ МОМЕНТ)
-            elif pick_norm == "tbd" and has_any_picks:
-                if real_winner_norm != "tbd":
-                    # Если матч завершен, а выбора нет -> КРАСНЫЙ (ПРОИГРЫШ)
-                    m_stat = "INCORRECT"
-                    p1_stat = "INCORRECT"
-                    p2_stat = "INCORRECT"
-                else:
-                    # Матч еще не сыгран -> Серый
-                    m_stat = "PENDING"
-                    p1_stat = "PENDING"
-                    p2_stat = "PENDING"
-                    
-            # D. Нет прогноза и не участвует
-            elif pick_norm == "tbd" and not has_any_picks:
-                m_stat = "NO_PICK"
-                
-            # E. Обычная проверка (Прогноз есть)
             elif real_winner_norm != "tbd":
-                is_win = False
                 if pick_norm == real_winner_norm:
-                    is_win = True
+                    m_stat = "CORRECT"
                 else:
+                    # Fallback Slot logic
                     user_slot = 0
                     if pick_norm == up1_norm: user_slot = 1
                     elif pick_norm == up2_norm: user_slot = 2
                     winner_slot = 0
                     if real_winner_norm == rp1_norm: winner_slot = 1
                     elif real_winner_norm == rp2_norm: winner_slot = 2
+                    
                     if user_slot != 0 and user_slot == winner_slot:
-                        is_win = True
-
-                if is_win: m_stat = "CORRECT"
-                else: m_stat = "INCORRECT"
+                        m_stat = "CORRECT"
+                    else:
+                        m_stat = "INCORRECT"
             else:
-                # Победителя еще нет
                 if pick_norm in eliminated_players: m_stat = "INCORRECT"
                 else: m_stat = "PENDING"
+
+            # === 3. ЖЕЛЕЗОБЕТОННЫЕ ПЕРЕОПРЕДЕЛЕНИЯ (OVERRIDES) ===
+            
+            # А. Если нет прогноза (tbd)
+            if pick_norm == "tbd":
+                if has_any_picks:
+                    if real_winner_norm != "tbd":
+                        # Матч прошел, выбора нет -> КРАСНЫЙ (ПРОИГРЫШ)
+                        m_stat = "INCORRECT"
+                        # Переписываем статусы слотов, чтобы не было "зелени"
+                        p1_stat = "INCORRECT"
+                        p2_stat = "INCORRECT"
+                    else:
+                        # Матч еще идет/не начался -> СЕРЫЙ
+                        m_stat = "PENDING"
+                        p1_stat = "PENDING"
+                        p2_stat = "PENDING"
+                else:
+                    # Юзер вообще не участвует -> Всё серое (NO_PICK)
+                    m_stat = "NO_PICK"
+            
+            # Б. Если это Стартовый Раунд (и не Bye) -> ВСЕГДА СЕРЫЙ
+            # Мы не даем очков за старт, поэтому не показываем "зеленость"
+            if is_start_round and pick_norm != "bye":
+                m_stat = "PENDING"
+                # Слоты тоже серые (если только не красный вылет)
+                if p1_stat == "CORRECT": p1_stat = "PENDING"
+                if p2_stat == "CORRECT": p2_stat = "PENDING"
 
             match["player1_status"] = p1_stat
             match["player2_status"] = p2_stat
