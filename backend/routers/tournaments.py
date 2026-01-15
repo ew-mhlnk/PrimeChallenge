@@ -17,7 +17,11 @@ logger = logging.getLogger(__name__)
 @router.get("/tournaments", response_model=List[dict])
 def get_tournaments(db: Session = Depends(get_db)):
     logger.info("Fetching all tournaments")
-    tournaments = db.query(models.Tournament).all()
+    # Сортируем по ID по возрастанию (1, 2, 3...)
+    # Так старые турниры будут в начале списка (или вверху, если смотреть список), 
+    # а новые добавляться в конец.
+    # Для календаря это логично: Январь, Февраль, Март...
+    tournaments = db.query(models.Tournament).order_by(models.Tournament.id.asc()).all()
     
     return [
         {
@@ -28,13 +32,12 @@ def get_tournaments(db: Session = Depends(get_db)):
             "start": t.start,
             "close": t.close,
             "tag": t.tag,
-            # Дополнительные информационные поля
             "surface": t.surface,
             "defending_champion": t.defending_champion,
             "description": t.description,
             "matches_count": t.matches_count,
             "month": t.month,
-            "image_url": t.image_url  # <--- ДОБАВЛЕНО: URL изображения турнира
+            "image_url": t.image_url
         }
         for t in tournaments
     ]

@@ -46,17 +46,19 @@ def get_global_leaderboard(db: Session = Depends(get_db)):
 
 # --- 2. СПИСОК ТУРНИРОВ С РАНГОМ ЮЗЕРА (НОВОЕ) ---
 @router.get("/list", response_model=List[dict])
-def get_tournaments_with_ranks( # <--- УБРАЛИ async
+def get_tournaments_with_ranks(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user)
 ):
     """
     Отдает список турниров (ACTIVE, COMPLETED, CLOSED).
-    Для каждого турнира возвращает место (rank) текущего пользователя и общее кол-во участников.
+    Сортировка: Самые новые (большой ID) - СВЕРХУ.
+    Самые старые (маленький ID) - ВНИЗУ.
     """
     user_id = user["id"]
     
     # Берем турниры, где есть рейтинг
+    # order_by(models.Tournament.id.desc()) -> 10, 9, 8...
     tournaments = db.query(models.Tournament).filter(
         models.Tournament.status.in_(["ACTIVE", "COMPLETED", "CLOSED"])
     ).order_by(models.Tournament.id.desc()).all()

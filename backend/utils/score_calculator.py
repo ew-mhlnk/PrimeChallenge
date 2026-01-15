@@ -7,58 +7,61 @@ import logging
 logger = logging.getLogger(__name__)
 
 SCORING_SYSTEM = {
-    # GRAND SLAM (128 сетка)
-    # Победитель получает: 32 (за финал) + 64 (за титул) = 96 очков.
-    # Максимум очков за турнир: ~320.
+    # GRAND SLAM (Start R128)
+    # R128 = 0 (Старт)
+    # R64 = 1 (Прошли во второй круг)
     "GRAND_SLAM": { 
-        "R128": 1, 
-        "R64": 1,   # Второй раунд тоже по 1, как ты хотела
+        "R128": 0, 
+        "R64": 1, 
         "R32": 2, 
         "R16": 4, 
         "QF": 8, 
-        "SF": 16, 
-        "F": 32,    # Достойно за финал
-        "Champion": 64 # Джекпот за победу
+        "SF": 12, 
+        "F": 16, 
+        "Champion": 20 
     },
     
-    # ATP 1000 (64 сетка)
-    # Начинаем с R64 (или R128, если сетка неполная, ставим 1)
-    # Победитель: 16 + 32 = 48 очков.
+    # ATP 1000 (Обычно Start R64 или R128)
+    # R64 = 0 (Старт)
     "ATP_1000": { 
-        "R128": 1, 
-        "R64": 1, 
-        "R32": 1,   # Первые раунды дешевые
+        "R128": 0, # На случай расширенной сетки
+        "R64": 0, 
+        "R32": 1, 
         "R16": 2, 
         "QF": 4, 
         "SF": 8, 
-        "F": 16, 
-        "Champion": 32 
+        "F": 12, 
+        "Champion": 16 
     },
     
-    # ATP 500 (32 сетка)
-    # Победитель: 8 + 16 = 24 очка.
+    # ATP 500 (Start R32)
+    # R32 = 0 (Старт)
     "ATP_500": { 
-        "R64": 1, "R48": 1, 
-        "R32": 1, 
+        "R64": 0, "R48": 0, 
+        "R32": 0, 
         "R16": 1, 
         "QF": 2, 
         "SF": 4, 
         "F": 8, 
-        "Champion": 16 
+        "Champion": 12 
     },
     
-    # ATP 250 (То же, что и 500, или чуть меньше, но схема 1-1-2-4 красивая)
+    # ATP 250 (Start R32)
+    # R32 = 0 (Старт), но очков чуть меньше в конце
     "ATP_250": { 
-        "R64": 1, 
-        "R32": 1, 
+        "R64": 0, 
+        "R32": 0, 
         "R16": 1, 
         "QF": 2, 
-        "SF": 4, 
-        "F": 8, 
-        "Champion": 16 
+        "SF": 3, 
+        "F": 4, 
+        "Champion": 6 
     },
     
-    "DEFAULT": { "R128": 1, "R64": 1, "R32": 2, "R16": 4, "QF": 8, "SF": 16, "F": 32, "Champion": 64 }
+    # Дефолт (на всякий случай)
+    "DEFAULT": { 
+        "R128": 0, "R64": 0, "R32": 0, "R16": 1, "QF": 2, "SF": 3, "F": 4, "Champion": 6 
+    }
 }
 
 def normalize_name(name: str) -> str:
@@ -144,15 +147,26 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
             "correct_picks": correct
         })
     
+    # Сортируем: сначала по очкам, потом по кол-ву верных ответов (тай-брейк)
     leaderboard_entries.sort(key=lambda x: (x["score"], x["correct_picks"]), reverse=True)
     
+    # Очищаем старый лидерборд
     db.query(models.Leaderboard).filter_by(tournament_id=tournament_id).delete()
-    for rank, entry in enumerate(leaderboard_entries, 1):
-        # ВЕРНУЛИ СТАРУЮ ЗАПИСЬ (БЕЗ total_picks)
+    
+    # === НОВАЯ ЛОГИКА РАНГОВ (DENSE RANKING 1, 1, 2) ===
+    current_rank = 1
+    for i, entry in enumerate(leaderboard_entries):
+        if i > 0:
+            prev = leaderboard_entries[i-1]
+            # Если очки ИЛИ доп. показатели отличаются -> это следующее место
+            if entry["score"] != prev["score"] or entry["correct_picks"] != prev["correct_picks"]:
+                current_rank += 1 # Просто +1, без пропусков (Dense Ranking)
+            # Иначе (если равны) -> current_rank не меняется (остается 1)
+
         lb_row = models.Leaderboard(
             tournament_id=tournament_id,
             user_id=entry["user_id"],
-            rank=rank,
+            rank=current_rank,
             score=entry["score"],
             correct_picks=entry["correct_picks"]
         )
