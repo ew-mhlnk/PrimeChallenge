@@ -75,10 +75,17 @@ def get_tournament_weights(tournament: models.Tournament) -> dict:
     
     return SCORING_SYSTEM["DEFAULT"]
 
-# Добавили аргумент user_id=None
 def calculate_score_for_user(user_picks, true_draws_map, weights, user_id=None):
     score = 0
     correct = 0
+    
+    # --- ОТЛАДКА ДЛЯ КОНКРЕТНОГО ЮЗЕРА ---
+    # Можешь менять ID или убрать проверку, если аудит не нужен
+    debug_user = (user_id == 1017365388 or user_id == 6826258397) 
+    
+    if debug_user:
+        logger.info(f"🕵️‍♂️ DEBUG SCORE for User {user_id}:")
+
     for pick in user_picks:
         key = (pick.round, pick.match_number)
         match = true_draws_map.get(key)
@@ -102,22 +109,24 @@ def calculate_score_for_user(user_picks, true_draws_map, weights, user_id=None):
             elif winner_norm == p2_real: winner_slot = 2
             
             if user_slot != 0 and user_slot == winner_slot: is_hit = True
-        
-        # Определяем баллы
-        points = 0
+            
         if is_hit:
             points = weights.get(pick.round, 0)
-            score += points
-            correct += 1
-        
-        # === ВЫЗОВ АУДИТА (Всего одна строка!) ===
-        # Аудитор сам решит, писать лог или нет (если это тот самый юзер)
-        if user_id:
-            audit_pick(user_id, pick.round, pick.match_number, pick.predicted_winner, match.winner, points, is_hit)
             
-    # === ФИНАЛЬНЫЙ АУДИТ ===
-    if user_id:
-        audit_summary(user_id, score, correct)
+            if debug_user:
+                logger.info(f"✅ User {user_id} | {pick.round} #{pick.match_number} | Выбрал: {pick.predicted_winner} | +{points} очков")
+            
+            score += points
+            
+            # ИСПРАВЛЕНИЕ: Не увеличиваем счетчик "верных", если это слот Чемпиона
+            if pick.round != "Champion":
+                correct += 1
+                
+        elif debug_user:
+             logger.info(f"❌ User {user_id} | {pick.round} #{pick.match_number} | Выбрал: {pick.predicted_winner} (Победил: {match.winner}) | 0 очков")
+            
+    if debug_user:
+        logger.info(f"🏁 ИТОГ для {user_id}: {score} очков, {correct} верных исходов.")
 
     return score, correct
 
