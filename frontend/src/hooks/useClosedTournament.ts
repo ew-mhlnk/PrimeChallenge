@@ -16,9 +16,13 @@ const waitForTelegram = async () => {
     return null;
 };
 
-export function useClosedTournament(id: string) {
+// ИЗМЕНЕНИЕ: Добавили аргумент overrideData
+export function useClosedTournament(id: string, overrideData?: Tournament | null) {
   const { getTournamentData, loadTournament } = useTournamentContext();
-  const cached = getTournamentData(id);
+  
+  // ЛОГИКА: Если передали overrideData (чужая сетка), используем её.
+  // Если нет — берем из кэша (моя сетка).
+  const cached = overrideData || getTournamentData(id);
 
   const [tournament, setTournament] = useState<Tournament | null>(cached);
   const [userBracket, setUserBracket] = useState<BracketRoundMap>({});
@@ -29,6 +33,13 @@ export function useClosedTournament(id: string) {
   const [rounds, setRounds] = useState<string[]>(cached?.rounds || []);
 
   const isProcessed = useRef(false);
+
+  // Если overrideData изменилась (мы перешли к другому юзеру), сбрасываем флаг
+  useEffect(() => {
+      if (overrideData) {
+          isProcessed.current = false;
+      }
+  }, [overrideData]);
 
   // Строит полную структуру сетки для зрителей (скелет)
   const buildTrueBracket = useCallback((data: Tournament): BracketRoundMap => {
@@ -41,7 +52,6 @@ export function useClosedTournament(id: string) {
           "QF": 4, "SF": 2, "F": 1, "Champion": 1
       };
 
-      // 1. Создаем пустой скелет
       rList.forEach(r => {
           tb[r] = [];
           const count = matchCounts[r] || 0;
@@ -60,7 +70,6 @@ export function useClosedTournament(id: string) {
           }
       });
 
-      // 2. Заполняем данными из БД
       draws.forEach(d => {
           if (tb[d.round]) {
               const match = tb[d.round].find(m => m.match_number === d.match_number);
@@ -78,7 +87,7 @@ export function useClosedTournament(id: string) {
   }, []);
 
   const processData = useCallback((data: Tournament) => {
-      console.log("[CLOSED] Loading Backend Bracket...");
+      // console.log("[CLOSED] Processing Bracket Data...");
       
       setTournament(data);
       const rList = data.rounds || [];
@@ -87,26 +96,19 @@ export function useClosedTournament(id: string) {
       const userHasPicks = !!data.has_picks;
       setHasPicks(userHasPicks);
 
-      // --- ЛОГИКА ВЫБОРА СТАРТОВОГО РАУНДА (НОВАЯ ФИЧА) ---
-      // По умолчанию берем стартовый раунд (например, R32)
+      // Выбор стартового раунда
       let targetRound = data.starting_round || rList[0] || null;
-
-      // Если у юзера ЕСТЬ прогнозы и в турнире больше 1 раунда -> прыгаем на следующий (R16)
-      // Это нужно, чтобы сразу показать "мясо", а не первый круг
       if (userHasPicks && rList.length > 1) {
-          targetRound = rList[1]; // Индекс 1 = второй раунд
+          targetRound = rList[1];
       }
-
-      // Устанавливаем раунд (prev || targetRound нужен, чтобы не сбрасывать выбор, если хук перезапустился)
       setSelectedRound(prev => prev || targetRound);
-      // -----------------------------------------------------
 
-      // 1. User Bracket (Фантазия) - берем готовую с бэкенда
+      // 1. User Bracket (Фантазия) - берем с бэкенда (там уже все отрисовано для этого юзера)
       if (data.bracket) {
           setUserBracket(data.bracket);
       }
 
-      // 2. True Bracket (Реальность) - строим полный скелет
+      // 2. True Bracket (Реальность)
       const tb = buildTrueBracket(data);
       setTrueBracket(tb);
 
@@ -115,13 +117,16 @@ export function useClosedTournament(id: string) {
   useEffect(() => {
     let mounted = true;
     const init = async () => {
+      // 1. Если данные уже переданы (через пропсы или кэш) и еще не обработаны -> обрабатываем
       if (cached && !isProcessed.current) {
           processData(cached);
           isProcessed.current = true;
           setIsLoading(false);
           return;
       }
-      if (!cached) {
+      
+      // 2. Если данных нет вообще (и это не override режим) -> грузим
+      if (!cached && !overrideData) {
           setIsLoading(true);
           try {
             const initData = await waitForTelegram();
@@ -139,7 +144,7 @@ export function useClosedTournament(id: string) {
     };
     init();
     return () => { mounted = false; };
-  }, [id, loadTournament, cached, processData]);
+  }, [id, loadTournament, cached, processData, overrideData]);
 
   return { tournament, userBracket, trueBracket, hasPicks, isLoading, selectedRound, setSelectedRound, rounds };
 }

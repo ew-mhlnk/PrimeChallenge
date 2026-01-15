@@ -15,19 +15,11 @@ const variants: Variants = {
   exit: (direction: number) => ({ x: direction < 0 ? 50 : -50, opacity: 0, scale: 0.95, position: 'absolute', top: 0, left: 0, width: '100%' })
 };
 
-// --- ИСПРАВЛЕННАЯ ФУНКЦИЯ ОЧИСТКИ ---
 const clean = (name: string | undefined | null) => {
     if (!name || name === 'TBD') return "tbd";
     if (name.toLowerCase() === 'bye') return "bye";
-    
-    // 1. Убираем содержимое скобок (1), (Q), (WC)
     let n = name.replace(/\s*\(.*?\)/g, '');
-    
-    // 2. Убираем точки, запятые, пробелы, но ОСТАВЛЯЕМ БУКВЫ (включая русские) и ЦИФРЫ
-    // Было: /[^a-zA-Z]/g (убивало кириллицу)
-    // Стало: /[^a-zA-Zа-яА-Я0-9]/g (оставляет и EN и RU)
     n = n.replace(/[^a-zA-Zа-яА-Я0-9]/g, '').toLowerCase();
-    
     return n || "tbd";
 };
 
@@ -36,18 +28,25 @@ interface ClosedBracketProps {
 }
 
 export default function ClosedBracket({ tournament }: ClosedBracketProps) {
-  const { userBracket, trueBracket, hasPicks, isLoading, selectedRound, setSelectedRound, rounds } = useClosedTournament(tournament.id.toString());
+  // ИЗМЕНЕНИЕ: Передаем 'tournament' вторым аргументом!
+  // Теперь хук будет знать: "Ага, мне дали данные, я не должен лезть в кэш юзера"
+  const { userBracket, trueBracket, hasPicks, isLoading, selectedRound, setSelectedRound, rounds } = useClosedTournament(tournament.id.toString(), tournament);
+  
   const { selection } = useHapticFeedback();
   const [direction, setDirection] = useState(0);
 
   if (isLoading) return <div className="flex justify-center pt-20 text-[#5F6067]">Загрузка...</div>;
   if (!selectedRound) return null;
 
-  const isFirstRound = rounds.length > 0 && selectedRound === rounds[0];
-
   let winnerName: string | null = null;
-  if (tournament.status === 'COMPLETED' && trueBracket['Champion']?.[0]) {
+  // Пытаемся найти победителя в реальной сетке
+  if (trueBracket['Champion']?.[0]) {
       winnerName = trueBracket['Champion'][0].player1?.name || null;
+  }
+  // Если нет в сетке (еще не распарсилось), но статус COMPLETED, берем из базы (если там есть)
+  if (!winnerName && tournament.status === 'COMPLETED' && tournament.true_draws) {
+       const w = tournament.true_draws.find(d => d.round === 'Champion');
+       if (w && w.winner) winnerName = w.winner;
   }
 
   const changeRound = (newRound: string) => {
@@ -106,11 +105,8 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
                       
                       if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
                       
-                      // 1. Приоритет: Результат матча (Красный/Зеленый)
                       if (slotStatus === 'INCORRECT') return 'incorrect';
                       if (slotStatus === 'CORRECT') return 'correct';
-                      
-                      // 2. Если результат неизвестен (PENDING), но это мой выбор -> СИНИЙ
                       if (isUserPick) return 'selected';
                       
                       return 'default'; 
