@@ -1,60 +1,32 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import models
+from utils.audit import audit_pick, audit_summary, TARGET_USER_ID # <--- БЕРЕМ ID ОТСЮДА
 import re
 import logging
-from utils.audit import audit_pick, audit_summary # <--- Импорт нашего аудитора
 
 logger = logging.getLogger(__name__)
 
+# === СИСТЕМА ОЧКОВ (Линейная, без Чемпиона) ===
 SCORING_SYSTEM = {
-    # GRAND SLAM (Сетка 128)
+    # GRAND SLAM
     "GRAND_SLAM": { 
-        "R128": 1,  # Угадал исход матча 1/64 финала -> 1 балл
-        "R64": 2,   # Угадал исход матча 1/32 финала -> 2 балла
-        "R32": 4,   # ... -> 4 балла
-        "R16": 8, 
-        "QF": 12, 
-        "SF": 16, 
-        "F": 20,    # Победа в финале дает 64 очка
-        "Champion": 0 # Не дублируем очки
+        "R128": 0, "R64": 1, "R32": 2, "R16": 3, "QF": 4, "SF": 5, "F": 6, "Champion": 0 
     },
-    
-    # 1000 (Сетка 64)
+    # 1000
     "LEVEL_1000": { 
-        "R128": 1, # (Квалы/Доп)
-        "R64": 1,  # Первый круг
-        "R32": 2,  # Второй круг
-        "R16": 4, 
-        "QF": 8, 
-        "SF": 12, 
-        "F": 16, 
-        "Champion": 0 
+        "R128": 0, "R64": 0, "R32": 1, "R16": 2, "QF": 3, "SF": 4, "F": 5, "Champion": 0 
     },
-    
-    # 500 (Сетка 32)
+    # 500
     "LEVEL_500": { 
-        "R64": 1, "R48": 1, 
-        "R32": 1, 
-        "R16": 2, 
-        "QF": 4, 
-        "SF": 8, 
-        "F": 12, 
-        "Champion": 0 
+        "R64": 0, "R48": 0, "R32": 1, "R16": 2, "QF": 3, "SF": 4, "F": 5, "Champion": 0 
     },
-    
-    # 250 (Сетка 32)
+    # 250
     "LEVEL_250": { 
-        "R64": 1, 
-        "R32": 1, 
-        "R16": 2, 
-        "QF": 3, 
-        "SF": 4, 
-        "F": 6, 
-        "Champion": 0 
+        "R64": 0, "R32": 0, "R16": 1, "QF": 2, "SF": 3, "F": 4, "Champion": 0 
     },
-    
-    "DEFAULT": { "R128": 1, "R64": 1, "R32": 2, "R16": 4, "QF": 8, "SF": 16, "F": 32, "Champion": 0 }
+    # Дефолт
+    "DEFAULT": { "R128": 0, "R64": 0, "R32": 1, "R16": 2, "QF": 3, "SF": 4, "F": 5, "Champion": 0 }
 }
 
 def normalize_name(name: str) -> str:
@@ -79,9 +51,9 @@ def calculate_score_for_user(user_picks, true_draws_map, weights, user_id=None):
     score = 0
     correct = 0
     
-    # --- ОТЛАДКА ДЛЯ КОНКРЕТНОГО ЮЗЕРА ---
-    # Можешь менять ID или убрать проверку, если аудит не нужен
-    debug_user = (user_id == 1017365388 or user_id == 6826258397) 
+    # --- ОТЛАДКА ---
+    # Теперь берем ID из импортированной переменной, а не хардкодим
+    debug_user = (user_id == TARGET_USER_ID)
     
     if debug_user:
         logger.info(f"🕵️‍♂️ DEBUG SCORE for User {user_id}:")
@@ -126,7 +98,8 @@ def calculate_score_for_user(user_picks, true_draws_map, weights, user_id=None):
              logger.info(f"❌ User {user_id} | {pick.round} #{pick.match_number} | Выбрал: {pick.predicted_winner} (Победил: {match.winner}) | 0 очков")
             
     if debug_user:
-        logger.info(f"🏁 ИТОГ для {user_id}: {score} очков, {correct} верных исходов.")
+        # Используем функцию из аудита для финального вывода
+        audit_summary(user_id, score, correct)
 
     return score, correct
 
@@ -162,18 +135,17 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
             "correct_picks": correct
         })
     
-    # Сортировка: Очки -> Верные пики
     leaderboard_entries.sort(key=lambda x: (x["score"], x["correct_picks"]), reverse=True)
     
     db.query(models.Leaderboard).filter_by(tournament_id=tournament_id).delete()
     
-    # === ПЛОТНОЕ РАНЖИРОВАНИЕ (1, 1, 2, 3) ===
+    # === ПЛОТНОЕ РАНЖИРОВАНИЕ (1, 1, 2, 3...) ===
     current_rank = 1
     for i, entry in enumerate(leaderboard_entries):
         if i > 0:
             prev = leaderboard_entries[i-1]
             if entry["score"] != prev["score"] or entry["correct_picks"] != prev["correct_picks"]:
-                current_rank += 1 # +1 место
+                current_rank += 1 
         
         lb_row = models.Leaderboard(
             tournament_id=tournament_id,
