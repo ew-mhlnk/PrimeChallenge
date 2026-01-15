@@ -3,6 +3,7 @@ from sqlalchemy import func
 from database import models
 import re
 import logging
+from utils.audit import audit_pick, audit_summary # <--- Импорт нашего аудитора
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,8 @@ def get_tournament_weights(tournament: models.Tournament) -> dict:
     
     return SCORING_SYSTEM["DEFAULT"]
 
-def calculate_score_for_user(user_picks, true_draws_map, weights):
+# Добавили аргумент user_id=None
+def calculate_score_for_user(user_picks, true_draws_map, weights, user_id=None):
     score = 0
     correct = 0
     for pick in user_picks:
@@ -89,7 +91,6 @@ def calculate_score_for_user(user_picks, true_draws_map, weights):
         if pick_norm == winner_norm:
             is_hit = True
         else:
-            # Сравнение по слотам (на случай смены имен)
             user_slot = 0
             if pick.predicted_winner == pick.player1: user_slot = 1
             elif pick.predicted_winner == pick.player2: user_slot = 2
@@ -101,13 +102,23 @@ def calculate_score_for_user(user_picks, true_draws_map, weights):
             elif winner_norm == p2_real: winner_slot = 2
             
             if user_slot != 0 and user_slot == winner_slot: is_hit = True
-            
+        
+        # Определяем баллы
+        points = 0
         if is_hit:
-            # Берем вес раунда из нашей таблицы
             points = weights.get(pick.round, 0)
             score += points
             correct += 1
+        
+        # === ВЫЗОВ АУДИТА (Всего одна строка!) ===
+        # Аудитор сам решит, писать лог или нет (если это тот самый юзер)
+        if user_id:
+            audit_pick(user_id, pick.round, pick.match_number, pick.predicted_winner, match.winner, points, is_hit)
             
+    # === ФИНАЛЬНЫЙ АУДИТ ===
+    if user_id:
+        audit_summary(user_id, score, correct)
+
     return score, correct
 
 def update_tournament_leaderboard(tournament_id: int, db: Session):
@@ -127,7 +138,7 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
         
     leaderboard_entries = []
     for user_id, user_picks in user_picks_map.items():
-        score, correct = calculate_score_for_user(user_picks, true_draws_map, weights)
+        score, correct = calculate_score_for_user(user_picks, true_draws_map, weights, user_id=user_id)
         
         user_score_entry = db.query(models.UserScore).filter_by(user_id=user_id, tournament_id=tournament_id).first()
         if not user_score_entry:
