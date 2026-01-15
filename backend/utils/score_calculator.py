@@ -6,62 +6,57 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# СИСТЕМА ОЧКОВ (Линейная прогрессия)
+# Используем нейтральные названия LEVEL_... для поддержки и ATP, и WTA
 SCORING_SYSTEM = {
-    # GRAND SLAM (Start R128)
-    # R128 = 0 (Старт)
-    # R64 = 1 (Прошли во второй круг)
+    # GRAND SLAM (ТБШ)
     "GRAND_SLAM": { 
-        "R128": 0, 
-        "R64": 1, 
-        "R32": 2, 
+        "R128": 1, 
+        "R64": 2, 
+        "R32": 3, 
         "R16": 4, 
-        "QF": 8, 
-        "SF": 12, 
-        "F": 16, 
-        "Champion": 20 
+        "QF": 5, 
+        "SF": 6, 
+        "F": 8, 
+        "Champion": 15 
     },
     
-    # ATP 1000 (Обычно Start R64 или R128)
-    # R64 = 0 (Старт)
-    "ATP_1000": { 
-        "R128": 0, # На случай расширенной сетки
-        "R64": 0, 
-        "R32": 1, 
-        "R16": 2, 
+    # 1000 (ATP Masters / WTA 1000)
+    "LEVEL_1000": { 
+        "R128": 1, "R64": 1, # Если сетка расширенная
+        "R32": 2, 
+        "R16": 3, 
         "QF": 4, 
-        "SF": 8, 
-        "F": 12, 
-        "Champion": 16 
-    },
-    
-    # ATP 500 (Start R32)
-    # R32 = 0 (Старт)
-    "ATP_500": { 
-        "R64": 0, "R48": 0, 
-        "R32": 0, 
-        "R16": 1, 
-        "QF": 2, 
-        "SF": 4, 
+        "SF": 5, 
         "F": 8, 
         "Champion": 12 
     },
     
-    # ATP 250 (Start R32)
-    # R32 = 0 (Старт), но очков чуть меньше в конце
-    "ATP_250": { 
-        "R64": 0, 
-        "R32": 0, 
-        "R16": 1, 
-        "QF": 2, 
-        "SF": 3, 
-        "F": 4, 
-        "Champion": 6 
+    # 500 (ATP 500 / WTA 500)
+    "LEVEL_500": { 
+        "R64": 1, "R48": 1, 
+        "R32": 1, 
+        "R16": 2, 
+        "QF": 3, 
+        "SF": 4, 
+        "F": 6, 
+        "Champion": 10 
     },
     
-    # Дефолт (на всякий случай)
-    "DEFAULT": { 
-        "R128": 0, "R64": 0, "R32": 0, "R16": 1, "QF": 2, "SF": 3, "F": 4, "Champion": 6 
-    }
+    # 250 (ATP 250 / WTA 250)
+    # Начинаем с 1 балла за первый круг (R32), чтобы набрать сумму 17, как ты хотела.
+    "LEVEL_250": { 
+        "R64": 1, 
+        "R32": 1, 
+        "R16": 2, 
+        "QF": 3, 
+        "SF": 4, 
+        "F": 5, 
+        "Champion": 8 
+    },
+    
+    # Запасной вариант
+    "DEFAULT": { "R128": 1, "R64": 1, "R32": 2, "R16": 3, "QF": 4, "SF": 5, "F": 6, "Champion": 10 }
 }
 
 def normalize_name(name: str) -> str:
@@ -71,12 +66,24 @@ def normalize_name(name: str) -> str:
 
 def get_tournament_weights(tournament: models.Tournament) -> dict:
     if not tournament: return SCORING_SYSTEM["DEFAULT"]
+    
+    # Приводим тип и тег к верхнему регистру для проверки
     t_type = (tournament.type or "").upper()
     t_tag = (tournament.tag or "").upper()
-    if "SLAM" in t_type or "ТБШ" in t_tag or "GRAND" in t_type: return SCORING_SYSTEM["GRAND_SLAM"]
-    if "1000" in t_type: return SCORING_SYSTEM["ATP_1000"]
-    if "500" in t_type: return SCORING_SYSTEM["ATP_500"]
-    if "250" in t_type: return SCORING_SYSTEM["ATP_250"]
+    
+    # Логика выбора системы очков
+    if "SLAM" in t_type or "ТБШ" in t_tag or "GRAND" in t_type: 
+        return SCORING_SYSTEM["GRAND_SLAM"]
+    
+    if "1000" in t_type: 
+        return SCORING_SYSTEM["LEVEL_1000"] # Подойдет и для "ATP 1000", и для "WTA 1000"
+    
+    if "500" in t_type: 
+        return SCORING_SYSTEM["LEVEL_500"]
+    
+    if "250" in t_type: 
+        return SCORING_SYSTEM["LEVEL_250"]
+    
     return SCORING_SYSTEM["DEFAULT"]
 
 def calculate_score_for_user(user_picks, true_draws_map, weights):
@@ -87,7 +94,6 @@ def calculate_score_for_user(user_picks, true_draws_map, weights):
         match = true_draws_map.get(key)
         if not match or not match.winner: continue
         
-        # ЛОГИКА СЛОТОВ (из предыдущих обсуждений)
         is_hit = False
         pick_norm = normalize_name(pick.predicted_winner)
         winner_norm = normalize_name(match.winner)
@@ -95,7 +101,7 @@ def calculate_score_for_user(user_picks, true_draws_map, weights):
         if pick_norm == winner_norm:
             is_hit = True
         else:
-            # Slot fallback
+            # Проверка слотов (на случай смены имен/квалифаеров)
             user_slot = 0
             if pick.predicted_winner == pick.player1: user_slot = 1
             elif pick.predicted_winner == pick.player2: user_slot = 2
@@ -147,22 +153,19 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
             "correct_picks": correct
         })
     
-    # Сортируем: сначала по очкам, потом по кол-ву верных ответов (тай-брейк)
+    # Сортируем: сначала по очкам, потом по кол-ву верных
     leaderboard_entries.sort(key=lambda x: (x["score"], x["correct_picks"]), reverse=True)
     
-    # Очищаем старый лидерборд
     db.query(models.Leaderboard).filter_by(tournament_id=tournament_id).delete()
     
-    # === НОВАЯ ЛОГИКА РАНГОВ (DENSE RANKING 1, 1, 2) ===
+    # === ПЛОТНОЕ РАНЖИРОВАНИЕ (1, 1, 2, 3...) ===
     current_rank = 1
     for i, entry in enumerate(leaderboard_entries):
         if i > 0:
             prev = leaderboard_entries[i-1]
-            # Если очки ИЛИ доп. показатели отличаются -> это следующее место
             if entry["score"] != prev["score"] or entry["correct_picks"] != prev["correct_picks"]:
-                current_rank += 1 # Просто +1, без пропусков (Dense Ranking)
-            # Иначе (если равны) -> current_rank не меняется (остается 1)
-
+                current_rank += 1
+        
         lb_row = models.Leaderboard(
             tournament_id=tournament_id,
             user_id=entry["user_id"],
