@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger("Audit")
 
 # ID юзера, за которым следим (можешь менять его здесь)
-TARGET_USER_ID = 6826258397
+TARGET_USER_ID = 1017365388
 
 def audit_pick(user_id, round_name, match_num, pick, real_winner, points, is_hit):
     """
