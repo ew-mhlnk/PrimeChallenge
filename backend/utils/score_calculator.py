@@ -6,13 +6,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# СИСТЕМА ОЧКОВ (Старт с 1 балла)
+# === СИСТЕМА ОЧКОВ (МАТЕМАТИЧЕСКАЯ) ===
+# Настроена так, чтобы совпадать с твоими ручными расчетами.
+# Принцип: За каждый угаданный матч начисляются очки.
+# Чем дальше прошел игрок, тем дороже стоит победа.
+
 SCORING_SYSTEM = {
-    # GRAND SLAM (Start R128)
+    # GRAND SLAM (Сетка 128)
+    # Прогрессия: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 8 -> 15
     "GRAND_SLAM": { 
-        "R128": 1, # Было 0 -> Стало 1
-        "R64": 2, 
-        "R32": 3, 
+        "R128": 1, # 1-й круг (64 матча)
+        "R64": 2,  # 2-й круг (32 матча)
+        "R32": 3,  # 3-й круг (16 матчей)
         "R16": 4, 
         "QF": 5, 
         "SF": 6, 
@@ -20,40 +25,54 @@ SCORING_SYSTEM = {
         "Champion": 15 
     },
     
-    # 1000 (Start R64/R128)
+    # ATP/WTA 1000 (Сетка 64 или 96)
+    # Прогрессия: 1 -> 2 -> 3 -> 4 -> 5 -> 8 -> 12
     "LEVEL_1000": { 
-        "R128": 1, 
-        "R64": 1, # Было 0 -> Стало 1
-        "R32": 2, 
-        "R16": 3, 
+        "R128": 1, # Если есть квалифаеры/расширенная сетка
+        "R64": 1,  # 1-й основной круг = 1 балл
+        "R32": 2,  # 2-й круг = 2 балла
+        "R16": 3,  # 3-й круг = 3 балла
         "QF": 4, 
         "SF": 5, 
         "F": 8, 
         "Champion": 12 
     },
     
-    # 500 (Start R32)
+    # ATP/WTA 500 (Сетка 32 или 48)
+    # Твой пример (получится 69 очков):
+    # R64 (25 угаданных) * 1 = 25
+    # R32 (11 угаданных) * 2 = 22
+    # R16 (6 угаданных) * 3 = 18
+    # QF (1 угаданный) * 4 = 4
+    # ИТОГО: 69
     "LEVEL_500": { 
         "R64": 1, "R48": 1, 
-        "R32": 1, # Было 0 -> Стало 1
+        "R32": 2, 
+        "R16": 3, 
+        "QF": 4, 
+        "SF": 5, 
+        "F": 6, 
+        "Champion": 12 
+    },
+    
+    # ATP/WTA 250 (Сетка 32)
+    # Твой пример (получится 17 очков):
+    # R32 (6 угаданных) * 1 = 6
+    # R16 (2 угаданных) * 2 = 4
+    # QF (1 угаданный) * 3 = 3
+    # SF (1 угаданный) * 4 = 4
+    # ИТОГО: 17
+    "LEVEL_250": { 
+        "R64": 1, 
+        "R32": 1, 
         "R16": 2, 
         "QF": 3, 
         "SF": 4, 
-        "F": 6, 
-        "Champion": 10 
-    },
-    
-    # 250 (Start R32)
-    "LEVEL_250": { 
-        "R64": 1, 
-        "R32": 1, # Было 0 -> Стало 1 (Твои 6 матчей * 1 = 6 очков)
-        "R16": 2, # (Твои 2 матча * 2 = 4 очка)
-        "QF": 3,  # (Твой 1 матч * 3 = 3 очка)
-        "SF": 4,  # (Твой 1 матч * 4 = 4 очка)
-        "F": 5,   # (Итого: 6+4+3+4 = 17)
+        "F": 5, 
         "Champion": 8 
     },
     
+    # Дефолт
     "DEFAULT": { "R128": 1, "R64": 1, "R32": 2, "R16": 3, "QF": 4, "SF": 5, "F": 6, "Champion": 10 }
 }
 
@@ -68,7 +87,6 @@ def get_tournament_weights(tournament: models.Tournament) -> dict:
     t_type = (tournament.type or "").upper()
     t_tag = (tournament.tag or "").upper()
     
-    # Универсальная проверка для ATP и WTA
     if "SLAM" in t_type or "ТБШ" in t_tag or "GRAND" in t_type: return SCORING_SYSTEM["GRAND_SLAM"]
     if "1000" in t_type: return SCORING_SYSTEM["LEVEL_1000"]
     if "500" in t_type: return SCORING_SYSTEM["LEVEL_500"]
@@ -91,6 +109,7 @@ def calculate_score_for_user(user_picks, true_draws_map, weights):
         if pick_norm == winner_norm:
             is_hit = True
         else:
+            # Сравнение по слотам (на случай смены имен)
             user_slot = 0
             if pick.predicted_winner == pick.player1: user_slot = 1
             elif pick.predicted_winner == pick.player2: user_slot = 2
@@ -104,6 +123,7 @@ def calculate_score_for_user(user_picks, true_draws_map, weights):
             if user_slot != 0 and user_slot == winner_slot: is_hit = True
             
         if is_hit:
+            # Берем вес раунда из нашей таблицы
             points = weights.get(pick.round, 0)
             score += points
             correct += 1
@@ -142,17 +162,18 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
             "correct_picks": correct
         })
     
+    # Сортировка: Очки -> Верные пики
     leaderboard_entries.sort(key=lambda x: (x["score"], x["correct_picks"]), reverse=True)
     
     db.query(models.Leaderboard).filter_by(tournament_id=tournament_id).delete()
     
-    # === ПЛОТНОЕ РАНЖИРОВАНИЕ (1, 1, 2, 3...) ===
+    # === ПЛОТНОЕ РАНЖИРОВАНИЕ (1, 1, 2, 3) ===
     current_rank = 1
     for i, entry in enumerate(leaderboard_entries):
         if i > 0:
             prev = leaderboard_entries[i-1]
             if entry["score"] != prev["score"] or entry["correct_picks"] != prev["correct_picks"]:
-                current_rank += 1
+                current_rank += 1 # +1 место
         
         lb_row = models.Leaderboard(
             tournament_id=tournament_id,
