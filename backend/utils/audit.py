@@ -26,3 +26,4 @@ def audit_summary(user_id, total_score, total_correct):
     if user_id == TARGET_USER_ID:
         logger.info(f"🏁 ИТОГ для {user_id}: {total_score} очков, {total_correct} верных исходов.")
         logger.info("---------------------------------------------------")
+        
