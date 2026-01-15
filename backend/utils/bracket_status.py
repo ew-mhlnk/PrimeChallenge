@@ -5,19 +5,35 @@ from typing import Dict, Set, List, Any
 logger = logging.getLogger(__name__)
 
 def normalize_name(name: str) -> str:
+    """
+    Очищает имя от мусора для сравнения.
+    Убирает: регистр, пробелы, скобки с посевом (1), флаги (эмодзи) и спецсимволы.
+    """
     if not name: return "tbd"
     n = str(name).lower().strip()
     if n == "tbd": return "tbd"
     if n == "bye": return "bye"
+    
+    # 1. Убираем содержимое скобок (посев, WC, Q)
     n = re.sub(r'\s*\(.*?\)', '', n)
-    n = re.sub(r'[^\w]', '', n)
-    n = re.sub(r'\d', '', n)
+    
+    # 2. Убираем ВСЁ, кроме букв (любых языков) и цифр.
+    # Это удалит эмодзи флагов 🇺🇦, точки, запятые.
+    n = re.sub(r'[^\w\s]', '', n)
+    
+    # 3. Убираем лишние пробелы и цифры (если остались)
+    n = re.sub(r'\d+', '', n)
+    n = n.strip().replace(" ", "")
+    
     return n if n else "tbd"
 
 def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List) -> Dict[str, List[Dict]]:
     """
     Строит "Фэнтези-сетку" пользователя.
-    ВКЛЮЧАЕТ VISUAL SWAP: Заменяет старые имена (Q/LL) на новые, если слот совпадает.
+    Логика:
+    1. Протаскиваем победителей по дереву.
+    2. Если есть прогноз юзера - подставляем его.
+    3. VISUAL SWAP: Если прогноз совпадает с реальным игроком (даже с флагом), берем красивое имя из сетки.
     """
     picks_map = {}
     for p in user_picks:
@@ -28,9 +44,6 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
 
     fantasy_winners = {}
     rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F", "Champion"]
-    
-    # Чтобы Visual Swap работал корректно, нам нужно знать "актуальные" имена в слотах.
-    # В bracket (аргумент функции) уже лежат НОВЫЕ имена из true_draw (Хиджиката и т.д.)
     
     for r_idx, r_name in enumerate(rounds_order):
         if r_name not in bracket: continue
@@ -54,40 +67,31 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
             # --- 2. Обработка Прогноза ---
             pick_obj = picks_map.get((r_name, m_num))
             
-            # Исходные данные прогноза (из базы, старые)
             predicted_db = None
-            orig_p1 = None
-            orig_p2 = None
-            
             if pick_obj:
                 predicted_db = getattr(pick_obj, 'predicted_winner', None) or (pick_obj.get('predicted_winner') if isinstance(pick_obj, dict) else None)
-                orig_p1 = getattr(pick_obj, 'player1', None) or (pick_obj.get('player1') if isinstance(pick_obj, dict) else None)
-                orig_p2 = getattr(pick_obj, 'player2', None) or (pick_obj.get('player2') if isinstance(pick_obj, dict) else None)
 
-            # Сохраняем "историю" для статусов
-            match['user_pick_original_p1'] = orig_p1
-            match['user_pick_original_p2'] = orig_p2
-            
-            # Текущие имена в сетке (Новые, например "Хиджиката")
+            # Текущие имена в сетке (уже обновленные протаскиванием)
             current_p1_name = match['player1']['name']
             current_p2_name = match['player2']['name']
 
             final_predicted_name = None
 
             if predicted_db:
-                # --- VISUAL SWAP LOGIC ---
-                # Если прогноз совпадает с тем, что было в базе (по слоту) - берем НОВОЕ имя
+                # Нормализуем для сравнения (чтобы Костюк == 🇺🇦 Костюк)
+                db_norm = normalize_name(predicted_db)
+                p1_norm = normalize_name(current_p1_name)
+                p2_norm = normalize_name(current_p2_name)
                 
-                # Слот 1
-                if predicted_db == orig_p1:
-                    # Юзер выбирал верхнего. Берем имя того, кто СЕЙЧАС сверху.
+                # Попытка 1: Прямое совпадение имени (самое надежное)
+                if db_norm == p1_norm and p1_norm != "tbd":
                     final_predicted_name = current_p1_name
-                # Слот 2
-                elif predicted_db == orig_p2:
-                    # Юзер выбирал нижнего. Берем имя того, кто СЕЙЧАС снизу.
+                elif db_norm == p2_norm and p2_norm != "tbd":
                     final_predicted_name = current_p2_name
                 else:
-                    # Если слоты не совпали (редкость) или имена совпадают напрямую
+                    # Попытка 2 (FallBack): Если имя в базе не совпадает с тем, кто в сетке
+                    # (например, из-за ошибки в Гугл таблице или смены фамилии)
+                    # Мы всё равно форсируем имя из прогноза, чтобы юзер видел свой выбор!
                     final_predicted_name = predicted_db
             
             # Авто-проход BYE
@@ -99,7 +103,7 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
             
             if final_predicted_name:
                 fantasy_winners[(r_name, m_num)] = final_predicted_name
-                match['predicted_winner'] = final_predicted_name # <--- Подменили!
+                match['predicted_winner'] = final_predicted_name 
             
             # Champion logic
             if r_name == "Champion":
@@ -119,7 +123,6 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
     real_match_players = {}
 
     for td in true_draws:
-        # Поддержка объектов и словарей
         winner = getattr(td, 'winner', None) or (td.get('winner') if isinstance(td, dict) else None)
         p1 = getattr(td, 'player1', None) or (td.get('player1') if isinstance(td, dict) else None)
         p2 = getattr(td, 'player2', None) or (td.get('player2') if isinstance(td, dict) else None)
@@ -142,11 +145,6 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
         }
 
     rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F", "Champion"]
-    start_round_name = None
-    for r in rounds_order:
-        if r in bracket and len(bracket[r]) > 0:
-            start_round_name = r
-            break
 
     for r_name in rounds_order:
         if r_name not in bracket: continue
@@ -154,7 +152,6 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
         for match in bracket[r_name]:
             match_key = f"{r_name}_{match['match_number']}"
             
-            # ВАЖНО: Тут уже лежит НОВОЕ имя (благодаря reconstruct выше)
             pick_raw = match.get("predicted_winner")
             pick_norm = normalize_name(pick_raw)
             
@@ -166,7 +163,7 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
             rp2_norm = real_data["p2_norm"] if real_data else "tbd"
             real_winner_norm = real_data["w_norm"] if real_data else "tbd"
 
-            # Статус слота
+            # Статус слота (Игрок еще в игре или вылетел?)
             def get_slot_status(u_norm, r_norm):
                 if u_norm == "tbd": return "PENDING"
                 if u_norm == "bye": return "CORRECT"
@@ -178,24 +175,12 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
             p1_stat = get_slot_status(up1_norm, rp1_norm)
             p2_stat = get_slot_status(up2_norm, rp2_norm)
 
-            # Статус матча
+            # Статус матча (Угадал победителя или нет?)
             m_stat = "PENDING"
             
             if pick_norm == "tbd": m_stat = "NO_PICK"
             elif pick_norm == "bye": m_stat = "CORRECT"
             elif real_winner_norm != "tbd":
-                # Теперь, так как мы подменили pick_norm на новое имя,
-                # сравнение по имени (pick_norm == real_winner_norm) должно сработать!
-                # Но оставим Slot Logic как страховку.
-                
-                user_slot = 0
-                orig_pick = match.get("predicted_winner") # Это уже новое
-                # А вот оригиналы из базы:
-                orig_db_p1 = match.get("user_pick_original_p1")
-                # Тут сложность: в match['predicted_winner'] уже новое имя,
-                # а в user_pick_original_p1 - старое. Сравнивать их нельзя.
-                
-                # Поэтому мы доверяем нормализации (она уже содержит новое имя)
                 if pick_norm == real_winner_norm:
                     m_stat = "CORRECT"
                 else:
@@ -203,9 +188,9 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
             else:
                 if pick_norm in eliminated_players: m_stat = "INCORRECT"
                 else:
-                    if pick_norm == up1_norm and p1_stat == "INCORRECT": m_stat = "INCORRECT"
-                    elif pick_norm == up2_norm and p2_stat == "INCORRECT": m_stat = "INCORRECT"
-                    else: m_stat = "PENDING"
+                    # Если игрок, которого мы выбрали, стоит не в том слоте, где он в реальности - это не ошибка, 
+                    # это просто фэнтези. Ошибка только если он eliminated.
+                    m_stat = "PENDING"
 
             match["player1_status"] = p1_stat
             match["player2_status"] = p2_stat
