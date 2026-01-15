@@ -13,7 +13,6 @@ def normalize_name(name: str) -> str:
     if n == "tbd": return "tbd"
     if n == "bye": return "bye"
     
-    # Убираем скобки, флаги, цифры
     n = re.sub(r'\s*\(.*?\)', '', n)
     n = re.sub(r'[^\w\s]', '', n)
     n = re.sub(r'\d+', '', n)
@@ -23,8 +22,7 @@ def normalize_name(name: str) -> str:
 
 def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List) -> Dict[str, List[Dict]]:
     """
-    Строит "Фэнтези-сетку".
-    Добавлена ЛОГИКА СЛОТОВ для Visual Swap.
+    Строит "Фэнтези-сетку" пользователя.
     """
     picks_map = {}
     for p in user_picks:
@@ -59,7 +57,6 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
             pick_obj = picks_map.get((r_name, m_num))
             predicted_db = None
             
-            # Данные о том, кто стоял в слотах В МОМЕНТ ПРОГНОЗА
             orig_p1 = None
             orig_p2 = None
 
@@ -78,27 +75,21 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
                 p1_norm = normalize_name(current_p1_name)
                 p2_norm = normalize_name(current_p2_name)
                 
-                # А. Прямое совпадение имени
                 if db_norm == p1_norm and p1_norm != "tbd":
                     final_predicted_name = current_p1_name
                 elif db_norm == p2_norm and p2_norm != "tbd":
                     final_predicted_name = current_p2_name
                 else:
-                    # Б. Логика СЛОТОВ (Slot Logic) для Q/LL
-                    # Если имя не совпало, проверяем: "А был ли это выбор СЛОТА 1?"
-                    
-                    # 1. Определяем, какой слот выбрал юзер (на основе старых имен)
+                    # Slot Logic Fallback
                     user_slot = 0
                     if predicted_db == orig_p1: user_slot = 1
                     elif predicted_db == orig_p2: user_slot = 2
                     
-                    # 2. Если слот совпал с текущим именем в сетке - бинго!
                     if user_slot == 1 and p1_norm != "tbd":
                         final_predicted_name = current_p1_name
                     elif user_slot == 2 and p2_norm != "tbd":
                         final_predicted_name = current_p2_name
                     else:
-                        # Fallback: просто показываем то, что выбрал юзер
                         final_predicted_name = predicted_db
             
             # Авто-проход BYE
@@ -112,7 +103,6 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
                 fantasy_winners[(r_name, m_num)] = final_predicted_name
                 match['predicted_winner'] = final_predicted_name 
             
-            # Champion logic
             if r_name == "Champion":
                  w_f = fantasy_winners.get(("F", 1))
                  if w_f:
@@ -124,14 +114,12 @@ def reconstruct_fantasy_bracket(bracket: Dict[str, List[Dict]], user_picks: List
 def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List) -> Dict[str, List[Dict]]:
     """
     Раскрашивает сетку.
-    ВКЛЮЧЕНА ЛОГИКА СЛОТОВ (чтобы совпадала с калькулятором очков).
     """
     eliminated_players: Set[str] = set()
     real_winners_map = {}
     real_match_players = {}
 
     for td in true_draws:
-        # Извлекаем данные (поддержка dict и object)
         winner = getattr(td, 'winner', None) or (td.get('winner') if isinstance(td, dict) else None)
         p1 = getattr(td, 'player1', None) or (td.get('player1') if isinstance(td, dict) else None)
         p2 = getattr(td, 'player2', None) or (td.get('player2') if isinstance(td, dict) else None)
@@ -161,15 +149,12 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
         for match in bracket[r_name]:
             match_key = f"{r_name}_{match['match_number']}"
             
-            # Прогноз (уже нормализован в reconstruct, но тут берем как текст)
             pick_raw = match.get("predicted_winner")
             pick_norm = normalize_name(pick_raw)
             
-            # Текущие игроки в сетке (на фронте)
             up1_norm = normalize_name(match['player1']['name'])
             up2_norm = normalize_name(match['player2']['name'])
             
-            # Реальные данные матча
             real_data = real_match_players.get(match_key)
             rp1_norm = real_data["p1_norm"] if real_data else "tbd"
             rp2_norm = real_data["p2_norm"] if real_data else "tbd"
@@ -189,36 +174,31 @@ def enrich_bracket_with_status(bracket: Dict[str, List[Dict]], true_draws: List)
 
             m_stat = "PENDING"
             
-            if pick_norm == "tbd": m_stat = "NO_PICK"
+            # === ИСПРАВЛЕНИЕ ===
+            # Если прогноза НЕТ (tbd), мы принудительно сбрасываем статусы слотов в PENDING.
+            # Чтобы они не горели зеленым "за компанию".
+            if pick_norm == "tbd": 
+                m_stat = "NO_PICK"
+                p1_stat = "PENDING"
+                p2_stat = "PENDING"
+                
             elif pick_norm == "bye": m_stat = "CORRECT"
             elif real_winner_norm != "tbd":
-                # === ЛОГИКА СРАВНЕНИЯ ===
                 is_win = False
-                
-                # 1. По Имени
                 if pick_norm == real_winner_norm:
                     is_win = True
                 else:
-                    # 2. По Слоту (Slot Fallback)
-                    # Если имена разные, но позиции совпадают!
-                    # pick_norm - кого мы видим в сетке (благодаря reconstruct это скорее всего "правильное" имя)
-                    # Но если reconstruct не справился, попробуем понять по позициям.
-                    
                     user_slot = 0
                     if pick_norm == up1_norm: user_slot = 1
                     elif pick_norm == up2_norm: user_slot = 2
-                    
                     winner_slot = 0
                     if real_winner_norm == rp1_norm: winner_slot = 1
                     elif real_winner_norm == rp2_norm: winner_slot = 2
-                    
                     if user_slot != 0 and user_slot == winner_slot:
                         is_win = True
 
-                if is_win:
-                    m_stat = "CORRECT"
-                else:
-                    m_stat = "INCORRECT"
+                if is_win: m_stat = "CORRECT"
+                else: m_stat = "INCORRECT"
             else:
                 if pick_norm in eliminated_players: m_stat = "INCORRECT"
                 else: m_stat = "PENDING"
