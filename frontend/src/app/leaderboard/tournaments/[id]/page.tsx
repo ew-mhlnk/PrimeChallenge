@@ -213,21 +213,18 @@ export default function TournamentLeaderboardPage({ params }: { params: Promise<
                             </div>
                         );
 
-                        // УСЛОВИЕ:
-                        // 1. Турнир должен быть CLOSED или COMPLETED
-                        // 2. Это не я сам (свой профиль кликать не обязательно, но можно разрешить)
-                        // Если все ок - заворачиваем в LINK. Если нет - просто DIV.
-                        if (canViewPicks && entry.user_id !== currentUserId) {
-                            return (
-                                <Link 
-                                    key={entry.user_id} 
-                                    href={`/tournament/${id}/user/${entry.user_id}`}
-                                    onClick={() => impact('light')}
-                                >
-                                    {CardContent}
-                                </Link>
-                            );
-                        }
+                        // ВРЕМЕННО ОТКЛЮЧЕНО: добавил false &&
+if (false && canViewPicks && entry.user_id !== currentUserId) {
+    return (
+        <Link 
+            key={entry.user_id} 
+            href={`/tournament/${id}/user/${entry.user_id}`}
+            onClick={() => impact('light')}
+        >
+            {CardContent}
+        </Link>
+    );
+}
 
                         // Просто карточка (нельзя нажать)
                         return <div key={entry.user_id}>{CardContent}</div>;
