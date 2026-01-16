@@ -89,25 +89,8 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
 
                   const uP1 = match.player1;
                   const uP2 = match.player2;
-                  const myPick = match.predicted_winner;
 
-                  // --- ОПРЕДЕЛЯЕМ, ЯВЛЯЕТСЯ ЛИ ИГРОК ВЫБОРОМ ПОЛЬЗОВАТЕЛЯ ---
-                  let p1IsPick = clean(myPick) === clean(uP1.name);
-                  let p2IsPick = clean(myPick) === clean(uP2.name);
-
-                  // 🔥 Q/LL SAFEGUARD (ЗАЩИТА СЛОТОВ) 🔥
-                  // Если имя не совпадает (например Q/LL vs Кеведо), но:
-                  // 1. Бэкенд говорит, что мы угадали исход (match.status === CORRECT)
-                  // 2. И этот игрок стоит в сетке верно (player_status === CORRECT)
-                  // -> Значит это наш выбор (через слот).
-                  if (!p1IsPick && match.status === 'CORRECT' && match.player1_status === 'CORRECT') {
-                      p1IsPick = true;
-                  }
-                  if (!p2IsPick && match.status === 'CORRECT' && match.player2_status === 'CORRECT') {
-                      p2IsPick = true;
-                  }
-
-                  // === ГЛАВНАЯ ЛОГИКА ЦВЕТОВ ===
+                  // === ЛОГИКА СТАТУСОВ ===
                   const getStatus = (playerName: string | null | undefined, slotStatus: string | undefined, isUserPick: boolean) => {
                       const safeName = playerName || 'TBD';
                       const cleanName = clean(safeName);
@@ -120,33 +103,44 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
                       
                       if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
                       
-                      // 1. СТАРТОВЫЙ РАУНД -> НИКОГДА НЕ ЗЕЛЕНЫЙ
+                      // 1. СТАРТОВЫЙ РАУНД -> НЕЙТРАЛЬНЫЙ или СИНИЙ
+                      // Здесь мы еще ничего не "угадали", мы просто сделали ставку.
+                      // Поэтому Correct быть не может, только Selected или Default.
                       const isFirstRound = rounds.length > 0 && selectedRound === rounds[0];
                       if (isFirstRound) {
-                          if (isUserPick) return 'selected'; // Синий
-                          return 'default'; // Серый
+                          if (isUserPick) return 'selected'; // Синий (мой выбор)
+                          return 'default'; // Серый (не выбрал)
                       }
 
                       // 2. СЛЕДУЮЩИЕ РАУНДЫ
                       
-                      // А. МОЙ ВЫБОР
-                      if (isUserPick) {
-                          if (slotStatus === 'CORRECT') return 'correct';      // ✅ Угадал (Зеленый)
-                          if (slotStatus === 'INCORRECT') return 'incorrect';  // ❌ Выбрал, но вылетел (Красный)
-                          return 'selected';                                   // 🔵 Еще играет (Синий)
-                      } 
-                      
-                      // Б. НЕ МОЙ ВЫБОР
-                      else {
-                          // Если слот CORRECT (Прошел), но я НЕ выбрал -> КРАСНЫЙ (Ошибка)
-                          if (slotStatus === 'CORRECT') return 'incorrect';
-
-                          // Если слот INCORRECT (Вылетел) -> КРАСНЫЙ (История)
-                          if (slotStatus === 'INCORRECT') return 'incorrect';
+                      // A. Игрок стоит в слоте ПРАВИЛЬНО (совпадает с реальностью)
+                      // Значит, пользователь угадал предыдущий матч. Это УСПЕХ.
+                      // Красим в ЗЕЛЕНЫЙ, даже если он не выбран победителем текущего матча.
+                      if (slotStatus === 'CORRECT') {
+                          // Если я его выбрал и дальше - отлично, но статус "правильности попадания сюда" все равно зеленый.
+                          // Примечание: isUserPick поменяет стиль (добавит галочку или синюю рамку), но цвет текста диктуется 'correct'.
+                          // Если нужно отличать "Правильно пришел + Выбран дальше" от "Правильно пришел + Не выбран",
+                          // то это делается через пропс showCheck или p1Status='selected' (синий).
                           
-                          return 'default'; 
+                          // Но по твоему запросу: "Зайдель (выбрана ранее) должна быть зеленой".
+                          return 'correct'; 
                       }
+
+                      // B. Игрок стоит НЕПРАВИЛЬНО (в реальности там другой)
+                      if (slotStatus === 'INCORRECT') {
+                          return 'incorrect'; // Красный (зачеркнутый)
+                      }
+                      
+                      // C. Игрок просто выбран пользователем (но статус пока неизвестен/pending)
+                      if (isUserPick) return 'selected';
+
+                      return 'default';
                   };
+
+                  const myPick = match.predicted_winner;
+                  const p1IsPick = clean(myPick) === clean(uP1.name);
+                  const p2IsPick = clean(myPick) === clean(uP2.name);
                   
                   const p1Stat = getStatus(uP1.name, match.player1_status, p1IsPick);
                   const p2Stat = getStatus(uP2.name, match.player2_status, p2IsPick);
@@ -186,6 +180,8 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
                           p1Hint={getHint(p1Stat, match.real_player1)} 
                           p2Hint={getHint(p2Stat, match.real_player2)}
                           
+                          // Показываем галочку (синюю), только если это текущий выбор юзера
+                          // Но сам текст будет зеленым благодаря статусу 'correct'
                           showChecks={false} 
                           showConnector={selectedRound !== 'F'}
                       />
