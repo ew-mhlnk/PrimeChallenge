@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
-from typing import List
+from typing import List, Optional
 from database.db import get_db
 from database import models
 from utils.auth import get_current_user
@@ -36,7 +36,6 @@ def get_global_leaderboard(db: Session = Depends(get_db)):
             "username": name,
             "score": row.total_score,
             "correct_picks": row.total_correct,
-            # Заглушки для глобального, чтобы фронт не ругался
             "incorrect_picks": 0,
             "total_picks": 0,
             "percent": "0%"
@@ -44,7 +43,7 @@ def get_global_leaderboard(db: Session = Depends(get_db)):
         
     return leaderboard
 
-# --- 2. СПИСОК ТУРНИРОВ С РАНГОМ ЮЗЕРА (НОВОЕ) ---
+# --- 2. СПИСОК ТУРНИРОВ С РАНГОМ ЮЗЕРА ---
 @router.get("/list", response_model=List[dict])
 def get_tournaments_with_ranks(
     db: Session = Depends(get_db),
@@ -53,12 +52,9 @@ def get_tournaments_with_ranks(
     """
     Отдает список турниров (ACTIVE, COMPLETED, CLOSED).
     Сортировка: Самые новые (большой ID) - СВЕРХУ.
-    Самые старые (маленький ID) - ВНИЗУ.
     """
     user_id = user["id"]
     
-    # Берем турниры, где есть рейтинг
-    # order_by(models.Tournament.id.desc()) -> 10, 9, 8...
     tournaments = db.query(models.Tournament).filter(
         models.Tournament.status.in_(["ACTIVE", "COMPLETED", "CLOSED"])
     ).order_by(models.Tournament.id.desc()).all()
@@ -96,8 +92,7 @@ def get_tournaments_with_ranks(
 @router.get("/tournament/{tournament_id}", response_model=List[dict])
 def get_tournament_leaderboard(tournament_id: int, db: Session = Depends(get_db)):
     """
-    Детальный рейтинг турнира.
-    Считает статистику (Неверно, %) "на лету", не требуя миграций БД.
+    Детальный рейтинг конкретного турнира.
     """
     # А. Основной рейтинг
     lb_results = db.query(models.Leaderboard, models.User)\
@@ -106,8 +101,7 @@ def get_tournament_leaderboard(tournament_id: int, db: Session = Depends(get_db)
         .order_by(models.Leaderboard.rank)\
         .all()
     
-    # Б. Подсчет статистики "на лету" (без изменения БД)
-    # Считаем, сколько матчей ЗАВЕРШИЛОСЬ в этом турнире, на которые юзеры делали прогнозы.
+    # Б. Подсчет статистики "на лету"
     finished_matches_query = db.query(
         models.UserPick.user_id,
         func.count(models.UserPick.id).label("total_finished")
@@ -121,7 +115,6 @@ def get_tournament_leaderboard(tournament_id: int, db: Session = Depends(get_db)
         models.UserPick.predicted_winner.isnot(None) # Где был прогноз
     ).group_by(models.UserPick.user_id).all()
 
-    # Словарь: {user_id: кол-во завершенных матчей}
     stats_map = {row.user_id: row.total_finished for row in finished_matches_query}
     
     output = []
@@ -129,10 +122,7 @@ def get_tournament_leaderboard(tournament_id: int, db: Session = Depends(get_db)
         name = user_entry.username if user_entry.username else f"{user_entry.first_name} {user_entry.last_name or ''}".strip()
         
         correct = lb_entry.correct_picks
-        # Берем общее кол-во завершенных прогнозов из подсчета
         total = stats_map.get(lb_entry.user_id, 0)
-        
-        # Вычисляем
         incorrect = max(0, total - correct)
         percent = 0
         if total > 0:
@@ -150,3 +140,77 @@ def get_tournament_leaderboard(tournament_id: int, db: Session = Depends(get_db)
         })
         
     return output
+
+# --- 4. НОВЫЙ ЭНДПОИНТ: КОМБИНИРОВАННЫЙ ЛИДЕРБОРД (ТБШ) ---
+@router.get("/combined", response_model=List[dict])
+def get_combined_leaderboard(
+    ids: str, # Строка вида "10,11" (ID мужского и женского турнира)
+    db: Session = Depends(get_db)
+):
+    """
+    Суммирует очки пользователей по нескольким турнирам (для ТБШ М+Ж).
+    Пример вызова: /combined?ids=10,11
+    """
+    try:
+        tournament_ids = [int(i) for i in ids.split(",")]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid IDs format")
+    
+    # 1. Получаем все очки (UserScore) для этих турниров
+    scores = db.query(models.UserScore).filter(
+        models.UserScore.tournament_id.in_(tournament_ids)
+    ).all()
+    
+    # 2. Агрегация в Python (быстрее для 2-х турниров, чем сложный SQL GroupBy)
+    # Словарь: user_id -> {score, correct_picks}
+    agg_stats = {}
+    
+    for s in scores:
+        if s.user_id not in agg_stats:
+            agg_stats[s.user_id] = {"score": 0, "correct": 0}
+        
+        agg_stats[s.user_id]["score"] += s.score
+        agg_stats[s.user_id]["correct"] += s.correct_picks
+        
+    if not agg_stats:
+        return []
+
+    # 3. Получаем инфо о юзерах (одним запросом для всех найденных ID)
+    user_ids = list(agg_stats.keys())
+    users = db.query(models.User).filter(models.User.user_id.in_(user_ids)).all()
+    user_map = {u.user_id: u for u in users}
+    
+    # 4. Формируем плоский список
+    result_list = []
+    for uid, stats in agg_stats.items():
+        user = user_map.get(uid)
+        if not user: 
+            continue # Если вдруг юзер удален, пропускаем
+        
+        name = user.username if user.username else f"{user.first_name} {user.last_name or ''}".strip()
+        
+        result_list.append({
+            "user_id": uid,
+            "username": name,
+            "score": stats["score"],
+            "correct_picks": stats["correct"]
+        })
+        
+    # 5. Сортировка (Очки -> Верные исходы) по убыванию
+    result_list.sort(key=lambda x: (x["score"], x["correct_picks"]), reverse=True)
+    
+    # 6. Ранжирование (Логика: если очки равны, ранг тот же)
+    final_output = []
+    current_rank = 1
+    
+    for i, entry in enumerate(result_list):
+        if i > 0:
+            prev = result_list[i-1]
+            # Если текущий юзер хуже предыдущего, ранг увеличивается
+            if entry["score"] < prev["score"] or (entry["score"] == prev["score"] and entry["correct_picks"] < prev["correct_picks"]):
+                current_rank = i + 1
+        
+        entry["rank"] = current_rank
+        final_output.append(entry)
+        
+    return final_output
