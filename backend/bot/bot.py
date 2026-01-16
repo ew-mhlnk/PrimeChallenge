@@ -14,22 +14,19 @@ load_dotenv()
 # --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
-# Твой ID. Если в переменных не задан, берем этот.
 ADMIN_ID = int(os.getenv("ADMIN_ID", "360269274"))
 MINI_APP_URL = "https://prime-challenge.vercel.app/"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Подключение к БД
 if not DATABASE_URL:
     logger.error("DATABASE_URL is missing!")
-    # Не падаем сразу, чтобы можно было увидеть логи, но работать не будет
 else:
-    # Фикс для SQLAlchemy (Postgres требует postgresql://)
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Подключение к БД
 try:
     engine = create_engine(DATABASE_URL)
 except Exception as e:
@@ -50,38 +47,29 @@ def get_all_user_ids():
         logger.error(f"DB Error: {e}")
         return []
 
-def get_monthly_active_users():
-    if not engine: return 0
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(text("SELECT COUNT(*) FROM users"))
-            return result.scalar()
-    except Exception as e:
-        logger.error(f"DB Count Error: {e}")
-        return 0
-
 # --- ХАНДЛЕРЫ ---
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🎾 Играть в Prime Bracket", web_app=WebAppInfo(url=MINI_APP_URL))],
-            [InlineKeyboardButton(text="🏆 Лидерборд", url="https://t.me/tennisprimesport")] 
+            [InlineKeyboardButton(text="🎾 Играть в Prime Bracket", web_app=WebAppInfo(url=MINI_APP_URL))]
         ]
     )
+    
     user_name = message.from_user.first_name
+    
     await message.answer(
         f"Привет, <b>{user_name}</b>! 👋\n\n"
-        "Australian Open в самом разгаре! 🔥\n"
-        "Делай прогнозы, соревнуйся с друзьями и поднимайся в рейтинге.\n\n"
+        "🎾 Australian Open в самом разгаре!\n"
+        "👉 Делай прогнозы, соревнуйся с друзьями и поднимайся в рейтинге.\n\n"
         "Жми кнопку ниже, чтобы войти 👇",
         reply_markup=keyboard
     )
 
 @dp.message(Command("send"))
 async def cmd_broadcast(message: types.Message):
-    # Защита: только ты можешь делать рассылку
+    # Защита: только ты
     if message.from_user.id != ADMIN_ID:
         return
 
@@ -110,13 +98,9 @@ async def cmd_broadcast(message: types.Message):
             ])
             await bot.send_message(chat_id=uid, text=text_to_send, reply_markup=kb)
             count_ok += 1
-            
-            # --- БЕЗОПАСНАЯ ЗАДЕРЖКА (Anti-Spam) ---
-            await asyncio.sleep(0.1) 
-            
+            await asyncio.sleep(0.1) # Анти-спам
         except Exception as e:
             count_fail += 1
-            # Логируем, но не останавливаемся
             pass
 
     await message.answer(
@@ -125,22 +109,9 @@ async def cmd_broadcast(message: types.Message):
         f"Не дошло (блок): {count_fail}"
     )
 
-# --- ФОНОВАЯ ЗАДАЧА ---
-async def update_description():
-    while True:
-        count = get_monthly_active_users()
-        if count > 0:
-            try:
-                await bot.set_my_short_description(
-                    f"🏆 Фентези-теннис\n👥 Игроков: {count}\n👇 Жми старт!"
-                )
-            except:
-                pass
-        await asyncio.sleep(3600 * 4) # Обновляем раз в 4 часа (чаще не нужно)
-
 async def main():
     print("Bot is running...")
-    asyncio.create_task(update_description())
+    # УБРАЛИ background task для описания, так как теперь счетчик будет от Телеграма
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
