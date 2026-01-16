@@ -11,7 +11,13 @@ import { LeaderboardEntry } from '@/types';
 const getInitials = (name: string) => name.slice(0, 2).toUpperCase();
 
 const fetcher = async (url: string) => {
+    let attempts = 0;
+    while (typeof window !== 'undefined' && !window.Telegram?.WebApp?.initData && attempts < 20) {
+        await new Promise(r => setTimeout(r, 100));
+        attempts++;
+    }
     const initData = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initData : '';
+    
     const res = await fetch(url, { headers: { Authorization: initData || '' } });
     if (!res.ok) throw new Error('Failed to load');
     return res.json();
@@ -45,6 +51,7 @@ function GrandSlamContent() {
     const idWTA = searchParams.get('wta');
     const name = searchParams.get('name') || 'Grand Slam';
 
+    // По умолчанию открываем "ВСЕГО", но порядок кнопок будет другим
     const [filter, setFilter] = useState<'ALL' | 'ATP' | 'WTA'>('ALL');
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
@@ -65,6 +72,11 @@ function GrandSlamContent() {
     );
 
     const list = leaderboard || [];
+    
+    // ЛОГИКА ОТОБРАЖЕНИЯ ПОДИУМА
+    // Если список пуст ИЛИ у лидера (1 место) 0 очков -> Подиум скрыт
+    const showPodium = list.length > 0 && list[0].score > 0;
+
     const top1 = list.find(u => u.rank === 1);
     const top2 = list.find(u => u.rank === 2);
     const top3 = list.find(u => u.rank === 3);
@@ -84,12 +96,12 @@ function GrandSlamContent() {
                     </div>
                 </div>
 
-                {/* TABS */}
+                {/* TABS (НОВЫЙ ПОРЯДОК: ATP -> WTA -> ВСЕГО) */}
                 <div className="flex bg-[#1C1C1E] p-1 rounded-[14px] border border-white/5">
                     {[
                         { key: 'ATP', label: 'M (ATP)' },
-                        { key: 'ALL', label: 'ВСЕГО' },
-                        { key: 'WTA', label: 'Ж (WTA)' }
+                        { key: 'WTA', label: 'Ж (WTA)' },
+                        { key: 'ALL', label: 'ВСЕГО' }
                     ].map((tab) => (
                         <button
                             key={tab.key}
@@ -114,21 +126,26 @@ function GrandSlamContent() {
                     <div className="text-center text-[#5F6067] mt-20 text-sm">Нет данных</div>
                 ) : (
                     <>
-                        {/* PODIUM */}
-                        <div className="relative w-full h-[260px] mt-2 mb-2">
-                            <div className="absolute bottom-0 left-0 right-0 h-[140px] z-10 flex justify-center items-end">
-                                <div className="relative w-full max-w-[380px] h-full">
-                                    <Image src="/images/stand.png" alt="Podium" fill className="object-contain object-bottom" priority unoptimized />
+                        {/* PODIUM (Только если есть очки > 0) */}
+                        {showPodium && (
+                            <div className="relative w-full h-[260px] mt-2 mb-2">
+                                <div className="absolute bottom-0 left-0 right-0 h-[140px] z-10 flex justify-center items-end">
+                                    <div className="relative w-full max-w-[380px] h-full">
+                                        <Image src="/images/stand.png" alt="Podium" fill className="object-contain object-bottom" priority unoptimized />
+                                    </div>
                                 </div>
+                                {top2 && <div className="absolute bottom-[115px] left-[12%] flex flex-col items-center z-20 w-[80px]"><Avatar user={top2} size="md" rank={2} /><span className="text-[11px] font-semibold mt-1 text-gray-300 truncate w-full text-center">{top2.username}</span><span className="text-[9px] bg-black/40 px-1.5 rounded mt-0.5">#{top2.rank}</span></div>}
+                                {top1 && <div className="absolute bottom-[150px] left-1/2 -translate-x-1/2 flex flex-col items-center z-30 w-[100px]"><div className="mb-1 text-[#FFD700] text-lg">👑</div><Avatar user={top1} size="lg" rank={1} /><span className="text-[13px] font-bold mt-1 text-white truncate w-full text-center">{top1.username}</span><span className="text-[10px] text-[#FFD700] bg-black/40 px-2 rounded mt-0.5 font-bold">{top1.score} pts</span></div>}
+                                {top3 && <div className="absolute bottom-[95px] right-[12%] flex flex-col items-center z-20 w-[80px]"><Avatar user={top3} size="md" rank={3} /><span className="text-[11px] font-semibold mt-1 text-[#B87C59] truncate w-full text-center">{top3.username}</span><span className="text-[9px] bg-black/40 px-1.5 rounded mt-0.5">#{top3.rank}</span></div>}
                             </div>
-                            {top2 && <div className="absolute bottom-[115px] left-[12%] flex flex-col items-center z-20 w-[80px]"><Avatar user={top2} size="md" rank={2} /><span className="text-[11px] font-semibold mt-1 text-gray-300 truncate w-full text-center">{top2.username}</span><span className="text-[9px] bg-black/40 px-1.5 rounded mt-0.5">#{top2.rank}</span></div>}
-                            {top1 && <div className="absolute bottom-[150px] left-1/2 -translate-x-1/2 flex flex-col items-center z-30 w-[100px]"><div className="mb-1 text-[#FFD700] text-lg">👑</div><Avatar user={top1} size="lg" rank={1} /><span className="text-[13px] font-bold mt-1 text-white truncate w-full text-center">{top1.username}</span><span className="text-[10px] text-[#FFD700] bg-black/40 px-2 rounded mt-0.5 font-bold">{top1.score} pts</span></div>}
-                            {top3 && <div className="absolute bottom-[95px] right-[12%] flex flex-col items-center z-20 w-[80px]"><Avatar user={top3} size="md" rank={3} /><span className="text-[11px] font-semibold mt-1 text-[#B87C59] truncate w-full text-center">{top3.username}</span><span className="text-[9px] bg-black/40 px-1.5 rounded mt-0.5">#{top3.rank}</span></div>}
-                        </div>
+                        )}
+
+                        {/* Если подиум скрыт, добавляем отступ сверху, чтобы список не прилип к шапке */}
+                        {!showPodium && <div className="h-4" />}
 
                         {/* MY RANK */}
                         {currentUserEntry && (
-                            <div className="sticky top-[138px] z-40 pb-2 bg-[#141414]">
+                            <div className={`sticky ${showPodium ? 'top-[138px]' : 'top-[138px]'} z-40 pb-2 bg-[#141414]`}>
                                 <div className="h-[54px] w-full flex items-center justify-between px-4 bg-[#1C1C1E] border border-[#00B2FF]/30 rounded-[16px] shadow-lg relative overflow-hidden">
                                     <div className="absolute inset-0 bg-[#00B2FF]/5 pointer-events-none" />
                                     <div className="flex items-center gap-3 relative z-10">
@@ -146,7 +163,8 @@ function GrandSlamContent() {
                             {list.map((entry) => (
                                 <div key={entry.user_id} className="h-[50px] w-full flex items-center justify-between px-4 bg-[#1C1C1E] rounded-[16px] border border-white/5">
                                     <div className="flex items-center gap-3">
-                                        <span className={`font-bold text-xs w-6 text-center ${entry.rank <= 3 ? 'text-[#FFD700]' : 'text-[#5F6067]'}`}>{entry.rank}</span>
+                                        {/* Если подиум скрыт, цвета рангов не делаем золотыми */}
+                                        <span className={`font-bold text-xs w-6 text-center ${showPodium && entry.rank <= 3 ? 'text-[#FFD700]' : 'text-[#5F6067]'}`}>{entry.rank}</span>
                                         <Avatar user={entry} size="sm" rank={entry.rank} />
                                         <span className="text-[13px] font-medium text-[#EBEBF5]">{entry.username}</span>
                                     </div>
