@@ -1,10 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import Link from 'next/link';
+import useSWR from 'swr'; // 1. Импортируем SWR
 
 // --- ТИП ДЛЯ ЭТОЙ СТРАНИЦЫ ---
 interface TournamentRanked {
@@ -18,14 +18,23 @@ interface TournamentRanked {
     total_participants: number;
 }
 
-// --- ХЕЛПЕР АВТОРИЗАЦИИ ---
-const waitForTelegram = async () => {
+// --- 2. ФЕТЧЕР (Функция загрузки) ---
+const fetcher = async (url: string) => {
+    // Ждем инициализацию Telegram (максимум 2 секунды)
     let attempts = 0;
     while (typeof window !== 'undefined' && !window.Telegram?.WebApp?.initData && attempts < 20) {
         await new Promise(r => setTimeout(r, 100));
         attempts++;
     }
-    return typeof window !== 'undefined' ? window.Telegram?.WebApp?.initData : '';
+    
+    const initData = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initData : '';
+    
+    const res = await fetch(url, {
+        headers: { Authorization: initData || '' }
+    });
+
+    if (!res.ok) throw new Error('Failed to load');
+    return res.json();
 };
 
 // --- ХЕЛПЕР ЦВЕТОВ ---
@@ -41,7 +50,6 @@ const LeaderboardTournamentCard = ({ item }: { item: TournamentRanked }) => {
     const { impact } = useHapticFeedback();
     const badgeStyle = getTagColor(item.tag);
     
-    // Формируем текст ранга
     const rankText = item.my_rank 
         ? <><span className="text-[#00B2FF] font-bold">{item.my_rank}</span><span className="text-[#5F6067]">/{item.total_participants}</span></>
         : <span className="text-[#5F6067] text-[10px]">нет участия</span>;
@@ -81,28 +89,19 @@ export default function TournamentListLeaderboard() {
   const router = useRouter();
   const { impact } = useHapticFeedback();
   
-  const [data, setData] = useState<TournamentRanked[]>([]);
-  const [loading, setLoading] = useState(true);
+  // --- 3. ИСПОЛЬЗУЕМ SWR ВМЕСТО useEffect ---
+  const { data, isLoading } = useSWR<TournamentRanked[]>(
+      '/api/leaderboard/list', 
+      fetcher,
+      {
+          dedupingInterval: 300000, // Кэшировать на 5 минут (300 000 мс)
+          revalidateOnFocus: false, // Не обновлять при переключении вкладок
+          keepPreviousData: true    // При обновлении показывать старые данные, пока грузятся новые
+      }
+  );
 
-  useEffect(() => {
-      const load = async () => {
-          try {
-              const initData = await waitForTelegram();
-              const res = await fetch('/api/leaderboard/list', {
-                  headers: { Authorization: initData || '' }
-              });
-              if (res.ok) {
-                  const json = await res.json();
-                  setData(json);
-              }
-          } catch (e) {
-              console.error(e);
-          } finally {
-              setLoading(false);
-          }
-      };
-      load();
-  }, []);
+  // Если данные есть в кэше — показываем их сразу, isLoading будет false (или true только при первой загрузке)
+  const tournaments = data || [];
 
   return (
     <div className="min-h-screen bg-[#141414] text-white pb-32">
@@ -116,15 +115,16 @@ export default function TournamentListLeaderboard() {
         <h1 className="text-[20px] font-bold">Выберите турнир</h1>
       </header>
 
-      <main className="px-4 mt-4">
-        {loading ? (
+      <main className="px-4 mt-4 animate-fade-in">
+        {/* Показываем спиннер ТОЛЬКО если данных вообще нет (первый заход) */}
+        {isLoading && !data ? (
             <div className="flex justify-center mt-20">
                 <div className="w-6 h-6 border-2 border-[#00B2FF] border-t-transparent rounded-full animate-spin" />
             </div>
         ) : (
             <div className="flex flex-col">
-                {data.length > 0 ? (
-                    data.map(item => (
+                {tournaments.length > 0 ? (
+                    tournaments.map(item => (
                         <LeaderboardTournamentCard key={item.id} item={item} />
                     ))
                 ) : (
