@@ -28,8 +28,6 @@ interface ClosedBracketProps {
 }
 
 export default function ClosedBracket({ tournament }: ClosedBracketProps) {
-  // ИЗМЕНЕНИЕ: Передаем 'tournament' вторым аргументом!
-  // Теперь хук будет знать: "Ага, мне дали данные, я не должен лезть в кэш юзера"
   const { userBracket, trueBracket, hasPicks, isLoading, selectedRound, setSelectedRound, rounds } = useClosedTournament(tournament.id.toString(), tournament);
   
   const { selection } = useHapticFeedback();
@@ -94,10 +92,12 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
                   const uP1 = match.player1;
                   const uP2 = match.player2;
 
+                  // --- ГЛАВНАЯ ФУНКЦИЯ ЦВЕТОВ ---
                   const getStatus = (playerName: string | null | undefined, slotStatus: string | undefined, isUserPick: boolean) => {
                       const safeName = playerName || 'TBD';
                       const cleanName = clean(safeName);
                       
+                      // 0. Если режим "без прогнозов" (просто смотрим сетку)
                       if (!hasPicks) {
                           if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
                           return 'default';
@@ -105,11 +105,34 @@ export default function ClosedBracket({ tournament }: ClosedBracketProps) {
                       
                       if (cleanName === 'bye' || cleanName === 'tbd') return 'tbd';
                       
-                      if (slotStatus === 'INCORRECT') return 'incorrect';
-                      if (slotStatus === 'CORRECT') return 'correct';
-                      if (isUserPick) return 'selected';
+                      // 1. СТАРТОВЫЙ РАУНД -> ВСЕГДА НЕЙТРАЛЬНЫЙ (Серый)
+                      // Но выделяем синим выбор пользователя, чтобы он помнил, кого выбрал.
+                      // Никаких зеленых/красных здесь.
+                      const isFirstRound = rounds.length > 0 && selectedRound === rounds[0];
+                      if (isFirstRound) {
+                          if (isUserPick) return 'selected'; // Синий
+                          return 'default'; // Серый
+                      }
+
+                      // 2. ЕСЛИ ЭТО ВЫБОР ПОЛЬЗОВАТЕЛЯ
+                      if (isUserPick) {
+                          if (slotStatus === 'CORRECT') return 'correct';      // ✅ Угадал и прошел (Зеленый)
+                          if (slotStatus === 'INCORRECT') return 'incorrect';  // ❌ Выбрал, но вылетел (Красный)
+                          return 'selected';                                   // 🔵 Выбрал, еще играет (Синий)
+                      } 
                       
-                      return 'default'; 
+                      // 3. ЕСЛИ ПОЛЬЗОВАТЕЛЬ ЭТОГО НЕ ВЫБИРАЛ
+                      else {
+                          // Если этот игрок ВЫИГРАЛ (прошел дальше), а я его НЕ выбрал -> КРАСНЫЙ
+                          // Это значит "Ты ошибся, здесь должен был быть этот игрок, но ты его не взял".
+                          if (slotStatus === 'CORRECT') return 'incorrect';
+
+                          // Если игрок вылетел - тоже красный (зачеркнутый), показывает историю
+                          if (slotStatus === 'INCORRECT') return 'incorrect';
+                          
+                          // Если статус еще не определен (Pending) - просто серый
+                          return 'default'; 
+                      }
                   };
 
                   const myPick = match.predicted_winner;
