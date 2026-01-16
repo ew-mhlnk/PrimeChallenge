@@ -1,1 +1,13 @@
-{}
+meta:
+  environment: python
+  toolchain:
+    name: pip
+    version: 3.10
+
+build:
+  requirementsPath: backend/bot/requirements.txt
+
+run:
+  command: python backend/bot/bot.py
+  containerPort: 8080
+  persistenceMount: /data
