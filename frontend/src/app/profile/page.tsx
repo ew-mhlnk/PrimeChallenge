@@ -11,8 +11,6 @@ import { TournamentHistoryRow } from '@/types';
 // --- ИКОНКИ ---
 const BackIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 19L8 12L15 5"/></svg>);
 const StatsIcon = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20V16"/></svg>);
-const CupIcon = () => (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>);
-const FireIcon = () => (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2c0 0-3 3.5-3 6 0 1.5 1 3 1 3s-3-1-3-4c0 0-3 2-3 6 0 4.418 3.582 8 8 8s8-3.582 8-8c0-4-3-6-3-6s0 3 0 4c0 0 1-1.5 1-3 0-2.5-3-6-3-6z"/></svg>);
 const SparkleIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z"/><path d="M19 3l.75 2.75L22 6.5l-2.25.75L19 10l-.75-2.75L16 6.5l2.25-.75L19 3z"/></svg>);
 
 // --- КОМПОНЕНТЫ ---
@@ -57,7 +55,6 @@ const StatsBlock = ({ stats }: { stats: any }) => {
                         <div className="text-[#A0D9FF]"><SparkleIcon /></div>
                         <h3 className="text-[#A0D9FF] text-[11px] font-bold uppercase tracking-widest">Моя статистика</h3>
                     </div>
-                    {/* ЗАМЕНИЛИ Overall на Общая */}
                     <h2 className="text-white text-2xl font-black leading-none">
                         Общая
                     </h2>
@@ -87,8 +84,8 @@ const StatsBlock = ({ stats }: { stats: any }) => {
     );
 };
 
-// ОБНОВЛЕННАЯ NavCard: Заголовок сверху и крупнее
-const NavCard = ({ title, sub, icon: Icon, href, gradient }: { title: string, sub: string, icon: any, href: string, gradient: string }) => {
+// NavCard с опциональной иконкой
+const NavCard = ({ title, sub, icon: Icon, href, gradient }: { title: string, sub: string, icon?: any, href: string, gradient: string }) => {
     const { impact } = useHapticFeedback();
     const router = useRouter();
 
@@ -98,12 +95,13 @@ const NavCard = ({ title, sub, icon: Icon, href, gradient }: { title: string, su
             className="col-span-1 p-4 flex flex-col justify-between aspect-square relative"
             gradient={gradient}
         >
-            {/* Иконка абсолютом в углу для красоты */}
-            <div className="absolute top-4 right-4 text-white/40">
-                <Icon />
-            </div>
+            {/* Рендерим иконку только если она передана */}
+            {Icon && (
+                <div className="absolute top-4 right-4 text-white/40">
+                    <Icon />
+                </div>
+            )}
             
-            {/* Пустой div для отступа сверху (space-between) */}
             <div />
 
             <div className="relative z-10 mt-6">
@@ -183,20 +181,20 @@ export default function ProfilePage() {
             {/* 1. СТАТИСТИКА */}
             <StatsBlock stats={stats} />
 
-            {/* 2. ДЕЙЛИ (Заголовок сверху и жирнее) */}
+            {/* 2. ДЕЙЛИ (КАПС, без иконки) */}
             <NavCard 
-                title="Дейли Рейтинг" 
+                title="ДЕЙЛИ РЕЙТИНГ" 
                 sub="Рейтинг дня"
-                icon={FireIcon} 
+                // icon убран
                 href="/leaderboard/daily"
                 gradient="linear-gradient(135deg, #7a2e19 0%, #3d1205 100%)" 
             />
 
-            {/* 3. ТУРНИРЫ (Заголовок сверху и жирнее) */}
+            {/* 3. ТУРНИРЫ (КАПС, без иконки) */}
             <NavCard 
-                title="Топ Турниров" 
+                title="ТОП ТУРНИРОВ" 
                 sub="Общий рейтинг"
-                icon={CupIcon} 
+                // icon убран
                 href="/leaderboard/tournaments"
                 gradient="linear-gradient(135deg, #7a5c19 0%, #3d2b05 100%)" 
             />
@@ -265,7 +263,6 @@ export default function ProfilePage() {
                     <span className="text-[18px] font-black text-white mb-1">Правила игры</span>
                     <span className="text-[11px] text-[#8E8E93]">Как считаются очки?</span>
                 </div>
-                {/* ИКОНКУ УБРАЛИ */}
             </BentoCard>
 
         </div>
