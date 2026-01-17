@@ -12,7 +12,9 @@ type PickPayload = {
 
 const waitForTelegram = async () => {
     for (let i = 0; i < 20; i++) {
-        if (window.Telegram?.WebApp?.initData) return window.Telegram.WebApp.initData;
+        if (typeof window !== 'undefined' && window.Telegram?.WebApp?.initData) {
+            return window.Telegram.WebApp.initData;
+        }
         await new Promise(r => setTimeout(r, 100));
     }
     return null;
@@ -51,8 +53,7 @@ export function useActiveTournament(id: string) {
     return newB;
   }, []);
 
-  // 2. Функция "Протаскивания" (Propagate)
-  // isRestoring = true: МЫ НИКОГДА НЕ СТИРАЕМ ПРОГНОЗЫ. Мы только пишем имена.
+  // 2. Функция "Протаскивания"
   const propagate = useCallback((bState: BracketRoundMap, rList: string[], cRound: string, mNum: number, wName: string | null, isRestoring: boolean = false) => {
     const idx = rList.indexOf(cRound);
     if (idx === -1 || idx === rList.length - 1) return;
@@ -70,20 +71,13 @@ export function useActiveTournament(id: string) {
 
     if (nm) {
       const target = isP1 ? 'player1' : 'player2';
-      // 1. Пишем имя игрока в слот
       nm[target] = { name: wName || 'TBD' };
       
-      // 2. Если это ВОССТАНОВЛЕНИЕ:
-      // Мы доверяем тому, что в `predicted_winner` уже лежит правильный выбор из БД.
-      // Нам нужно просто протолкнуть его ДАЛЬШЕ, если он есть.
       if (isRestoring) {
           if (nm.predicted_winner) {
               propagate(bState, rList, nRound, nNum, nm.predicted_winner, true);
           }
       } 
-      // 3. Если это КЛИК ЮЗЕРА (изменение):
-      // Если имя игрока в слоте поменялось, мы ОБЯЗАНЫ сбросить старый прогноз,
-      // иначе будет логическая ошибка (прогноз на игрока, которого уже нет в матче).
       else {
           if (nm.predicted_winner && nm.predicted_winner !== wName) {
               nm.predicted_winner = null;
@@ -93,51 +87,42 @@ export function useActiveTournament(id: string) {
     }
   }, []);
 
-  // 3. Обработка данных (Восстановление)
+  // 3. Обработка данных
   const processData = useCallback((data: Tournament) => {
-      console.log("[ACTIVE] Restoring User Bracket...");
       const rList = data.rounds || [];
       setRounds(rList);
       setSelectedRound(prev => prev || data.starting_round || rList[0]);
 
-      // База
       const base = ensureStructure(data.bracket || {}, rList, data.id);
       const userB: BracketRoundMap = JSON.parse(JSON.stringify(base));
       
-      // 1. Очищаем имена в R16 и дальше (потому что там могут быть "реальные" победители, а нам нужны "фентези")
       for (let i = 1; i < rList.length; i++) {
           const rName = rList[i];
           if (userB[rName]) {
               userB[rName].forEach((m) => {
                   m.player1 = { name: 'TBD' };
                   m.player2 = { name: 'TBD' };
-                  // ВАЖНО: Мы НЕ трогаем m.predicted_winner! Он пришел из БД.
               });
           }
       }
 
-      // 2. Восстанавливаем цепочку снизу вверх
       for (let i = 0; i < rList.length; i++) {
         const rName = rList[i];
         if (!userB[rName]) continue;
         
         userB[rName].forEach((m) => {
-            // A. Если это первый круг (R32), обрабатываем BYE
             if (i === 0) {
                  if (m.player1?.name === 'Bye' && m.player2?.name && m.player2.name !== 'TBD') {
                      const w = m.player2.name; 
-                     m.predicted_winner = w; // Авто-выбор
+                     m.predicted_winner = w; 
                      propagate(userB, rList, rName, m.match_number, w, true);
                  } else if (m.player2?.name === 'Bye' && m.player1?.name && m.player1.name !== 'TBD') {
                      const w = m.player1.name; 
-                     m.predicted_winner = w; // Авто-выбор
+                     m.predicted_winner = w; 
                      propagate(userB, rList, rName, m.match_number, w, true);
                  }
             }
-
-            // B. Если в матче УЖЕ ЕСТЬ прогноз (из БД или от Bye выше) -> толкаем его дальше
             if (m.predicted_winner) {
-                // Передаем isRestoring = true, чтобы НЕ удалять будущие прогнозы
                 propagate(userB, rList, rName, m.match_number, m.predicted_winner, true);
             }
         });
@@ -175,7 +160,6 @@ export function useActiveTournament(id: string) {
     return () => { mounted = false; };
   }, [id, loadTournament, cached, processData]);
 
-  // Клик пользователя
   const handlePick = (round: string, matchId: string, player: string) => {
     if (!player || player === 'Bye' || player === 'TBD') return;
 
@@ -185,20 +169,25 @@ export function useActiveTournament(id: string) {
       
       if (m) {
         if (m.player1?.name === 'Bye' || m.player2?.name === 'Bye') return prev;
-        
         m.predicted_winner = player;
-        // isRestoring = false (это клик, тут мы хотим "честную" логику сброса при изменении)
         propagate(nb, rounds, round, m.match_number, player, false);
       }
       return nb;
     });
   };
 
-  // Сохранение
+  // --- SAVE ---
   const savePicks = async () => {
     setSaveStatus('loading');
-    const initData = await waitForTelegram();
-    if (!initData) { setSaveStatus('idle'); return; }
+    
+    // Берем свежий initData перед отправкой
+    const initData = window.Telegram?.WebApp?.initData;
+    if (!initData) {
+        toast.error('Ошибка авторизации. Перезагрузка...');
+        setTimeout(() => window.location.reload(), 1500);
+        setSaveStatus('idle');
+        return;
+    }
     
     const picks: PickPayload[] = [];
     Object.keys(bracket).forEach(r => bracket[r].forEach((m) => {
@@ -211,19 +200,48 @@ export function useActiveTournament(id: string) {
             });
         }
     }));
+
+    if (picks.length === 0) {
+        toast('Вы ничего не выбрали!', { icon: '🤔' });
+        setSaveStatus('idle');
+        return;
+    }
     
     try {
-        await fetch('/api/picks/bulk', { 
+        const res = await fetch('/api/picks/bulk', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json', 'Authorization': initData }, 
             body: JSON.stringify(picks) 
         });
+
+        if (!res.ok) {
+            if (res.status === 401 || res.status === 403) {
+                throw new Error('AUTH_EXPIRED');
+            }
+            if (res.status === 400) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Ошибка сохранения');
+            }
+            throw new Error('Ошибка сервера');
+        }
+
         setSaveStatus('success');
         setTimeout(() => setSaveStatus('idle'), 2000);
-    } catch (e) {
-        console.error(e);
-        toast.error('Ошибка сохранения');
+        
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+            window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        }
+
+    } catch (e: any) {
+        console.error("Save error:", e);
         setSaveStatus('idle');
+        
+        if (e.message === 'AUTH_EXPIRED') {
+            toast.error('Сессия истекла. Обновляю...', { duration: 2000 });
+            setTimeout(() => window.location.reload(), 2000);
+        } else {
+            toast.error(e.message || 'Не удалось сохранить');
+        }
     }
   };
 

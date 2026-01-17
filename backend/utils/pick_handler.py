@@ -32,12 +32,11 @@ def save_picks_bulk_transaction(picks_data: list, db: Session, user_id: int):
             models.UserPick.tournament_id == t_id
         ).all()
 
-        # Создаем словарь для быстрого поиска: (round, match_number) -> объект UserPick
         existing_map = {
             (p.round, p.match_number): p for p in existing_picks
         }
 
-        # 3. Загружаем данные о матчах (чтобы заполнить player1/player2)
+        # 3. Загружаем данные о матчах
         true_draws = db.query(models.TrueDraw).filter(models.TrueDraw.tournament_id == t_id).all()
         match_map = {
             (m.round, m.match_number): (m.player1, m.player2) for m in true_draws
@@ -50,24 +49,21 @@ def save_picks_bulk_transaction(picks_data: list, db: Session, user_id: int):
         for pick in picks_data:
             key = (pick.round, pick.match_number)
             
-            # Получаем имена игроков (для истории)
             players = match_map.get(key, ("TBD", "TBD"))
             p1 = players[0] if players[0] else "TBD"
             p2 = players[1] if players[1] else "TBD"
 
             if key in existing_map:
-                # --- UPDATE (Если запись уже есть) ---
+                # UPDATE
                 db_pick = existing_map[key]
-                # Обновляем, только если прогноз изменился (оптимизация)
                 if db_pick.predicted_winner != pick.predicted_winner:
                     db_pick.predicted_winner = pick.predicted_winner
-                    db_pick.player1 = p1 # Обновляем на случай, если TBD стали именами
+                    db_pick.player1 = p1 
                     db_pick.player2 = p2
                     updates_count += 1
-                
                 result_objs.append(db_pick)
             else:
-                # --- INSERT (Если записи нет) ---
+                # INSERT
                 new_pick = models.UserPick(
                     user_id=user_id,
                     tournament_id=pick.tournament_id,
@@ -83,7 +79,6 @@ def save_picks_bulk_transaction(picks_data: list, db: Session, user_id: int):
 
         db.commit()
         
-        # Логируем статистику, чтобы ты видела в логах Render реальные действия
         if updates_count > 0 or inserts_count > 0:
             logger.info(f"Save User {user_id}: Inserts={inserts_count}, Updates={updates_count}")
         
@@ -91,5 +86,5 @@ def save_picks_bulk_transaction(picks_data: list, db: Session, user_id: int):
 
     except Exception as e:
         db.rollback()
-        logger.error(f"Save transaction failed: {e}")
+        logger.error(f"CRITICAL ERROR saving picks for user {user_id}: {str(e)}")
         raise e

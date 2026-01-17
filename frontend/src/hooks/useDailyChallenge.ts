@@ -23,9 +23,6 @@ export function useDailyChallenge() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   const isFirstLoad = useRef(true);
-  
-  // --- НОВОЕ: Хранилище таймеров для каждого матча ---
-  // Ключ - ID матча, Значение - Таймер
   const debounceRefs = useRef<Record<string, NodeJS.Timeout>>({});
 
   const fetchMatches = useCallback(async () => {
@@ -46,7 +43,14 @@ export function useDailyChallenge() {
               cache: 'no-store'
           });
           
-          if (!res.ok) throw new Error('Failed to fetch');
+          if (!res.ok) {
+              if (res.status === 401 || res.status === 403) {
+                  // Если токен протух при загрузке - можно перезагрузить
+                  window.location.reload();
+                  return;
+              }
+              throw new Error('Failed to fetch');
+          }
           
           const data: DailyMatch[] = await res.json();
           setMatches(data);
@@ -61,7 +65,7 @@ export function useDailyChallenge() {
       } catch (e) {
           console.error(e);
           if (isFirstLoad.current) {
-              toast.error('Ошибка загрузки матчей');
+              // toast.error('Ошибка загрузки матчей');
           }
       } finally {
           setIsLoading(false);
@@ -78,58 +82,58 @@ export function useDailyChallenge() {
       return () => clearInterval(intervalId);
   }, [fetchMatches]);
 
-  // --- ОБНОВЛЕННАЯ ФУНКЦИЯ MAKE PICK ---
   const makePick = useCallback(async (matchId: string, winner: 1 | 2) => {
       impact('medium');
       
-      // 1. Оптимистичное обновление (Сразу меняем цвет кнопки)
+      // Оптимистичное обновление
       setMatches(prev => prev.map(m => 
           m.id === matchId ? { ...m, my_pick: winner } : m
       ));
 
-      // 2. Сбрасываем предыдущий таймер для ЭТОГО матча, если он был
       if (debounceRefs.current[matchId]) {
           clearTimeout(debounceRefs.current[matchId]);
       }
 
-      // 3. Запускаем новый таймер (Debounce 500ms)
       debounceRefs.current[matchId] = setTimeout(async () => {
           try {
-              const initData = await waitForTelegram();
+              const initData = window.Telegram?.WebApp?.initData;
+              if (!initData) throw new Error('AUTH_EXPIRED');
+
               const res = await fetch('/api/daily/pick', {
                   method: 'POST',
                   headers: { 
                       'Content-Type': 'application/json',
-                      Authorization: initData || '' 
+                      Authorization: initData 
                   },
                   body: JSON.stringify({ match_id: matchId, winner })
               });
               
               if (!res.ok) {
                   const err = await res.json();
-                  throw new Error(err.detail || 'Too late');
+                  if (res.status === 401 || res.status === 403) {
+                      throw new Error('AUTH_EXPIRED');
+                  }
+                  throw new Error(err.detail || 'Save failed');
               }
-              // Успех (можно добавить тихую вибрацию, но не обязательно)
           } catch (e: any) {
+              console.error(e);
               notification('error');
-              toast.error(e.message === 'Too late' ? 'Прием ставок закрыт' : 'Ошибка сохранения');
               
-              // Если ошибка - откатываем UI назад, перезагружая данные
+              if (e.message === 'AUTH_EXPIRED') {
+                  toast.error('Сессия истекла. Обновляю...');
+                  setTimeout(() => window.location.reload(), 1500);
+              } else if (e.message === 'Match started' || e.message === 'Time expired') {
+                  toast.error('Матч уже начался!');
+              } else {
+                  toast.error('Ошибка сохранения');
+              }
+              
               fetchMatches(); 
           } finally {
-              // Удаляем таймер из списка
               delete debounceRefs.current[matchId];
           }
-      }, 500); // <-- Задержка 500мс
+      }, 500);
   }, [fetchMatches, impact, notification]);
 
-  return { 
-      matches, 
-      dayStatus, 
-      isLoading, 
-      makePick, 
-      refresh: fetchMatches,
-      selectedDate,
-      setSelectedDate
-  };
+  return { matches, dayStatus, isLoading, makePick, refresh: fetchMatches, selectedDate, setSelectedDate };
 }
