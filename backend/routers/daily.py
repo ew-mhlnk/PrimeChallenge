@@ -10,11 +10,9 @@ from database import models
 from utils.auth import get_current_user
 from pydantic import BaseModel
 
-# === ВОТ ЭТА СТРОКА ОЧЕНЬ ВАЖНА ===
 router = APIRouter() 
 
 # --- Pydantic Schemas ---
-
 class DailyPickRequest(BaseModel):
     match_id: str
     winner: int 
@@ -37,7 +35,7 @@ class DailyLeaderboardEntry(BaseModel):
     total_points: int
     correct_picks: int
 
-# --- Endpoints (БЕЗ ASYNC) ---
+# --- Endpoints ---
 
 @router.get("/matches", response_model=List[DailyMatchResponse])
 def get_daily_matches(
@@ -123,16 +121,24 @@ def make_daily_pick(
 
 @router.get("/leaderboard", response_model=List[DailyLeaderboardEntry])
 def get_daily_leaderboard(db: Session = Depends(get_db)):
+    # УБРАЛИ LIMIT(100)
     results = db.query(models.DailyLeaderboard).join(models.User)\
         .order_by(desc(models.DailyLeaderboard.total_points), desc(models.DailyLeaderboard.correct_picks))\
-        .limit(100)\
         .all()
     
     leaderboard = []
+    current_rank = 1
+
     for idx, entry in enumerate(results):
+        # Плотное ранжирование
+        if idx > 0:
+            prev = results[idx-1]
+            if entry.total_points != prev.total_points or entry.correct_picks != prev.correct_picks:
+                current_rank += 1
+
         name = entry.user.username if entry.user.username else f"{entry.user.first_name} {entry.user.last_name or ''}".strip()
         leaderboard.append({
-            "rank": idx + 1,
+            "rank": current_rank,
             "user_id": entry.user_id,
             "username": name,
             "total_points": entry.total_points,
