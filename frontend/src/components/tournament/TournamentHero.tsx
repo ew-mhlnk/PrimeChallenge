@@ -33,13 +33,13 @@ export const TournamentHero = ({ tournament, winnerName }: HeroProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const toggleDescription = () => { impact('light'); setIsExpanded(!isExpanded); };
   
-  const isLongDescription = tournament.description && tournament.description.length > 100; // Чуть уменьшил лимит для кнопки "Еще"
+  const isLongDescription = tournament.description && tournament.description.length > 100;
   
-  const championLabel = winnerName ? "Победитель 2025:" : "Действующий чемпион:";
+  // ИСПРАВЛЕНО ТУТ: 2026
+  const championLabel = winnerName ? "Победитель 2026:" : "Действующий чемпион:";
   const championName = winnerName || tournament.defending_champion;
 
   return (
-      // ИЗМЕНЕНИЕ: h-[35vh] min-h-[280px] (Было 45vh / 380px)
       <div className="relative w-full shrink-0 h-[35vh] min-h-[280px]">
           {/* ФОТО */}
           {imageSrc ? (
@@ -52,7 +52,6 @@ export const TournamentHero = ({ tournament, winnerName }: HeroProps) => {
                     priority
                     sizes="(max-width: 768px) 100vw, 50vw"
                   />
-                  {/* Градиент чуть ниже, так как высота меньше */}
                   <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(20, 20, 20, 0) 30%, rgba(20, 20, 20, 0.8) 70%, #000000 100%)' }} />
               </div>
           ) : (
