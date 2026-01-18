@@ -36,7 +36,6 @@ def get_google_client():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         
-        # 1. Пробуем взять из переменной (для Render)
         if GOOGLE_CREDENTIALS:
             try:
                 if isinstance(GOOGLE_CREDENTIALS, str):
@@ -47,7 +46,6 @@ def get_google_client():
             except Exception:
                 pass
         
-        # 2. Пробуем взять из файла (локально)
         if os.path.exists("google-credentials.json"):
             return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope))
             
@@ -128,6 +126,7 @@ def build_score(match):
         res += f" ({clean_game})"
     return res
 
+# 1. Запрос РАСПИСАНИЯ
 def fetch_from_api(date_str):
     if not TENNIS_API_KEY: return []
     params = {"method": "get_fixtures", "APIkey": TENNIS_API_KEY, "date_start": date_str, "date_stop": date_str, "timezone": "Europe/Moscow"}
@@ -139,6 +138,20 @@ def fetch_from_api(date_str):
         return []
     except Exception as e:
         logger.error(f"API Request failed: {e}")
+        return []
+
+# 2. Запрос LIVE (НОВОЕ)
+def fetch_live_data():
+    if not TENNIS_API_KEY: return []
+    params = {"method": "get_livescore", "APIkey": TENNIS_API_KEY, "timezone": "Europe/Moscow"}
+    try:
+        resp = requests.get(API_URL, params=params, timeout=10)
+        data = resp.json()
+        if isinstance(data, dict) and "result" in data: return data["result"]
+        if isinstance(data, list): return data
+        return []
+    except Exception as e:
+        logger.error(f"Live API Request failed: {e}")
         return []
 
 def process_matches(matches):
@@ -178,11 +191,10 @@ def process_matches(matches):
         
         score_str = build_score(m)
         
-        # ИСПРАВЛЕННЫЙ ДЕТЕКТОР ЛАЙВА (Твоя логика)
+        # Детектор лайва
         if status == "PLANNED" and score_str:
             has_digits = any(c.isdigit() for c in score_str)
             is_not_zero = score_str.strip() != "0-0"
-            
             if has_digits and is_not_zero:
                 status = "LIVE"
 
@@ -204,21 +216,31 @@ def process_matches(matches):
     return processed
 
 # =========================================================
-# ГЛАВНАЯ ФУНКЦИЯ (v12.1 - Safe Sync)
+# ГЛАВНАЯ ФУНКЦИЯ (v13.0 - Live Interceptor)
 # =========================================================
 def update_google_sheet_from_api():
     if not PLAYER_DICT: load_dictionary_from_sheets()
 
-    dates = [
+    # 1. Генерируем даты
+    raw_dates = [
         (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
         (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"), 
         datetime.now().strftime("%Y-%m-%d"),                       
         (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")  
     ]
     
+    # 2. Фильтр по дате (Только >= 17.01.2026, чтобы не тянуть старое)
+    limit_date = datetime(2026, 1, 17).date()
+    dates = []
+    for d_str in raw_dates:
+        d_obj = datetime.strptime(d_str, "%Y-%m-%d").date()
+        if d_obj >= limit_date:
+            dates.append(d_str)
+
     api_map = {}
     dates_with_data = set() 
     
+    # 3. Сначала грузим РАСПИСАНИЕ (Base Layer)
     for d in dates:
         raw = fetch_from_api(d)
         if raw:
@@ -227,6 +249,20 @@ def update_google_sheet_from_api():
                 dates_with_data.add(d) 
                 for item in processed:
                     api_map[str(item[0])] = item
+
+    # 4. 🔥 ЗАТЕМ ГРУЗИМ LIVE (Live Layer) 🔥
+    # Переписываем данные из расписания актуальными лайв-данными
+    try:
+        live_raw = fetch_live_data()
+        if live_raw:
+            live_processed = process_matches(live_raw)
+            if live_processed:
+                logger.info(f"⚡ Live Interceptor: Found {len(live_processed)} active matches")
+                for item in live_processed:
+                    # item[0] - это ID матча. Мы перезаписываем его в карте.
+                    api_map[str(item[0])] = item
+    except Exception as e:
+        logger.error(f"Live fetch error (skipping): {e}")
 
     if not api_map: return
 
@@ -260,7 +296,7 @@ def update_google_sheet_from_api():
                     del api_map[m_id]
                     
                 elif m_date_str in dates_with_data:
-                    # Чистим только если для этой даты API вернул данные, а этого матча там нет (Safe Clean)
+                    # Safe Clean: удаляем только если дата была в ответе API, но матча нет
                     logger.info(f"🗑️ Safe Clean: {m_id} on {m_date_str}")
                     continue
                     
