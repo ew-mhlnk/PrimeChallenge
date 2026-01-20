@@ -51,8 +51,8 @@ function GrandSlamContent() {
     const idWTA = searchParams.get('wta');
     const name = searchParams.get('name') || 'Grand Slam';
 
-    // По умолчанию открываем "ВСЕГО", но порядок кнопок будет другим
-    const [filter, setFilter] = useState<'ALL' | 'ATP' | 'WTA'>('ALL');
+    // По умолчанию открываем "ATP", но можно и "ALL"
+    const [filter, setFilter] = useState<'ALL' | 'ATP' | 'WTA'>('ATP'); // <-- Поменял дефолт на ATP, чтобы логично открывалось с первой вкладки
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
     useEffect(() => {

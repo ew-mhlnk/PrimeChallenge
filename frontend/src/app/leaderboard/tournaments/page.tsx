@@ -15,7 +15,6 @@ interface TournamentRanked {
     tag: string;
     my_rank: number | null;
     total_participants: number;
-    // Опциональные поля для сгруппированного турнира
     isGroup?: boolean;
     atpId?: number;
     wtaId?: number;
@@ -71,14 +70,12 @@ const LeaderboardTournamentCard = ({ item }: { item: TournamentRanked }) => {
                         <span className={`px-1.5 py-0.5 rounded-[6px] text-[10px] font-bold uppercase border ${badgeStyle}`}>
                             {item.tag || 'ATP'}
                         </span>
-                        {/* Если это группа, показываем M+W, иначе просто даты */}
                         {item.isGroup && <span className="text-[10px] text-[#8E8E93] border border-white/10 px-1.5 py-0.5 rounded">M + W</span>}
                         <span className="text-[#8E8E93] text-[11px]">{item.dates}</span>
                     </div>
                 </div>
 
                 <div className="flex flex-col items-end justify-center pl-4">
-                    {/* Если ТБШ, пока не показываем ранг в списке, так как он сложный (общий) */}
                     {!item.isGroup ? (
                         <>
                             <div className="bg-[#141414] rounded-[12px] px-3 py-1.5 border border-white/5 flex items-center gap-1 text-sm font-mono">
@@ -107,60 +104,70 @@ export default function TournamentListLeaderboard() {
       { dedupingInterval: 300000, revalidateOnFocus: false, keepPreviousData: true }
   );
 
-  // --- ЛОГИКА ГРУППИРОВКИ ---
+  // === ЖЕСТКАЯ ГРУППИРОВКА ДЛЯ AO ===
   const processedTournaments = (() => {
       if (!data) return [];
       
       const result: TournamentRanked[] = [];
       const usedIds = new Set<number>();
 
-      // 1. Ищем пары для ТБШ
+      // 1. Сначала ищем Australian Open (Жестко по ID)
+      const aoMen = data.find(t => t.id === 11);
+      const aoWomen = data.find(t => t.id === 10);
+
+      if (aoMen && aoWomen && !usedIds.has(11) && !usedIds.has(10)) {
+          // Создаем объединенную карточку
+          result.push({
+              id: 0, 
+              name: "Australian Open", // Красивое имя
+              dates: aoMen.dates,
+              status: aoMen.status,
+              type: 'Combined',
+              tag: 'ТБШ',
+              my_rank: null, 
+              total_participants: 0,
+              isGroup: true,
+              atpId: 11, // ЖЕСТКО 11 (Мужчины)
+              wtaId: 10  // ЖЕСТКО 10 (Женщины)
+          });
+          usedIds.add(11);
+          usedIds.add(10);
+      }
+
+      // 2. Обрабатываем остальные турниры (по старой логике)
       data.forEach(t => {
           if (usedIds.has(t.id)) return;
 
-          // Проверяем, это ТБШ?
           const isSlam = t.tag && (t.tag.includes('ТБШ') || t.tag.includes('Grand Slam'));
           
           if (isSlam) {
-              // Ищем пару (с таким же названием, но другим типом, или просто похожий)
-              // Обычно название "Australian Open ATP" и "Australian Open WTA"
-              // Упростим: берем первые 2 слова названия
-              const baseName = t.name.split(' ').slice(0, 2).join(' '); // "Australian Open"
-              
-              const pair = data.find(p => 
-                  p.id !== t.id && 
-                  !usedIds.has(p.id) &&
-                  p.name.includes(baseName)
-              );
+              const baseName = t.name.split(' ').slice(0, 2).join(' '); 
+              const pair = data.find(p => p.id !== t.id && !usedIds.has(p.id) && p.name.includes(baseName));
 
               if (pair) {
-                  // НАШЛИ ПАРУ! Создаем группу
                   const atp = t.name.includes('ATP') ? t : pair;
                   const wta = t.name.includes('ATP') ? pair : t;
                   
                   result.push({
-                      id: 0, // Фейковый ID
-                      name: baseName, // Общее название
+                      id: 0, 
+                      name: baseName,
                       dates: t.dates,
                       status: t.status,
                       type: 'Combined',
                       tag: 'ТБШ',
-                      my_rank: null, 
+                      my_rank: null,
                       total_participants: 0,
                       isGroup: true,
                       atpId: atp.id,
                       wtaId: wta.id
                   });
-                  
                   usedIds.add(t.id);
                   usedIds.add(pair.id);
               } else {
-                  // Пары нет, добавляем как есть
                   result.push(t);
                   usedIds.add(t.id);
               }
           } else {
-              // Обычный турнир
               result.push(t);
               usedIds.add(t.id);
           }

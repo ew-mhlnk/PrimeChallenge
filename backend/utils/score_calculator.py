@@ -1,9 +1,10 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import text
 from database import models
-from utils.audit import audit_summary, TARGET_USER_ID
+from datetime import datetime
 import re
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ def get_tournament_weights(tournament: models.Tournament) -> dict:
     if "250" in t_type: return SCORING_SYSTEM["LEVEL_250"]
     return SCORING_SYSTEM["DEFAULT"]
 
-def calculate_score_for_user(user_picks, true_draws_map, weights, user_id=None):
+def calculate_score_for_user(user_picks, true_draws_map, weights):
     score = 0
     correct = 0
     
@@ -48,7 +49,7 @@ def calculate_score_for_user(user_picks, true_draws_map, weights, user_id=None):
         if pick_norm == winner_norm:
             is_hit = True
         else:
-            # 2. Проверка по слоту (страховка на случай LL/Q)
+            # 2. Проверка по слоту (страховка)
             user_slot = 0
             if pick.predicted_winner == pick.player1: user_slot = 1
             elif pick.predicted_winner == pick.player2: user_slot = 2
@@ -70,13 +71,13 @@ def calculate_score_for_user(user_picks, true_draws_map, weights, user_id=None):
     return score, correct
 
 def update_tournament_leaderboard(tournament_id: int, db: Session):
-    logger.info(f"🚀 START Calculation for Tournament {tournament_id}...")
+    start_time = time.time()
+    logger.info(f"🚀 [T{tournament_id}] Calculating scores (BULK MODE)...")
     
     try:
+        # 1. Читаем данные (Быстро)
         tournament = db.query(models.Tournament).filter(models.Tournament.id == tournament_id).first()
-        if not tournament:
-            logger.error(f"Tournament {tournament_id} not found!")
-            return
+        if not tournament: return
 
         weights = get_tournament_weights(tournament)
         
@@ -84,70 +85,86 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
         true_draws = db.query(models.TrueDraw).filter_by(tournament_id=tournament_id).all()
         true_draws_map = {(m.round, m.match_number): m for m in true_draws}
         
-        # Загружаем пики пользователей
+        # Загружаем все прогнозы разом
         picks = db.query(models.UserPick).filter_by(tournament_id=tournament_id).all()
+        
+        # Группируем в Python (не нагружая базу)
         user_picks_map = {}
         for p in picks:
             if p.user_id not in user_picks_map: user_picks_map[p.user_id] = []
             user_picks_map[p.user_id].append(p)
             
-        logger.info(f"Calculating scores for {len(user_picks_map)} users...")
+        # 2. Считаем очки в памяти
+        leaderboard_data = []
+        user_score_updates = []
+        now_time = datetime.now()
 
-        leaderboard_entries = []
-        user_score_objects = []
-
-        # СЧИТАЕМ В ПАМЯТИ
         for user_id, user_picks in user_picks_map.items():
-            score, correct = calculate_score_for_user(user_picks, true_draws_map, weights, user_id=user_id)
+            score, correct = calculate_score_for_user(user_picks, true_draws_map, weights)
             
-            # Обновляем или создаем UserScore (пока по одному, это не так страшно)
-            user_score_entry = db.query(models.UserScore).filter_by(user_id=user_id, tournament_id=tournament_id).first()
-            if not user_score_entry:
-                user_score_entry = models.UserScore(user_id=user_id, tournament_id=tournament_id)
-                db.add(user_score_entry)
-            
-            user_score_entry.score = score
-            user_score_entry.correct_picks = correct
-            
-            leaderboard_entries.append({
+            leaderboard_data.append({
                 "user_id": user_id,
                 "score": score,
                 "correct_picks": correct
             })
+            
+            # Данные для таблицы user_scores
+            user_score_updates.append({
+                "user_id": user_id,
+                "tournament_id": tournament_id,
+                "score": score,
+                "correct_picks": correct,
+                "updated_at": now_time
+            })
+
+        # Сортируем для рангов
+        leaderboard_data.sort(key=lambda x: (x["score"], x["correct_picks"]), reverse=True)
         
-        # Сортировка для рангов
-        leaderboard_entries.sort(key=lambda x: (x["score"], x["correct_picks"]), reverse=True)
-        
-        # === АТОМАРНОЕ ОБНОВЛЕНИЕ ЛИДЕРБОРДА ===
-        # Удаляем старое
-        db.query(models.Leaderboard).filter_by(tournament_id=tournament_id).delete()
-        
-        # Создаем новые объекты
+        # 3. Готовим данные для таблицы Leaderboard
+        final_leaderboard_rows = []
         current_rank = 1
-        lb_objects = []
-        for i, entry in enumerate(leaderboard_entries):
+        for i, entry in enumerate(leaderboard_data):
             if i > 0:
-                prev = leaderboard_entries[i-1]
+                prev = leaderboard_data[i-1]
                 # Плотное ранжирование (1, 1, 2, 3...)
                 if entry["score"] != prev["score"] or entry["correct_picks"] != prev["correct_picks"]:
                     current_rank += 1 
             
-            lb = models.Leaderboard(
-                tournament_id=tournament_id,
-                user_id=entry["user_id"],
-                rank=current_rank,
-                score=entry["score"],
-                correct_picks=entry["correct_picks"]
-            )
-            lb_objects.append(lb)
+            final_leaderboard_rows.append({
+                "tournament_id": tournament_id,
+                "user_id": entry["user_id"],
+                "rank": current_rank,
+                "score": entry["score"],
+                "correct_picks": entry["correct_picks"],
+                "updated_at": now_time
+            })
+
+        # 4. МАССОВАЯ ЗАПИСЬ (БЕЗОПАСНАЯ ТРАНЗАКЦИЯ)
         
-        # Массовая вставка (быстро)
-        db.add_all(lb_objects)
+        # Удаляем старые записи лидерборда для этого турнира
+        db.execute(
+            text("DELETE FROM leaderboard WHERE tournament_id = :tid"), 
+            {"tid": tournament_id}
+        )
         
-        # Финальный коммит (все изменения применяются разом)
+        # Вставляем новые пачкой (очень быстро)
+        if final_leaderboard_rows:
+            db.bulk_insert_mappings(models.Leaderboard, final_leaderboard_rows)
+
+        # Обновляем user_scores (удаляем старые и вставляем новые для скорости)
+        db.execute(
+            text("DELETE FROM user_scores WHERE tournament_id = :tid"),
+            {"tid": tournament_id}
+        )
+        if user_score_updates:
+            db.bulk_insert_mappings(models.UserScore, user_score_updates)
+
+        # Применяем изменения
         db.commit()
-        logger.info(f"✅ Leaderboard updated successfully. {len(lb_objects)} rows.")
+        
+        elapsed = time.time() - start_time
+        logger.info(f"✅ [T{tournament_id}] Updated {len(final_leaderboard_rows)} rows in {elapsed:.2f}s")
 
     except Exception as e:
-        logger.error(f"❌ Error calculating scores: {e}")
-        db.rollback()
+        logger.error(f"❌ Calculation Error: {e}")
+        db.rollback() # Если ошибка - откатываем всё назад, данные не пропадут
