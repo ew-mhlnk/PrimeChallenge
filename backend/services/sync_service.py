@@ -84,11 +84,9 @@ def get_match_rows(round_name: str, draw_size: int):
             "R32": (3, 8), 
             "R16": (7, 16), 
             "QF": (15, 32), 
-            # ИСПРАВЛЕНО: Было 33, стало 31 (строки 32/33 в таблице)
             "SF": (31, 64), 
             "F": (63, 128)
         }
-
     else: 
         base_map = {"R32": (1, 4), "R16": (3, 8), "QF": (7, 16), "SF": (15, 32), "F": (31, 64)}
         
@@ -113,7 +111,7 @@ def get_match_rows(round_name: str, draw_size: int):
 # ==========================================
 
 def _sync_tournaments_logic(engine: Engine) -> None:
-    # logger.info("--- STARTING TOURNAMENTS SYNC (THREAD) ---")
+    # logger.info("--- STARTING TOURNAMENTS SYNC ---")
     try:
         client = get_google_sheets_client()
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
@@ -129,6 +127,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
         tournaments_to_sync = []
         now = datetime.now(pytz.UTC)
 
+        # 1. Обновляем список турниров
         for row in rows[1:]:
             if len(row) < 1: continue
             tid_str = str(row[0]).strip()
@@ -185,6 +184,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                         "mc": matches_count, "month": month_val, "img": img_url
                     })
                     
+                    # Размер сетки
                     draw_size = 32
                     s_round_clean = s_round.strip().upper()
                     if s_round_clean == "R128": draw_size = 128
@@ -195,27 +195,36 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                         if "1000" in t_type_lower: draw_size = 64
                         elif "slam" in t_type_lower or "тбш" in tag.lower(): draw_size = 128
                     
-                    # === ОПТИМИЗАЦИЯ ===
-                    # ACTIVE: Прием прогнозов
-                    # CLOSED: Идет прямо сейчас (нужен пересчет очков!)
-                    if status in ["ACTIVE", "CLOSED"]:
-                        tournaments_to_sync.append((tid, sheet_name, draw_size))
+                    if status in ["ACTIVE", "CLOSED", "COMPLETED"]:
+                        tournaments_to_sync.append((tid, sheet_name, draw_size, status))
                         
                 except Exception as e:
                     logger.error(f"Row parsing error ID={tid_str}: {e}")
         conn.commit()
 
-        for tid, sheet_name, draw_size in tournaments_to_sync:
+        # 2. Обновляем сетки турниров
+        for tid, sheet_name, draw_size, status in tournaments_to_sync:
              try:
                 try:
                     ws = sheet.worksheet(sheet_name)
                     data = ws.get_all_values()
                 except: 
+                    logger.warning(f"Sheet {sheet_name} not found for T{tid}")
                     continue
+                
+                # === 🛡️ SAFETY BRAKE (АВАРИЙНЫЙ ТОРМОЗ) ===
+                # Если турнир идет, а данных в таблице подозрительно мало -> ПРОПУСКАЕМ.
+                # Это защитит от ситуации, когда Google API вернул пустой лист.
+                if len(data) < 10:
+                    logger.warning(f"🛑 SAFETY BRAKE: Sheet '{sheet_name}' (T{tid}) is too small ({len(data)} rows). Skipping sync to protect DB.")
+                    continue
+                # ==========================================
+
                 if len(data) < 2: continue
                 headers = data[0]
                 cols = {h.strip(): i for i, h in enumerate(headers) if h.strip()}
                 rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F"]
+                
                 champion = None
                 if "Champion" in cols and len(data) > 1:
                     champ_col = cols["Champion"]
@@ -299,13 +308,9 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                             ON CONFLICT (tournament_id, round, match_number) DO UPDATE
                             SET winner=EXCLUDED.winner, player1=EXCLUDED.player1
                         """), {"tid": tid, "name": champion})
-                        
-                        # === АВТО-ЗАКРЫТИЕ ОТКЛЮЧЕНО ===
-                        # Турнир остается ACTIVE/CLOSED, чтобы мы могли проверить очки.
-                        # Статус COMPLETED ставится вручную в Гугл Таблице.
-                        # conn.execute(text("UPDATE tournaments SET status='COMPLETED' WHERE id=:id"), {"id": tid})
                 
                 conn.commit()
+                # Пересчет очков после обновления сетки
                 db_session = SessionLocal()
                 try: update_tournament_leaderboard(tid, db_session)
                 except Exception as ex: logger.error(str(ex))
@@ -314,9 +319,6 @@ def _sync_tournaments_logic(engine: Engine) -> None:
         conn.commit()
 
 async def sync_google_sheets_with_db(engine: Engine) -> None:
-    """
-    Асинхронная обертка для синхронизации турниров.
-    """
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, _sync_tournaments_logic, engine)
 
@@ -325,7 +327,7 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
 # ==========================================
 
 def _sync_daily_logic(engine: Engine) -> None:
-    # logger.info("--- STARTING DAILY SYNC (THREAD) ---")
+    # logger.info("--- STARTING DAILY SYNC ---")
     try:
         client = get_google_sheets_client()
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
@@ -345,18 +347,15 @@ def _sync_daily_logic(engine: Engine) -> None:
         valid_sheet_ids = set()
         ids_to_delete = set()
         
-        # 1. UPSERT (Вставка/Обновление)
         for row in rows[1:]:
             while len(row) < 10: row.append("")
-            
             m_id = str(row[0]).strip()
             if not m_id: continue
             
-            # --- ПРОВЕРКА РУЧНОГО БЛОКА (X) ---
             manual_block = str(row[9]).strip().upper()
             if manual_block == "X":
                 ids_to_delete.add(m_id)
-                continue # Не добавляем в БД
+                continue 
             
             valid_sheet_ids.add(m_id)
             
@@ -378,11 +377,8 @@ def _sync_daily_logic(engine: Engine) -> None:
             if winner_raw == "1": winner_val = 1
             elif winner_raw == "2": winner_val = 2
             
-            # === ФИКС LIVE СТАТУСА ===
-            # Если написано LIVE, игнорируем победителя (это баг API или ошибка ввода)
             if status_raw == "LIVE":
                 winner_val = None
-            # Если не LIVE, но есть победитель -> значит матч завершен
             elif winner_val is not None:
                 status_raw = "COMPLETED"
 
@@ -408,41 +404,21 @@ def _sync_daily_logic(engine: Engine) -> None:
             if match.status == "COMPLETED" and match.winner is not None:
                 process_match_results(match.id, session)
 
-        # 2. CLEANUP (Чистка мусора и заблокированных)
         db_matches = session.query(DailyMatch).all()
         matches_to_remove = []
         
         for db_m in db_matches:
-            # Удаляем, если стоит X в таблице ИЛИ если матча вообще нет в таблице
             if db_m.id in ids_to_delete or db_m.id not in valid_sheet_ids:
                 matches_to_remove.append(db_m.id)
         
         if matches_to_remove:
-            # logger.info(f"Cleaning up {len(matches_to_remove)} matches from DB...")
-            
-            # А. Удаляем пики
-            session.execute(
-                text("DELETE FROM daily_picks WHERE match_id IN :ids"),
-                {"ids": tuple(matches_to_remove)}
-            )
-            
-            # Б. Удаляем матчи
-            session.execute(
-                text("DELETE FROM daily_matches WHERE id IN :ids"),
-                {"ids": tuple(matches_to_remove)}
-            )
-            
-            # В. Пересчитываем лидерборд
+            session.execute(text("DELETE FROM daily_picks WHERE match_id IN :ids"), {"ids": tuple(matches_to_remove)})
+            session.execute(text("DELETE FROM daily_matches WHERE id IN :ids"), {"ids": tuple(matches_to_remove)})
             session.execute(text("DELETE FROM daily_leaderboard"))
             session.execute(text("""
                 INSERT INTO daily_leaderboard (user_id, total_points, correct_picks, total_picks)
-                SELECT 
-                    user_id, 
-                    COALESCE(SUM(points), 0),
-                    COUNT(CASE WHEN is_correct = true THEN 1 END),
-                    COUNT(*)
-                FROM daily_picks
-                GROUP BY user_id
+                SELECT user_id, COALESCE(SUM(points), 0), COUNT(CASE WHEN is_correct = true THEN 1 END), COUNT(*)
+                FROM daily_picks GROUP BY user_id
             """))
             
         session.commit()
@@ -453,8 +429,5 @@ def _sync_daily_logic(engine: Engine) -> None:
         session.close()
 
 async def sync_daily_challenge(engine: Engine) -> None:
-    """
-    Асинхронная обертка для синхронизации Daily Challenge.
-    """
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, _sync_daily_logic, engine)

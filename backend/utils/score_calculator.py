@@ -45,11 +45,9 @@ def calculate_score_for_user(user_picks, true_draws_map, weights):
         pick_norm = normalize_name(pick.predicted_winner)
         winner_norm = normalize_name(match.winner)
         
-        # 1. Проверка по имени
         if pick_norm == winner_norm:
             is_hit = True
         else:
-            # 2. Проверка по слоту (страховка)
             user_slot = 0
             if pick.predicted_winner == pick.player1: user_slot = 1
             elif pick.predicted_winner == pick.player2: user_slot = 2
@@ -72,29 +70,39 @@ def calculate_score_for_user(user_picks, true_draws_map, weights):
 
 def update_tournament_leaderboard(tournament_id: int, db: Session):
     start_time = time.time()
-    logger.info(f"🚀 [T{tournament_id}] Calculating scores (BULK MODE)...")
+    # logger.info(f"🚀 [T{tournament_id}] Calculating scores...")
     
     try:
-        # 1. Читаем данные (Быстро)
+        # 1. Загружаем данные
         tournament = db.query(models.Tournament).filter(models.Tournament.id == tournament_id).first()
         if not tournament: return
 
         weights = get_tournament_weights(tournament)
-        
-        # Загружаем реальные результаты
         true_draws = db.query(models.TrueDraw).filter_by(tournament_id=tournament_id).all()
-        true_draws_map = {(m.round, m.match_number): m for m in true_draws}
         
-        # Загружаем все прогнозы разом
+        # === 🛡️ ПРЕДОХРАНИТЕЛЬ (SAFETY VALVE) ===
+        # Проверяем, есть ли вообще победители в базе
+        winners_count = sum(1 for m in true_draws if m.winner)
+        
+        # Если победителей нет, А турнир уже идет (или завершен)
+        # Значит, данные "сломались" или не загрузились.
+        # МЫ ЗАПРЕЩАЕМ ОБНУЛЯТЬ ОЧКИ.
+        status_str = str(tournament.status.value if hasattr(tournament.status, 'value') else tournament.status)
+        
+        if winners_count == 0 and status_str in ["ACTIVE", "COMPLETED", "CLOSED"]:
+            logger.warning(f"⚠️ [T{tournament_id}] SAFETY STOP: No winners found in DB, but tournament is {status_str}. Skipping update to prevent zeroing scores.")
+            return
+        # ========================================
+
+        true_draws_map = {(m.round, m.match_number): m for m in true_draws}
         picks = db.query(models.UserPick).filter_by(tournament_id=tournament_id).all()
         
-        # Группируем в Python (не нагружая базу)
         user_picks_map = {}
         for p in picks:
             if p.user_id not in user_picks_map: user_picks_map[p.user_id] = []
             user_picks_map[p.user_id].append(p)
             
-        # 2. Считаем очки в памяти
+        # 2. Считаем очки
         leaderboard_data = []
         user_score_updates = []
         now_time = datetime.now()
@@ -108,7 +116,6 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
                 "correct_picks": correct
             })
             
-            # Данные для таблицы user_scores
             user_score_updates.append({
                 "user_id": user_id,
                 "tournament_id": tournament_id,
@@ -117,16 +124,14 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
                 "updated_at": now_time
             })
 
-        # Сортируем для рангов
         leaderboard_data.sort(key=lambda x: (x["score"], x["correct_picks"]), reverse=True)
         
-        # 3. Готовим данные для таблицы Leaderboard
+        # 3. Готовим данные
         final_leaderboard_rows = []
         current_rank = 1
         for i, entry in enumerate(leaderboard_data):
             if i > 0:
                 prev = leaderboard_data[i-1]
-                # Плотное ранжирование (1, 1, 2, 3...)
                 if entry["score"] != prev["score"] or entry["correct_picks"] != prev["correct_picks"]:
                     current_rank += 1 
             
@@ -139,27 +144,15 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
                 "updated_at": now_time
             })
 
-        # 4. МАССОВАЯ ЗАПИСЬ (БЕЗОПАСНАЯ ТРАНЗАКЦИЯ)
-        
-        # Удаляем старые записи лидерборда для этого турнира
-        db.execute(
-            text("DELETE FROM leaderboard WHERE tournament_id = :tid"), 
-            {"tid": tournament_id}
-        )
-        
-        # Вставляем новые пачкой (очень быстро)
+        # 4. ЗАПИСЬ (Только если проверки пройдены)
+        db.execute(text("DELETE FROM leaderboard WHERE tournament_id = :tid"), {"tid": tournament_id})
         if final_leaderboard_rows:
             db.bulk_insert_mappings(models.Leaderboard, final_leaderboard_rows)
 
-        # Обновляем user_scores (удаляем старые и вставляем новые для скорости)
-        db.execute(
-            text("DELETE FROM user_scores WHERE tournament_id = :tid"),
-            {"tid": tournament_id}
-        )
+        db.execute(text("DELETE FROM user_scores WHERE tournament_id = :tid"), {"tid": tournament_id})
         if user_score_updates:
             db.bulk_insert_mappings(models.UserScore, user_score_updates)
 
-        # Применяем изменения
         db.commit()
         
         elapsed = time.time() - start_time
@@ -167,4 +160,4 @@ def update_tournament_leaderboard(tournament_id: int, db: Session):
 
     except Exception as e:
         logger.error(f"❌ Calculation Error: {e}")
-        db.rollback() # Если ошибка - откатываем всё назад, данные не пропадут
+        db.rollback()
