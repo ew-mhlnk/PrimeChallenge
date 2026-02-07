@@ -6,14 +6,19 @@ import json
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
-from database.db import SessionLocal
-from database.models import DailyMatch
-from utils.daily_calculator import process_match_results
+import pytz
 
+# Настройка логгера
 logger = logging.getLogger(__name__)
 
-API_KEY = os.getenv("TENNIS_API_KEY") 
+# Импортируем конфиги
+try:
+    from config import TENNIS_API_KEY, GOOGLE_SHEET_ID, GOOGLE_CREDENTIALS
+except ImportError:
+    TENNIS_API_KEY = os.getenv("TENNIS_API_KEY")
+    GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
+    GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
+
 API_URL = "https://api.api-tennis.com/tennis/"
 
 PLAYER_DICT = {}
@@ -24,25 +29,31 @@ ROUND_MAP = {
     "Qualification": "Q", "Preliminary": "Q"
 }
 
+# Типы, которые мы игнорируем
 INVALID_TYPES = ["Doubles", "Challenger", "ITF", "Boys", "Girls", "Juniors"]
+
+# Турниры, которые мы игнорируем (Командные)
+EXCLUDED_TOURNAMENTS = ["Davis Cup", "Billie Jean King Cup"]
 
 # === ГУГЛ КЛИЕНТ ===
 def get_google_client():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds_json = os.getenv("GOOGLE_CREDENTIALS") or os.getenv("GOOGLE_SHEETS_CREDENTIALS")
         
-        if not creds_json:
-            if os.path.exists("google-credentials.json"):
-                return ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope)
-            return None
+        if GOOGLE_CREDENTIALS:
+            try:
+                if isinstance(GOOGLE_CREDENTIALS, str):
+                    creds_dict = json.loads(GOOGLE_CREDENTIALS)
+                else:
+                    creds_dict = GOOGLE_CREDENTIALS
+                return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope))
+            except Exception:
+                pass
+        
+        if os.path.exists("google-credentials.json"):
+            return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope))
             
-        if isinstance(creds_json, str):
-            creds_dict = json.loads(creds_json)
-        else:
-            creds_dict = creds_json
-            
-        return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope))
+        return None
     except Exception as e:
         logger.error(f"Google Auth Error: {e}")
         return None
@@ -53,19 +64,15 @@ def load_dictionary_from_sheets():
     if not client: return
 
     try:
-        sheet_id = os.getenv("GOOGLE_SHEET_ID")
-        ws = client.open_by_key(sheet_id).worksheet("DICTIONARY")
+        ws = client.open_by_key(GOOGLE_SHEET_ID).worksheet("DICTIONARY")
         rows = ws.get_all_values()
         new_dict = {}
         for row in rows[1:]:
-            # Нам нужна колонка J (индекс 9), поэтому длина строки минимум 10
             if len(row) <= 9: continue
             
-            full_eng = row[0].strip() # A
-            short_eng = row[3].strip() # D
-            flag = row[5].strip() # F
-            
-            # ИСПРАВЛЕНИЕ: Берем колонку J (индекс 9)
+            full_eng = row[0].strip()
+            short_eng = row[3].strip()
+            flag = row[5].strip()
             rus_name = row[9].strip() 
             
             if rus_name:
@@ -123,9 +130,10 @@ def build_score(match):
         res += f" ({clean_game})"
     return res
 
+# 1. Запрос РАСПИСАНИЯ
 def fetch_from_api(date_str):
-    if not API_KEY: return []
-    params = {"method": "get_fixtures", "APIkey": API_KEY, "date_start": date_str, "date_stop": date_str, "timezone": "Europe/Moscow"}
+    if not TENNIS_API_KEY: return []
+    params = {"method": "get_fixtures", "APIkey": TENNIS_API_KEY, "date_start": date_str, "date_stop": date_str, "timezone": "Europe/Moscow"}
     try:
         resp = requests.get(API_URL, params=params, timeout=10)
         data = resp.json()
@@ -136,23 +144,49 @@ def fetch_from_api(date_str):
         logger.error(f"API Request failed: {e}")
         return []
 
+# 2. Запрос LIVE
+def fetch_live_data():
+    if not TENNIS_API_KEY: return []
+    params = {"method": "get_livescore", "APIkey": TENNIS_API_KEY, "timezone": "Europe/Moscow"}
+    try:
+        resp = requests.get(API_URL, params=params, timeout=10)
+        data = resp.json()
+        if isinstance(data, dict) and "result" in data: return data["result"]
+        if isinstance(data, list): return data
+        return []
+    except Exception as e:
+        logger.error(f"Live API Request failed: {e}")
+        return []
+
 def process_matches(matches):
     processed = []
     seen = set()
     for m in matches:
         m_id = str(m.get("event_key"))
         
-        # Строгие фильтры
+        # 1. Фильтр квалификаций
         q_field = str(m.get("event_qualification", "")).lower()
         if q_field in ["true", "1"]: continue
         r_raw = str(m.get("tournament_round", "")).lower()
         if "qual" in r_raw or "prelim" in r_raw: continue
 
+        # 2. Фильтр по НАЗВАНИЮ турнира (Davis Cup / BJK Cup)
+        t_raw_name = str(m.get("tournament_name", ""))
+        # Проверяем, содержится ли запрещенное название в имени турнира
+        if any(ex in t_raw_name for ex in EXCLUDED_TOURNAMENTS):
+            continue
+
+        # 3. Фильтр по ТИПУ (Challenger, ITF и т.д.)
         etype = str(m.get("event_type_type", "")).title()
         if any(b in etype for b in INVALID_TYPES): continue
+        
+        # 4. Проверка на одиночный разряд / Мейджоры
         is_singles = "Singles" in etype or "United Cup" in etype
         is_major = any(x in etype for x in ["Atp", "Wta", "Open", "Slam", "Cup"])
+        
         if not (is_singles and is_major): continue
+        
+        # 5. Проверка на парный разряд (имя с палкой)
         p1_raw = m.get("event_first_player", "")
         if "/" in p1_raw: continue
 
@@ -173,12 +207,10 @@ def process_matches(matches):
         
         score_str = build_score(m)
         
-        # ИСПРАВЛЕННЫЙ ДЕТЕКТОР ЛАЙВА:
-        # Ставим LIVE, только если в счете есть ЦИФРЫ и счет не равен "0-0"
+        # Детектор лайва
         if status == "PLANNED" and score_str:
             has_digits = any(c.isdigit() for c in score_str)
             is_not_zero = score_str.strip() != "0-0"
-            
             if has_digits and is_not_zero:
                 status = "LIVE"
 
@@ -200,21 +232,31 @@ def process_matches(matches):
     return processed
 
 # =========================================================
-# ГЛАВНАЯ ФУНКЦИЯ (v12.1 - Safe Sync)
+# ГЛАВНАЯ ФУНКЦИЯ (v14.1 - Exclude Cups)
 # =========================================================
 def update_google_sheet_from_api():
     if not PLAYER_DICT: load_dictionary_from_sheets()
 
-    dates = [
+    # 1. Генерируем даты
+    raw_dates = [
         (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
         (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"), 
         datetime.now().strftime("%Y-%m-%d"),                       
         (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")  
     ]
     
+    # 2. Фильтр по дате (Только >= 17.01.2026, чтобы не тянуть старое)
+    limit_date = datetime(2026, 1, 17).date()
+    dates = []
+    for d_str in raw_dates:
+        d_obj = datetime.strptime(d_str, "%Y-%m-%d").date()
+        if d_obj >= limit_date:
+            dates.append(d_str)
+
     api_map = {}
     dates_with_data = set() 
     
+    # 3. FIXTURES
     for d in dates:
         raw = fetch_from_api(d)
         if raw:
@@ -224,39 +266,65 @@ def update_google_sheet_from_api():
                 for item in processed:
                     api_map[str(item[0])] = item
 
+    # 4. LIVE
+    try:
+        live_raw = fetch_live_data()
+        if live_raw:
+            live_processed = process_matches(live_raw)
+            if live_processed:
+                logger.info(f"⚡ Live Interceptor: Found {len(live_processed)} active matches")
+                for item in live_processed:
+                    api_map[str(item[0])] = item
+    except Exception as e:
+        logger.error(f"Live fetch error: {e}")
+
     if not api_map: return
 
     client = get_google_client()
     if not client: return
     
     try:
-        ws = client.open_by_key(os.getenv("GOOGLE_SHEET_ID")).worksheet("DAILY_MATCHES")
+        ws = client.open_by_key(GOOGLE_SHEET_ID).worksheet("DAILY_MATCHES")
         existing_data = ws.get_all_values()
+        
+        # === 🛡️ SAFETY BRAKE ===
+        existing_count = len(existing_data)
+        new_count = len(api_map)
+        
+        if existing_count > 20 and new_count < (existing_count * 0.5):
+            logger.warning(f"🛑 SAFETY BRAKE ACTIVATED! Existing: {existing_count}, New: {new_count}. Update aborted to prevent data loss.")
+            return
+        # =======================
         
         header = ["ID", "Tournament", "Status", "Round", "Time", "Player 1", "Player 2", "Score", "Winner", "Manual Block"]
         final_rows = []
         
         if existing_data:
             for row in existing_data[1:]:
-                if not row or len(row) < 5: continue
+                while len(row) < 10: row.append("")
                 
                 m_id = str(row[0]).strip()
-                match_time_str = row[4].strip()
+                manual_block = str(row[9]).strip().upper() 
                 
+                match_time_str = row[4].strip()
                 m_date_str = ""
                 try:
                     m_date = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
                     m_date_str = m_date.strftime("%Y-%m-%d")
                 except: pass
 
+                # Manual Mode
+                if manual_block == "M":
+                    final_rows.append(row)
+                    if m_id in api_map: del api_map[m_id]
+                    continue
+
                 if m_id in api_map:
                     new_data = api_map[m_id]
-                    manual_block = row[9] if len(row) > 9 else ""
                     final_rows.append(new_data + [manual_block])
                     del api_map[m_id]
                     
                 elif m_date_str in dates_with_data:
-                    # Чистим только если для этой даты API вернул данные, а этого матча там нет
                     logger.info(f"🗑️ Safe Clean: {m_id} on {m_date_str}")
                     continue
                     
@@ -282,6 +350,3 @@ def update_google_sheet_from_api():
 
     except Exception as e:
         logger.error(f"Sheet Update Error: {e}")
-
-def update_daily_matches_direct():
-    pass

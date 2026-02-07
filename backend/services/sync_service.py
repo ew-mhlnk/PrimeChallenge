@@ -26,10 +26,15 @@ logger = logging.getLogger(__name__)
 # ==========================================
 
 def clean_sheet_value(value):
+    """
+    Очищает значение ячейки от мусора, формул и слов-загрушек.
+    """
     if not value: return None
     v = str(value).strip()
     upper_v = v.upper()
-    BAD_WORDS = ["#ERROR", "#N/A", "#REF", "#NAME", "LOADING", "ЗАГРУЗКА", "ВЫЧИСЛЕНИЕ", "#DIV/0", "ERROR"]
+    # СПИСОК СТОП-СЛОВ (Расширенный)
+    BAD_WORDS = ["#ERROR", "#N/A", "#REF", "#NAME", "LOADING", "ЗАГРУЗКА", "ВЫЧИСЛЕНИЕ", "#DIV/0", "ERROR", "WAITING", "..."]
+    
     for bad in BAD_WORDS:
         if v.startswith("#") or bad in upper_v:
             return None
@@ -111,7 +116,6 @@ def get_match_rows(round_name: str, draw_size: int):
 # ==========================================
 
 def _sync_tournaments_logic(engine: Engine) -> None:
-    # logger.info("--- STARTING TOURNAMENTS SYNC ---")
     try:
         client = get_google_sheets_client()
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
@@ -184,7 +188,6 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                         "mc": matches_count, "month": month_val, "img": img_url
                     })
                     
-                    # Размер сетки
                     draw_size = 32
                     s_round_clean = s_round.strip().upper()
                     if s_round_clean == "R128": draw_size = 128
@@ -202,7 +205,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                     logger.error(f"Row parsing error ID={tid_str}: {e}")
         conn.commit()
 
-        # 2. Обновляем сетки турниров
+        # 2. Обновляем сетки
         for tid, sheet_name, draw_size, status in tournaments_to_sync:
              try:
                 try:
@@ -212,26 +215,29 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                     logger.warning(f"Sheet {sheet_name} not found for T{tid}")
                     continue
                 
-                # === 🛡️ SAFETY BRAKE (АВАРИЙНЫЙ ТОРМОЗ) ===
-                # Если турнир идет, а данных в таблице подозрительно мало -> ПРОПУСКАЕМ.
-                # Это защитит от ситуации, когда Google API вернул пустой лист.
+                # SAFETY BRAKE (Защита от пустых листов)
                 if len(data) < 10:
-                    logger.warning(f"🛑 SAFETY BRAKE: Sheet '{sheet_name}' (T{tid}) is too small ({len(data)} rows). Skipping sync to protect DB.")
+                    logger.warning(f"🛑 SAFETY BRAKE: Sheet '{sheet_name}' (T{tid}) is too small. Skipping.")
                     continue
-                # ==========================================
 
                 if len(data) < 2: continue
                 headers = data[0]
                 cols = {h.strip(): i for i, h in enumerate(headers) if h.strip()}
                 rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F"]
                 
+                # --- ПОИСК ЧЕМПИОНА (С ОЧИСТКОЙ) ---
                 champion = None
                 if "Champion" in cols and len(data) > 1:
                     champ_col = cols["Champion"]
                     for r_idx in range(1, len(data)):
                         if champ_col < len(data[r_idx]):
-                            val = data[r_idx][champ_col].strip()
-                            if val: champion = val; break
+                            raw_val = data[r_idx][champ_col]
+                            # ЧИСТИМ ТУТ
+                            val = clean_sheet_value(raw_val) 
+                            if val: 
+                                champion = val
+                                break
+                # -----------------------------------
                 
                 with conn.begin_nested():
                     for round_name in rounds_order:
@@ -246,14 +252,18 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                             
                             raw_p1 = row1[col_idx] if col_idx < len(row1) else ""
                             raw_p2 = row2[col_idx] if col_idx < len(row2) else ""
+                            
+                            # ЧИСТИМ ИГРОКОВ ТУТ
                             p1 = clean_sheet_value(raw_p1) or ""
                             p2 = clean_sheet_value(raw_p2) or ""
+                            
                             winner = None
                             
                             if p1 and p2:
                                 if p2.lower() == "bye": winner = p1
                                 elif p1.lower() == "bye": winner = p2
                                 elif round_name != "F":
+                                    # ЛОГИКА ОПРЕДЕЛЕНИЯ ПОБЕДИТЕЛЯ (Смотрим следующий раунд)
                                     curr_r_idx_list = rounds_order.index(round_name)
                                     next_round_name = None
                                     for k in range(curr_r_idx_list + 1, len(rounds_order)):
@@ -266,10 +276,12 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                                         if target_match_idx < len(next_round_indices):
                                             next_r_start = next_round_indices[target_match_idx]
                                             candidates = []
+                                            # ЧИСТИМ КАНДИДАТОВ ТУТ
                                             if next_r_start < len(data) and next_col < len(data[next_r_start]): 
                                                 candidates.append(clean_sheet_value(data[next_r_start][next_col]))
                                             if next_r_start + 1 < len(data) and next_col < len(data[next_r_start+1]): 
                                                 candidates.append(clean_sheet_value(data[next_r_start+1][next_col]))
+                                            
                                             for cand in candidates:
                                                 if not cand: continue
                                                 if is_same_player(p1, cand): winner = p1; break
@@ -284,6 +296,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                                 sc_idx = col_idx + s_off
                                 if sc_idx >= len(row1): scores.append(None); continue
                                 if sc_idx < len(headers) and headers[sc_idx].strip() in rounds_order: scores.append(None); continue
+                                # ЧИСТИМ СЧЕТ ТУТ
                                 s1_val = clean_sheet_value(row1[sc_idx])
                                 s2_val = clean_sheet_value(row2[sc_idx])
                                 if s1_val and s2_val: scores.append(f"{s1_val}-{s2_val}")
@@ -310,7 +323,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                         """), {"tid": tid, "name": champion})
                 
                 conn.commit()
-                # Пересчет очков после обновления сетки
+                # Пересчет очков
                 db_session = SessionLocal()
                 try: update_tournament_leaderboard(tid, db_session)
                 except Exception as ex: logger.error(str(ex))
