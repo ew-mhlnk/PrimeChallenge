@@ -27,13 +27,13 @@ logger = logging.getLogger(__name__)
 
 def clean_sheet_value(value):
     """
-    Очищает значение ячейки от мусора, формул и слов-загрушек.
+    Очищает значение ячейки от мусора и формул загрузки.
     """
     if not value: return None
     v = str(value).strip()
     upper_v = v.upper()
-    # СПИСОК СТОП-СЛОВ (Расширенный)
-    BAD_WORDS = ["#ERROR", "#N/A", "#REF", "#NAME", "LOADING", "ЗАГРУЗКА", "ВЫЧИСЛЕНИЕ", "#DIV/0", "ERROR", "WAITING", "..."]
+    # СПИСОК СТОП-СЛОВ
+    BAD_WORDS = ["#ERROR", "#N/A", "#REF", "#NAME", "LOADING", "ЗАГРУЗКА", "ВЫЧИСЛЕНИЕ", "#DIV/0", "ERROR", "WAITING"]
     
     for bad in BAD_WORDS:
         if v.startswith("#") or bad in upper_v:
@@ -215,7 +215,8 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                     logger.warning(f"Sheet {sheet_name} not found for T{tid}")
                     continue
                 
-                # SAFETY BRAKE (Защита от пустых листов)
+                # === 🛡️ SAFETY BRAKE ===
+                # Если в листе мало данных, пропускаем, чтобы не стереть базу
                 if len(data) < 10:
                     logger.warning(f"🛑 SAFETY BRAKE: Sheet '{sheet_name}' (T{tid}) is too small. Skipping.")
                     continue
@@ -232,8 +233,8 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                     for r_idx in range(1, len(data)):
                         if champ_col < len(data[r_idx]):
                             raw_val = data[r_idx][champ_col]
-                            # ЧИСТИМ ТУТ
-                            val = clean_sheet_value(raw_val) 
+                            # ЧИСТИМ ЗНАЧЕНИЕ ТУТ
+                            val = clean_sheet_value(raw_val)
                             if val: 
                                 champion = val
                                 break
@@ -253,7 +254,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                             raw_p1 = row1[col_idx] if col_idx < len(row1) else ""
                             raw_p2 = row2[col_idx] if col_idx < len(row2) else ""
                             
-                            # ЧИСТИМ ИГРОКОВ ТУТ
+                            # ЧИСТИМ ЗНАЧЕНИЯ ИГРОКОВ
                             p1 = clean_sheet_value(raw_p1) or ""
                             p2 = clean_sheet_value(raw_p2) or ""
                             
@@ -263,7 +264,6 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                                 if p2.lower() == "bye": winner = p1
                                 elif p1.lower() == "bye": winner = p2
                                 elif round_name != "F":
-                                    # ЛОГИКА ОПРЕДЕЛЕНИЯ ПОБЕДИТЕЛЯ (Смотрим следующий раунд)
                                     curr_r_idx_list = rounds_order.index(round_name)
                                     next_round_name = None
                                     for k in range(curr_r_idx_list + 1, len(rounds_order)):
@@ -276,7 +276,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                                         if target_match_idx < len(next_round_indices):
                                             next_r_start = next_round_indices[target_match_idx]
                                             candidates = []
-                                            # ЧИСТИМ КАНДИДАТОВ ТУТ
+                                            # ЧИСТИМ КАНДИДАТОВ НА ПОБЕДУ
                                             if next_r_start < len(data) and next_col < len(data[next_r_start]): 
                                                 candidates.append(clean_sheet_value(data[next_r_start][next_col]))
                                             if next_r_start + 1 < len(data) and next_col < len(data[next_r_start+1]): 
@@ -296,7 +296,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                                 sc_idx = col_idx + s_off
                                 if sc_idx >= len(row1): scores.append(None); continue
                                 if sc_idx < len(headers) and headers[sc_idx].strip() in rounds_order: scores.append(None); continue
-                                # ЧИСТИМ СЧЕТ ТУТ
+                                # ЧИСТИМ СЧЕТ
                                 s1_val = clean_sheet_value(row1[sc_idx])
                                 s2_val = clean_sheet_value(row2[sc_idx])
                                 if s1_val and s2_val: scores.append(f"{s1_val}-{s2_val}")
@@ -340,7 +340,6 @@ async def sync_google_sheets_with_db(engine: Engine) -> None:
 # ==========================================
 
 def _sync_daily_logic(engine: Engine) -> None:
-    # logger.info("--- STARTING DAILY SYNC ---")
     try:
         client = get_google_sheets_client()
         sheet = client.open_by_key(os.getenv("GOOGLE_SHEET_ID"))
