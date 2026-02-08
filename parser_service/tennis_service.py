@@ -29,7 +29,11 @@ ROUND_MAP = {
     "Qualification": "Q", "Preliminary": "Q"
 }
 
+# Типы, которые мы игнорируем
 INVALID_TYPES = ["Doubles", "Challenger", "ITF", "Boys", "Girls", "Juniors"]
+
+# Турниры, которые мы игнорируем (Командные)
+EXCLUDED_TOURNAMENTS = ["davis cup", "billie jean king cup", "world group"]
 
 # === ГУГЛ КЛИЕНТ ===
 def get_google_client():
@@ -140,7 +144,7 @@ def fetch_from_api(date_str):
         logger.error(f"API Request failed: {e}")
         return []
 
-# 2. Запрос LIVE (НОВОЕ)
+# 2. Запрос LIVE
 def fetch_live_data():
     if not TENNIS_API_KEY: return []
     params = {"method": "get_livescore", "APIkey": TENNIS_API_KEY, "timezone": "Europe/Moscow"}
@@ -160,17 +164,33 @@ def process_matches(matches):
     for m in matches:
         m_id = str(m.get("event_key"))
         
-        # Строгие фильтры
+        # 1. Фильтр квалификаций
         q_field = str(m.get("event_qualification", "")).lower()
         if q_field in ["true", "1"]: continue
         r_raw = str(m.get("tournament_round", "")).lower()
         if "qual" in r_raw or "prelim" in r_raw: continue
 
-        etype = str(m.get("event_type_type", "")).title()
-        if any(b in etype for b in INVALID_TYPES): continue
-        is_singles = "Singles" in etype or "United Cup" in etype
-        is_major = any(x in etype for x in ["Atp", "Wta", "Open", "Slam", "Cup"])
+        # 2. Фильтр по НАЗВАНИЮ и ТИПУ (Усиленный)
+        t_raw_name = str(m.get("tournament_name", "")).lower()
+        e_type_raw = str(m.get("event_type_type", "")).lower()
+        
+        # Проверяем на запрещенные слова
+        if any(ex in t_raw_name for ex in EXCLUDED_TOURNAMENTS):
+            continue
+        if any(ex in e_type_raw for ex in EXCLUDED_TOURNAMENTS):
+            continue
+
+        # 3. Фильтр по ТИПУ (Challenger, ITF и т.д.)
+        etype_title = str(m.get("event_type_type", "")).title()
+        if any(b in etype_title for b in INVALID_TYPES): continue
+        
+        # 4. Проверка на одиночный разряд / Мейджоры
+        is_singles = "Singles" in etype_title or "United Cup" in etype_title
+        is_major = any(x in etype_title for x in ["Atp", "Wta", "Open", "Slam", "Cup"])
+        
         if not (is_singles and is_major): continue
+        
+        # 5. Проверка на парный разряд (имя с палкой)
         p1_raw = m.get("event_first_player", "")
         if "/" in p1_raw: continue
 
@@ -178,8 +198,8 @@ def process_matches(matches):
         seen.add(m_id)
 
         t_clean = (m.get("tournament_name") or "").replace(" Singles", "").strip()
-        if "Wta" in etype and "WTA" not in t_clean: t_clean = f"WTA {t_clean}"
-        elif "Atp" in etype and "ATP" not in t_clean: t_clean = f"ATP {t_clean}"
+        if "Wta" in etype_title and "WTA" not in t_clean: t_clean = f"WTA {t_clean}"
+        elif "Atp" in etype_title and "ATP" not in t_clean: t_clean = f"ATP {t_clean}"
         
         st_raw = str(m.get("event_status", "")).lower()
         status = "PLANNED"
@@ -216,7 +236,7 @@ def process_matches(matches):
     return processed
 
 # =========================================================
-# ГЛАВНАЯ ФУНКЦИЯ (v13.0 - Live Interceptor)
+# ГЛАВНАЯ ФУНКЦИЯ (v14.2 - Exclude Cups Fix)
 # =========================================================
 def update_google_sheet_from_api():
     if not PLAYER_DICT: load_dictionary_from_sheets()
@@ -229,7 +249,7 @@ def update_google_sheet_from_api():
         (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")  
     ]
     
-    # 2. Фильтр по дате (Только >= 17.01.2026, чтобы не тянуть старое)
+    # 2. Фильтр по дате (>= 17.01.2026)
     limit_date = datetime(2026, 1, 17).date()
     dates = []
     for d_str in raw_dates:
@@ -240,7 +260,7 @@ def update_google_sheet_from_api():
     api_map = {}
     dates_with_data = set() 
     
-    # 3. Сначала грузим РАСПИСАНИЕ (Base Layer)
+    # 3. FIXTURES
     for d in dates:
         raw = fetch_from_api(d)
         if raw:
@@ -250,8 +270,7 @@ def update_google_sheet_from_api():
                 for item in processed:
                     api_map[str(item[0])] = item
 
-    # 4. 🔥 ЗАТЕМ ГРУЗИМ LIVE (Live Layer) 🔥
-    # Переписываем данные из расписания актуальными лайв-данными
+    # 4. LIVE
     try:
         live_raw = fetch_live_data()
         if live_raw:
@@ -259,10 +278,9 @@ def update_google_sheet_from_api():
             if live_processed:
                 logger.info(f"⚡ Live Interceptor: Found {len(live_processed)} active matches")
                 for item in live_processed:
-                    # item[0] - это ID матча. Мы перезаписываем его в карте.
                     api_map[str(item[0])] = item
     except Exception as e:
-        logger.error(f"Live fetch error (skipping): {e}")
+        logger.error(f"Live fetch error: {e}")
 
     if not api_map: return
 
@@ -273,30 +291,44 @@ def update_google_sheet_from_api():
         ws = client.open_by_key(GOOGLE_SHEET_ID).worksheet("DAILY_MATCHES")
         existing_data = ws.get_all_values()
         
+        # === 🛡️ SAFETY BRAKE ===
+        existing_count = len(existing_data)
+        new_count = len(api_map)
+        
+        if existing_count > 20 and new_count < (existing_count * 0.5):
+            logger.warning(f"🛑 SAFETY BRAKE ACTIVATED! Existing: {existing_count}, New: {new_count}. Update aborted to prevent data loss.")
+            return
+        # =======================
+        
         header = ["ID", "Tournament", "Status", "Round", "Time", "Player 1", "Player 2", "Score", "Winner", "Manual Block"]
         final_rows = []
         
         if existing_data:
             for row in existing_data[1:]:
-                if not row or len(row) < 5: continue
+                while len(row) < 10: row.append("")
                 
                 m_id = str(row[0]).strip()
-                match_time_str = row[4].strip()
+                manual_block = str(row[9]).strip().upper() 
                 
+                match_time_str = row[4].strip()
                 m_date_str = ""
                 try:
                     m_date = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
                     m_date_str = m_date.strftime("%Y-%m-%d")
                 except: pass
 
+                # Manual Mode
+                if manual_block == "M":
+                    final_rows.append(row)
+                    if m_id in api_map: del api_map[m_id]
+                    continue
+
                 if m_id in api_map:
                     new_data = api_map[m_id]
-                    manual_block = row[9] if len(row) > 9 else ""
                     final_rows.append(new_data + [manual_block])
                     del api_map[m_id]
                     
                 elif m_date_str in dates_with_data:
-                    # Safe Clean: удаляем только если дата была в ответе API, но матча нет
                     logger.info(f"🗑️ Safe Clean: {m_id} on {m_date_str}")
                     continue
                     
