@@ -42,9 +42,17 @@ def clean_sheet_value(value):
 
 def get_google_sheets_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    
+    # ЧИТАЕМ ИМЕННО ТВОЮ ПЕРЕМЕННУЮ
     credentials_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
+    
+    if not credentials_json:
+        # На всякий случай проверяем запасной вариант
+        credentials_json = os.getenv("GOOGLE_CREDENTIALS")
+        
     if not credentials_json:
         raise ValueError("GOOGLE_SHEETS_CREDENTIALS missing")
+        
     credentials = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(credentials_json), scope)
     return gspread.authorize(credentials)
 
