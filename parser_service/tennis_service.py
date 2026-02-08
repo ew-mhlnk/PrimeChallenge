@@ -9,15 +9,15 @@ from datetime import datetime, timedelta
 import pytz
 
 # Настройка логгера
+logging.basicConfig(level=logging.INFO) # Включаем логирование
 logger = logging.getLogger(__name__)
 
-# Импортируем конфиги
-try:
-    from config import TENNIS_API_KEY, GOOGLE_SHEET_ID, GOOGLE_CREDENTIALS
-except ImportError:
-    TENNIS_API_KEY = os.getenv("TENNIS_API_KEY")
-    GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
-    GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
+# --- КОНФИГУРАЦИЯ ---
+# Пытаемся получить ключи напрямую из переменных окружения
+TENNIS_API_KEY = os.getenv("TENNIS_API_KEY")
+GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
+# Читаем оба варианта имени переменной
+GOOGLE_CREDENTIALS = os.getenv("GOOGLE_SHEETS_CREDENTIALS") or os.getenv("GOOGLE_CREDENTIALS")
 
 API_URL = "https://api.api-tennis.com/tennis/"
 
@@ -40,22 +40,25 @@ def get_google_client():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         
-        if GOOGLE_CREDENTIALS:
-            try:
-                if isinstance(GOOGLE_CREDENTIALS, str):
-                    creds_dict = json.loads(GOOGLE_CREDENTIALS)
-                else:
-                    creds_dict = GOOGLE_CREDENTIALS
-                return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope))
-            except Exception:
-                pass
+        creds_json = GOOGLE_CREDENTIALS
         
-        if os.path.exists("google-credentials.json"):
-            return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope))
+        # Если переменной нет, пробуем локальный файл
+        if not creds_json and os.path.exists("google-credentials.json"):
+             return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope))
+        
+        if not creds_json:
+            logger.error("❌ GOOGLE_CREDENTIALS not found in env vars!")
+            return None
+
+        # Парсим JSON
+        if isinstance(creds_json, str):
+            creds_dict = json.loads(creds_json)
+        else:
+            creds_dict = creds_json
             
-        return None
+        return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope))
     except Exception as e:
-        logger.error(f"Google Auth Error: {e}")
+        logger.error(f"❌ Google Auth Error: {e}")
         return None
 
 def load_dictionary_from_sheets():
@@ -132,7 +135,9 @@ def build_score(match):
 
 # 1. Запрос РАСПИСАНИЯ
 def fetch_from_api(date_str):
-    if not TENNIS_API_KEY: return []
+    if not TENNIS_API_KEY: 
+        logger.error("❌ API Key missing!")
+        return []
     params = {"method": "get_fixtures", "APIkey": TENNIS_API_KEY, "date_start": date_str, "date_stop": date_str, "timezone": "Europe/Moscow"}
     try:
         resp = requests.get(API_URL, params=params, timeout=10)
@@ -180,7 +185,7 @@ def process_matches(matches):
         if any(ex in e_type_raw for ex in EXCLUDED_TOURNAMENTS):
             continue
 
-        # 3. Фильтр по ТИПУ (Challenger, ITF и т.д.)
+        # 3. Фильтр по ТИПУ
         etype_title = str(m.get("event_type_type", "")).title()
         if any(b in etype_title for b in INVALID_TYPES): continue
         
@@ -190,7 +195,7 @@ def process_matches(matches):
         
         if not (is_singles and is_major): continue
         
-        # 5. Проверка на парный разряд (имя с палкой)
+        # 5. Проверка на парный разряд
         p1_raw = m.get("event_first_player", "")
         if "/" in p1_raw: continue
 
@@ -236,7 +241,7 @@ def process_matches(matches):
     return processed
 
 # =========================================================
-# ГЛАВНАЯ ФУНКЦИЯ (v14.2 - Exclude Cups Fix)
+# ГЛАВНАЯ ФУНКЦИЯ
 # =========================================================
 def update_google_sheet_from_api():
     if not PLAYER_DICT: load_dictionary_from_sheets()
@@ -261,6 +266,7 @@ def update_google_sheet_from_api():
     dates_with_data = set() 
     
     # 3. FIXTURES
+    logger.info(f"⏳ Syncing Fixtures for {dates}")
     for d in dates:
         raw = fetch_from_api(d)
         if raw:
@@ -282,7 +288,11 @@ def update_google_sheet_from_api():
     except Exception as e:
         logger.error(f"Live fetch error: {e}")
 
-    if not api_map: return
+    logger.info(f"📊 Total matches found: {len(api_map)}")
+
+    if not api_map: 
+        logger.warning("⚠️ No matches found in API!")
+        return
 
     client = get_google_client()
     if not client: return
@@ -295,8 +305,9 @@ def update_google_sheet_from_api():
         existing_count = len(existing_data)
         new_count = len(api_map)
         
+        # Если API вернуло подозрительно мало данных (меньше 50% от того что было), отменяем
         if existing_count > 20 and new_count < (existing_count * 0.5):
-            logger.warning(f"🛑 SAFETY BRAKE ACTIVATED! Existing: {existing_count}, New: {new_count}. Update aborted to prevent data loss.")
+            logger.warning(f"🛑 SAFETY BRAKE ACTIVATED! Existing: {existing_count}, New: {new_count}. Update aborted.")
             return
         # =======================
         
