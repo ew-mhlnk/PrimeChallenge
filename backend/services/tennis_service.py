@@ -33,7 +33,7 @@ ROUND_MAP = {
 INVALID_TYPES = ["Doubles", "Challenger", "ITF", "Boys", "Girls", "Juniors"]
 
 # Турниры, которые мы игнорируем (Командные)
-EXCLUDED_TOURNAMENTS = ["Davis Cup", "Billie Jean King Cup"]
+EXCLUDED_TOURNAMENTS = ["davis cup", "billie jean king cup", "world group"]
 
 # === ГУГЛ КЛИЕНТ ===
 def get_google_client():
@@ -170,19 +170,23 @@ def process_matches(matches):
         r_raw = str(m.get("tournament_round", "")).lower()
         if "qual" in r_raw or "prelim" in r_raw: continue
 
-        # 2. Фильтр по НАЗВАНИЮ турнира (Davis Cup / BJK Cup)
-        t_raw_name = str(m.get("tournament_name", ""))
-        # Проверяем, содержится ли запрещенное название в имени турнира
+        # 2. Фильтр по НАЗВАНИЮ и ТИПУ (Усиленный)
+        t_raw_name = str(m.get("tournament_name", "")).lower()
+        e_type_raw = str(m.get("event_type_type", "")).lower()
+        
+        # Проверяем на запрещенные слова
         if any(ex in t_raw_name for ex in EXCLUDED_TOURNAMENTS):
+            continue
+        if any(ex in e_type_raw for ex in EXCLUDED_TOURNAMENTS):
             continue
 
         # 3. Фильтр по ТИПУ (Challenger, ITF и т.д.)
-        etype = str(m.get("event_type_type", "")).title()
-        if any(b in etype for b in INVALID_TYPES): continue
+        etype_title = str(m.get("event_type_type", "")).title()
+        if any(b in etype_title for b in INVALID_TYPES): continue
         
         # 4. Проверка на одиночный разряд / Мейджоры
-        is_singles = "Singles" in etype or "United Cup" in etype
-        is_major = any(x in etype for x in ["Atp", "Wta", "Open", "Slam", "Cup"])
+        is_singles = "Singles" in etype_title or "United Cup" in etype_title
+        is_major = any(x in etype_title for x in ["Atp", "Wta", "Open", "Slam", "Cup"])
         
         if not (is_singles and is_major): continue
         
@@ -194,8 +198,8 @@ def process_matches(matches):
         seen.add(m_id)
 
         t_clean = (m.get("tournament_name") or "").replace(" Singles", "").strip()
-        if "Wta" in etype and "WTA" not in t_clean: t_clean = f"WTA {t_clean}"
-        elif "Atp" in etype and "ATP" not in t_clean: t_clean = f"ATP {t_clean}"
+        if "Wta" in etype_title and "WTA" not in t_clean: t_clean = f"WTA {t_clean}"
+        elif "Atp" in etype_title and "ATP" not in t_clean: t_clean = f"ATP {t_clean}"
         
         st_raw = str(m.get("event_status", "")).lower()
         status = "PLANNED"
@@ -232,7 +236,7 @@ def process_matches(matches):
     return processed
 
 # =========================================================
-# ГЛАВНАЯ ФУНКЦИЯ (v14.1 - Exclude Cups)
+# ГЛАВНАЯ ФУНКЦИЯ (v14.2 - Exclude Cups Fix)
 # =========================================================
 def update_google_sheet_from_api():
     if not PLAYER_DICT: load_dictionary_from_sheets()
@@ -245,7 +249,7 @@ def update_google_sheet_from_api():
         (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")  
     ]
     
-    # 2. Фильтр по дате (Только >= 17.01.2026, чтобы не тянуть старое)
+    # 2. Фильтр по дате (>= 17.01.2026)
     limit_date = datetime(2026, 1, 17).date()
     dates = []
     for d_str in raw_dates:

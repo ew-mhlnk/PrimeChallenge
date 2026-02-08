@@ -215,8 +215,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                     logger.warning(f"Sheet {sheet_name} not found for T{tid}")
                     continue
                 
-                # === 🛡️ SAFETY BRAKE ===
-                # Если в листе мало данных, пропускаем, чтобы не стереть базу
+                # SAFETY BRAKE
                 if len(data) < 10:
                     logger.warning(f"🛑 SAFETY BRAKE: Sheet '{sheet_name}' (T{tid}) is too small. Skipping.")
                     continue
@@ -233,8 +232,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                     for r_idx in range(1, len(data)):
                         if champ_col < len(data[r_idx]):
                             raw_val = data[r_idx][champ_col]
-                            # ЧИСТИМ ЗНАЧЕНИЕ ТУТ
-                            val = clean_sheet_value(raw_val)
+                            val = clean_sheet_value(raw_val) 
                             if val: 
                                 champion = val
                                 break
@@ -254,7 +252,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                             raw_p1 = row1[col_idx] if col_idx < len(row1) else ""
                             raw_p2 = row2[col_idx] if col_idx < len(row2) else ""
                             
-                            # ЧИСТИМ ЗНАЧЕНИЯ ИГРОКОВ
+                            # ЧИСТИМ
                             p1 = clean_sheet_value(raw_p1) or ""
                             p2 = clean_sheet_value(raw_p2) or ""
                             
@@ -276,7 +274,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                                         if target_match_idx < len(next_round_indices):
                                             next_r_start = next_round_indices[target_match_idx]
                                             candidates = []
-                                            # ЧИСТИМ КАНДИДАТОВ НА ПОБЕДУ
+                                            # ЧИСТИМ
                                             if next_r_start < len(data) and next_col < len(data[next_r_start]): 
                                                 candidates.append(clean_sheet_value(data[next_r_start][next_col]))
                                             if next_r_start + 1 < len(data) and next_col < len(data[next_r_start+1]): 
@@ -296,7 +294,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                                 sc_idx = col_idx + s_off
                                 if sc_idx >= len(row1): scores.append(None); continue
                                 if sc_idx < len(headers) and headers[sc_idx].strip() in rounds_order: scores.append(None); continue
-                                # ЧИСТИМ СЧЕТ
+                                # ЧИСТИМ
                                 s1_val = clean_sheet_value(row1[sc_idx])
                                 s2_val = clean_sheet_value(row2[sc_idx])
                                 if s1_val and s2_val: scores.append(f"{s1_val}-{s2_val}")
