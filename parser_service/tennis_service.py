@@ -9,15 +9,16 @@ from datetime import datetime, timedelta
 import pytz
 
 # Настройка логгера
-logging.basicConfig(level=logging.INFO) # Включаем логирование
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- КОНФИГУРАЦИЯ ---
-# Пытаемся получить ключи напрямую из переменных окружения
-TENNIS_API_KEY = os.getenv("TENNIS_API_KEY")
-GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
-# Читаем оба варианта имени переменной
-GOOGLE_CREDENTIALS = os.getenv("GOOGLE_SHEETS_CREDENTIALS") or os.getenv("GOOGLE_CREDENTIALS")
+# Импортируем конфиги
+try:
+    from config import TENNIS_API_KEY, GOOGLE_SHEET_ID, GOOGLE_CREDENTIALS
+except ImportError:
+    TENNIS_API_KEY = os.getenv("TENNIS_API_KEY")
+    GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
+    GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
 
 API_URL = "https://api.api-tennis.com/tennis/"
 
@@ -42,7 +43,6 @@ def get_google_client():
         
         creds_json = GOOGLE_CREDENTIALS
         
-        # Если переменной нет, пробуем локальный файл
         if not creds_json and os.path.exists("google-credentials.json"):
              return gspread.authorize(ServiceAccountCredentials.from_json_keyfile_name("google-credentials.json", scope))
         
@@ -50,7 +50,6 @@ def get_google_client():
             logger.error("❌ GOOGLE_CREDENTIALS not found in env vars!")
             return None
 
-        # Парсим JSON
         if isinstance(creds_json, str):
             creds_dict = json.loads(creds_json)
         else:
@@ -179,20 +178,16 @@ def process_matches(matches):
         t_raw_name = str(m.get("tournament_name", "")).lower()
         e_type_raw = str(m.get("event_type_type", "")).lower()
         
-        # Проверяем на запрещенные слова
-        if any(ex in t_raw_name for ex in EXCLUDED_TOURNAMENTS):
-            continue
-        if any(ex in e_type_raw for ex in EXCLUDED_TOURNAMENTS):
-            continue
+        if any(ex in t_raw_name for ex in EXCLUDED_TOURNAMENTS): continue
+        if any(ex in e_type_raw for ex in EXCLUDED_TOURNAMENTS): continue
 
         # 3. Фильтр по ТИПУ
         etype_title = str(m.get("event_type_type", "")).title()
         if any(b in etype_title for b in INVALID_TYPES): continue
         
-        # 4. Проверка на одиночный разряд / Мейджоры
+        # 4. Проверка на одиночный разряд
         is_singles = "Singles" in etype_title or "United Cup" in etype_title
         is_major = any(x in etype_title for x in ["Atp", "Wta", "Open", "Slam", "Cup"])
-        
         if not (is_singles and is_major): continue
         
         # 5. Проверка на парный разряд
@@ -241,7 +236,7 @@ def process_matches(matches):
     return processed
 
 # =========================================================
-# ГЛАВНАЯ ФУНКЦИЯ
+# ГЛАВНАЯ ФУНКЦИЯ (v15.0 - Adjusted Safety Brake)
 # =========================================================
 def update_google_sheet_from_api():
     if not PLAYER_DICT: load_dictionary_from_sheets()
@@ -290,8 +285,8 @@ def update_google_sheet_from_api():
 
     logger.info(f"📊 Total matches found: {len(api_map)}")
 
-    if not api_map: 
-        logger.warning("⚠️ No matches found in API!")
+    # Разрешаем пустоту, если дат нет в принципе
+    if not api_map and not dates:
         return
 
     client = get_google_client()
@@ -301,15 +296,16 @@ def update_google_sheet_from_api():
         ws = client.open_by_key(GOOGLE_SHEET_ID).worksheet("DAILY_MATCHES")
         existing_data = ws.get_all_values()
         
-        # === 🛡️ SAFETY BRAKE ===
+        # === 🛡️ SAFETY BRAKE (ИСПРАВЛЕНО) ===
+        # Теперь мы проверяем не проценты, а абсолютное число.
+        # Если API вернуло меньше 5 матчей, а в таблице их больше 20 -> считаем это сбоем.
         existing_count = len(existing_data)
         new_count = len(api_map)
         
-        # Если API вернуло подозрительно мало данных (меньше 50% от того что было), отменяем
-        if existing_count > 20 and new_count < (existing_count * 0.5):
+        if existing_count > 20 and new_count < 5:
             logger.warning(f"🛑 SAFETY BRAKE ACTIVATED! Existing: {existing_count}, New: {new_count}. Update aborted.")
             return
-        # =======================
+        # ====================================
         
         header = ["ID", "Tournament", "Status", "Round", "Time", "Player 1", "Player 2", "Score", "Winner", "Manual Block"]
         final_rows = []
