@@ -174,14 +174,14 @@ def process_matches(matches):
         r_raw = str(m.get("tournament_round", "")).lower()
         if "qual" in r_raw or "prelim" in r_raw: continue
 
-        # 2. Фильтр по НАЗВАНИЮ и ТИПУ (Усиленный)
+        # 2. Фильтр по НАЗВАНИЮ и ТИПУ (Davis Cup)
         t_raw_name = str(m.get("tournament_name", "")).lower()
         e_type_raw = str(m.get("event_type_type", "")).lower()
         
         if any(ex in t_raw_name for ex in EXCLUDED_TOURNAMENTS): continue
         if any(ex in e_type_raw for ex in EXCLUDED_TOURNAMENTS): continue
 
-        # 3. Фильтр по ТИПУ
+        # 3. Фильтр по ТИПУ (ITF и тд)
         etype_title = str(m.get("event_type_type", "")).title()
         if any(b in etype_title for b in INVALID_TYPES): continue
         
@@ -236,7 +236,7 @@ def process_matches(matches):
     return processed
 
 # =========================================================
-# ГЛАВНАЯ ФУНКЦИЯ (v15.0 - Adjusted Safety Brake)
+# ГЛАВНАЯ ФУНКЦИЯ (v15.2 - NO SAFETY BRAKE)
 # =========================================================
 def update_google_sheet_from_api():
     if not PLAYER_DICT: load_dictionary_from_sheets()
@@ -285,7 +285,8 @@ def update_google_sheet_from_api():
 
     logger.info(f"📊 Total matches found: {len(api_map)}")
 
-    # Разрешаем пустоту, если дат нет в принципе
+    # УБРАНА ПРОВЕРКА Safety Brake
+    # Теперь мы доверяем API. Если матчей мало - значит мало.
     if not api_map and not dates:
         return
 
@@ -295,17 +296,6 @@ def update_google_sheet_from_api():
     try:
         ws = client.open_by_key(GOOGLE_SHEET_ID).worksheet("DAILY_MATCHES")
         existing_data = ws.get_all_values()
-        
-        # === 🛡️ SAFETY BRAKE (ИСПРАВЛЕНО) ===
-        # Теперь мы проверяем не проценты, а абсолютное число.
-        # Если API вернуло меньше 5 матчей, а в таблице их больше 20 -> считаем это сбоем.
-        existing_count = len(existing_data)
-        new_count = len(api_map)
-        
-        if existing_count > 20 and new_count < 5:
-            logger.warning(f"🛑 SAFETY BRAKE ACTIVATED! Existing: {existing_count}, New: {new_count}. Update aborted.")
-            return
-        # ====================================
         
         header = ["ID", "Tournament", "Status", "Round", "Time", "Player 1", "Player 2", "Score", "Winner", "Manual Block"]
         final_rows = []
