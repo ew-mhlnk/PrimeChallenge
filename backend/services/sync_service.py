@@ -15,8 +15,8 @@ from database.db import SessionLocal
 from database.models import (
     DailyMatch, DailyPick, DailyLeaderboard 
 )
-from utils.score_calculator import update_tournament_leaderboard
-from utils.daily_calculator import process_match_results
+# process_match_results больше не нужен здесь, убираем импорт
+# from utils.daily_calculator import process_match_results 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,15 +26,10 @@ logger = logging.getLogger(__name__)
 # ==========================================
 
 def clean_sheet_value(value):
-    """
-    Очищает значение ячейки от мусора и формул загрузки.
-    """
     if not value: return None
     v = str(value).strip()
     upper_v = v.upper()
-    # СПИСОК СТОП-СЛОВ
     BAD_WORDS = ["#ERROR", "#N/A", "#REF", "#NAME", "LOADING", "ЗАГРУЗКА", "ВЫЧИСЛЕНИЕ", "#DIV/0", "ERROR", "WAITING"]
-    
     for bad in BAD_WORDS:
         if v.startswith("#") or bad in upper_v:
             return None
@@ -42,17 +37,13 @@ def clean_sheet_value(value):
 
 def get_google_sheets_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    
-    # ЧИТАЕМ ИМЕННО ТВОЮ ПЕРЕМЕННУЮ
     credentials_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
-    
     if not credentials_json:
-        # На всякий случай проверяем запасной вариант
+        # Fallback
         credentials_json = os.getenv("GOOGLE_CREDENTIALS")
-        
+    
     if not credentials_json:
         raise ValueError("GOOGLE_SHEETS_CREDENTIALS missing")
-        
     credentials = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(credentials_json), scope)
     return gspread.authorize(credentials)
 
@@ -92,14 +83,7 @@ def get_match_rows(round_name: str, draw_size: int):
     if draw_size == 128:
         base_map = {"R128": (1, 4), "R64": (3, 8), "R32": (7, 16), "R16": (15, 32), "QF": (31, 64), "SF": (63, 128), "F": (127, 256)}
     elif draw_size == 64:
-        base_map = {
-            "R64": (1, 4), 
-            "R32": (3, 8), 
-            "R16": (7, 16), 
-            "QF": (15, 32), 
-            "SF": (31, 64), 
-            "F": (63, 128)
-        }
+        base_map = { "R64": (1, 4), "R32": (3, 8), "R16": (7, 16), "QF": (15, 32), "SF": (31, 64), "F": (63, 128) }
     else: 
         base_map = {"R32": (1, 4), "R16": (3, 8), "QF": (7, 16), "SF": (15, 32), "F": (31, 64)}
         
@@ -139,7 +123,6 @@ def _sync_tournaments_logic(engine: Engine) -> None:
         tournaments_to_sync = []
         now = datetime.now(pytz.UTC)
 
-        # 1. Обновляем список турниров
         for row in rows[1:]:
             if len(row) < 1: continue
             tid_str = str(row[0]).strip()
@@ -213,7 +196,6 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                     logger.error(f"Row parsing error ID={tid_str}: {e}")
         conn.commit()
 
-        # 2. Обновляем сетки
         for tid, sheet_name, draw_size, status in tournaments_to_sync:
              try:
                 try:
@@ -223,7 +205,6 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                     logger.warning(f"Sheet {sheet_name} not found for T{tid}")
                     continue
                 
-                # SAFETY BRAKE
                 if len(data) < 10:
                     logger.warning(f"🛑 SAFETY BRAKE: Sheet '{sheet_name}' (T{tid}) is too small. Skipping.")
                     continue
@@ -233,7 +214,6 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                 cols = {h.strip(): i for i, h in enumerate(headers) if h.strip()}
                 rounds_order = ["R128", "R64", "R32", "R16", "QF", "SF", "F"]
                 
-                # --- ПОИСК ЧЕМПИОНА (С ОЧИСТКОЙ) ---
                 champion = None
                 if "Champion" in cols and len(data) > 1:
                     champ_col = cols["Champion"]
@@ -244,7 +224,6 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                             if val: 
                                 champion = val
                                 break
-                # -----------------------------------
                 
                 with conn.begin_nested():
                     for round_name in rounds_order:
@@ -260,7 +239,6 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                             raw_p1 = row1[col_idx] if col_idx < len(row1) else ""
                             raw_p2 = row2[col_idx] if col_idx < len(row2) else ""
                             
-                            # ЧИСТИМ
                             p1 = clean_sheet_value(raw_p1) or ""
                             p2 = clean_sheet_value(raw_p2) or ""
                             
@@ -282,7 +260,6 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                                         if target_match_idx < len(next_round_indices):
                                             next_r_start = next_round_indices[target_match_idx]
                                             candidates = []
-                                            # ЧИСТИМ
                                             if next_r_start < len(data) and next_col < len(data[next_r_start]): 
                                                 candidates.append(clean_sheet_value(data[next_r_start][next_col]))
                                             if next_r_start + 1 < len(data) and next_col < len(data[next_r_start+1]): 
@@ -302,7 +279,6 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                                 sc_idx = col_idx + s_off
                                 if sc_idx >= len(row1): scores.append(None); continue
                                 if sc_idx < len(headers) and headers[sc_idx].strip() in rounds_order: scores.append(None); continue
-                                # ЧИСТИМ
                                 s1_val = clean_sheet_value(row1[sc_idx])
                                 s2_val = clean_sheet_value(row2[sc_idx])
                                 if s1_val and s2_val: scores.append(f"{s1_val}-{s2_val}")
@@ -329,9 +305,10 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                         """), {"tid": tid, "name": champion})
                 
                 conn.commit()
-                # Пересчет очков
+                # Пересчет очков БРЕКЕТА (отдельная утилита)
+                from utils.score_calculator import update_tournament_leaderboard as update_bracket_scores
                 db_session = SessionLocal()
-                try: update_tournament_leaderboard(tid, db_session)
+                try: update_bracket_scores(tid, db_session)
                 except Exception as ex: logger.error(str(ex))
                 finally: db_session.close()
              except Exception as e: logger.error(f"Sync error T{tid}: {e}")
@@ -365,6 +342,7 @@ def _sync_daily_logic(engine: Engine) -> None:
         valid_sheet_ids = set()
         ids_to_delete = set()
         
+        # 1. ОБНОВЛЯЕМ МАТЧИ
         for row in rows[1:]:
             while len(row) < 10: row.append("")
             m_id = str(row[0]).strip()
@@ -418,10 +396,8 @@ def _sync_daily_logic(engine: Engine) -> None:
                 match.winner = winner_val
             
             session.flush()
-            
-            if match.status == "COMPLETED" and match.winner is not None:
-                process_match_results(match.id, session)
 
+        # 2. УДАЛЯЕМ ЛИШНЕЕ
         db_matches = session.query(DailyMatch).all()
         matches_to_remove = []
         
@@ -432,12 +408,28 @@ def _sync_daily_logic(engine: Engine) -> None:
         if matches_to_remove:
             session.execute(text("DELETE FROM daily_picks WHERE match_id IN :ids"), {"ids": tuple(matches_to_remove)})
             session.execute(text("DELETE FROM daily_matches WHERE id IN :ids"), {"ids": tuple(matches_to_remove)})
-            session.execute(text("DELETE FROM daily_leaderboard"))
-            session.execute(text("""
-                INSERT INTO daily_leaderboard (user_id, total_points, correct_picks, total_picks)
-                SELECT user_id, COALESCE(SUM(points), 0), COUNT(CASE WHEN is_correct = true THEN 1 END), COUNT(*)
-                FROM daily_picks GROUP BY user_id
-            """))
+            
+        # 3. ПОДСЧЕТ ОЧКОВ (ЛОГИКА БЕЗ ORM)
+        # Сначала проставляем статус прогнозам
+        # is_correct = (predicted == winner)
+        session.execute(text("""
+            UPDATE daily_picks dp
+            SET is_correct = (dp.predicted_winner = dm.winner),
+                points = CASE WHEN dp.predicted_winner = dm.winner THEN 1 ELSE 0 END
+            FROM daily_matches dm
+            WHERE dp.match_id = dm.id
+              AND dm.status = 'COMPLETED'
+              AND dm.winner IS NOT NULL
+        """))
+
+        # 4. ПОЛНЫЙ ПЕРЕСЧЕТ ЛИДЕРБОРДА (ATOMIC)
+        session.execute(text("DELETE FROM daily_leaderboard"))
+        session.execute(text("""
+            INSERT INTO daily_leaderboard (user_id, total_points, correct_picks, total_picks)
+            SELECT user_id, COALESCE(SUM(points), 0), COUNT(CASE WHEN is_correct = true THEN 1 END), COUNT(*)
+            FROM daily_picks 
+            GROUP BY user_id
+        """))
             
         session.commit()
     except Exception as e:
