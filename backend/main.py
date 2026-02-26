@@ -108,7 +108,7 @@ async def startup_event():
     # Забираем данные из таблицы в базу раз в 2 минуты
     scheduler.add_job(sync_daily_challenge, "interval", minutes=2, args=[engine])
     
-    # 5. Bracket Sync (Турниры)
+    # 5. Bracket Sync (Турниры)ds
     # Забираем данные турниров раз в 10 минут
     scheduler.add_job(sync_google_sheets_with_db, "interval", minutes=5, args=[engine])
     
