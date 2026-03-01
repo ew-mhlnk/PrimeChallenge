@@ -10,7 +10,7 @@ ENV NEXT_PUBLIC_YANDEX_METRICA_ID=$NEXT_PUBLIC_YANDEX_METRICA_ID
 # ------------------------
 
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --prefer-offline --no-audit --ignore-scripts
 COPY . .
 RUN npm run build
 
