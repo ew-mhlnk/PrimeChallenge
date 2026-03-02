@@ -7,23 +7,23 @@ export function middleware(request: NextRequest) {
   // Перехватываем все запросы на /api/
   if (pathname.startsWith('/api/')) {
     // Убираем префикс /api
-    // Было: /api/tournaments -> Стало: /tournaments
     const targetPath = pathname.replace('/api', '');
     
-    // Формируем полный URL на Render
-    // search - это параметры запроса (?id=1&sort=date)
-    const targetUrl = new URL(targetPath + search, 'https://primechallenge.onrender.com');
+    // БЕРЕМ АДРЕС ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
+    // Если переменной нет, фоллбек на локалхост (для разработки)
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    
+    // Создаем URL
+    const targetUrl = new URL(targetPath + search, backendUrl);
 
     console.log(`[Middleware] Proxying: ${pathname} -> ${targetUrl.toString()}`);
 
-    // Делаем Rewrite (подмена адреса "под капотом")
     return NextResponse.rewrite(targetUrl);
   }
 
   return NextResponse.next();
 }
 
-// Настройка: применять только для путей, начинающихся с /api/
 export const config = {
   matcher: '/api/:path*',
 };
