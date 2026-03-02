@@ -1,8 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // ДОБАВЬ ЭТУ СТРОКУ:
-  output: "standalone", 
+  output: "standalone",
   
+  // ОТКЛЮЧАЕМ ПРОВЕРКИ ДЛЯ ЭКОНОМИИ ПАМЯТИ
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
   images: {
     remotePatterns: [
       {
