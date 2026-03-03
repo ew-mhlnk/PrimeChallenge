@@ -72,6 +72,7 @@ def get_all_user_ids():
         logger.error(f"DB Error: {e}")
         return []
 
+# ОБНОВЛЕННАЯ ФУНКЦИЯ run_broadcast
 async def run_broadcast(chat_id: int, message_id: int):
     users = get_all_user_ids()
     await bot.send_message(ADMIN_ID, f"🚀 Рассылка началась ({len(users)} чел.)...")
@@ -79,13 +80,18 @@ async def run_broadcast(chat_id: int, message_id: int):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👉 Войти в игру", web_app=WebAppInfo(url=MINI_APP_URL))]
     ])
+    
     for uid in users:
         try:
+            # copy_message умеет копировать фото, видео и текст!
             await bot.copy_message(chat_id=uid, from_chat_id=chat_id, message_id=message_id, reply_markup=kb)
             count_ok += 1
-            await asyncio.sleep(0.05)
-        except Exception:
+            await asyncio.sleep(0.05) 
+        except Exception as e:
+            # ТЕПЕРЬ МЫ БУДЕМ ВИДЕТЬ ОШИБКУ В ЛОГАХ
+            logger.error(f"❌ Failed to send to {uid}: {e}")
             pass
+            
     await bot.send_message(ADMIN_ID, f"✅ Рассылка завершена. Дошло: {count_ok}")
 
 # --- ХАНДЛЕРЫ ---
@@ -242,7 +248,7 @@ async def execute_edit_pick(callback: types.CallbackQuery, state: FSMContext):
 
 
 # ==========================================
-# ЛОГИКА РАССЫЛКИ (Как былаd)
+# ЛОГИКА РАССЫЛКИ
 # ==========================================
 
 @dp.message(F.text == "📢 Новая рассылка")
