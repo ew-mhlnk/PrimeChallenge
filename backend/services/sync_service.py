@@ -189,7 +189,7 @@ def _sync_tournaments_logic(engine: Engine) -> None:
                         if "1000" in t_type_lower: draw_size = 64
                         elif "slam" in t_type_lower or "тбш" in tag.lower(): draw_size = 128
                     
-                    if status in ["ACTIVE", "CLOSED", "COMPLETED"]:
+                    if status in ["ACTIVE", "CLOSED"]:
                         tournaments_to_sync.append((tid, sheet_name, draw_size, status))
                         
                 except Exception as e:
