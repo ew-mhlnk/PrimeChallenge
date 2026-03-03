@@ -65,9 +65,7 @@ export default function DailyLeaderboardPage() {
     const { impact } = useHapticFeedback();
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    
-    // ФИЛЬТР: 'ALL' (Общий) или 'IW' (Индиан Уэллс)
-    const [filter, setFilter] = useState<'ALL' | 'IW'>('IW'); // Ставим IW по умолчанию для актуальности
+    const [filter, setFilter] = useState<'ALL' | 'IW'>('IW'); 
 
     useEffect(() => {
         if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
@@ -75,12 +73,9 @@ export default function DailyLeaderboardPage() {
         }
     }, []);
 
-    // Формируем URL в зависимости от фильтра
-    // Для фильтра "Indian Wells" мы передаем строку "Wells" или "Indian", 
-    // чтобы найти все матчи (ATP Indian Wells, WTA Indian Wells и т.д.)
     const apiUrl = filter === 'ALL' 
         ? '/api/daily/leaderboard' 
-        : '/api/daily/leaderboard?tournament_filter=Indian%20Wells'; // Можно заменить на "Wells" если названия разные
+        : '/api/daily/leaderboard?tournament_filter=Wells';
 
     const { data: leaderboardData, isLoading } = useSWR<DailyLeaderboardEntry[]>(
         apiUrl, 
@@ -99,12 +94,12 @@ export default function DailyLeaderboardPage() {
     const top2 = fullList.find(u => u.rank === 2);
     const top3 = fullList.find(u => u.rank === 3);
 
+    // Показываем подиум всегда, если есть данные (даже если очки 0, но это вряд ли в дейли)
     const showPodium = !searchQuery && fullList.length > 0;
 
     return (
         <div className="min-h-screen bg-[#141414] text-white pb-32">
             
-            {/* HEADER */}
             <header className="sticky top-0 z-30 bg-[#141414]/95 backdrop-blur-md pt-6 pb-2 px-6 border-b border-white/5">
                 <div className="relative flex items-center justify-center min-h-[40px] mb-3">
                     <button 
@@ -121,7 +116,6 @@ export default function DailyLeaderboardPage() {
                     </div>
                 </div>
 
-                {/* TABS (Переключатель) */}
                 <div className="flex bg-[#1C1C1E] p-1 rounded-[14px] border border-white/5 mb-3">
                      <button
                         onClick={() => { impact('light'); setFilter('IW'); }}
@@ -145,7 +139,6 @@ export default function DailyLeaderboardPage() {
                     </button>
                 </div>
 
-                {/* SEARCH BAR */}
                 <div className="relative mb-2">
                     <div className="absolute left-3 top-1/2 -translate-y-1/2">
                         <SearchIcon />
@@ -165,7 +158,6 @@ export default function DailyLeaderboardPage() {
             ) : (
                 <main className="px-4 mt-4 animate-fade-in">
                     
-                    {/* PODIUM */}
                     {showPodium && (
                         <div className="relative w-full h-[260px] mt-2 mb-2">
                             <div className="absolute bottom-0 left-0 right-0 h-[140px] z-10 flex justify-center items-end">
@@ -179,7 +171,6 @@ export default function DailyLeaderboardPage() {
                         </div>
                     )}
 
-                    {/* MY RANK */}
                     {currentUserEntry && !searchQuery && (
                         <div className="sticky top-[180px] z-40 pb-2 bg-[#141414]">
                             <div className="leaderboard-card h-[54px] w-full flex items-center justify-between px-4 relative overflow-hidden shadow-lg border border-[#00B2FF]/30 rounded-[16px] bg-[#1C1C1E]">
@@ -197,7 +188,6 @@ export default function DailyLeaderboardPage() {
                         </div>
                     )}
 
-                    {/* LIST */}
                     <div className="flex flex-col gap-2 relative z-10">
                         {filteredList.length === 0 ? (
                             <div className="text-center text-[#5F6067] py-10">Никого не найдено</div>
