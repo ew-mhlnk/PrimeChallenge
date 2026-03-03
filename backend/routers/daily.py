@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from datetime import datetime, date, timedelta
-import pytz
+import time
 
 from database.db import get_db
 from database import models
@@ -11,6 +11,10 @@ from utils.auth import get_current_user
 from pydantic import BaseModel
 
 router = APIRouter() 
+
+# --- КЭШ ---
+_leaderboard_cache: Tuple[float, List[dict]] = (0, [])
+CACHE_TTL = 60 
 
 # --- Pydantic Schemas ---
 class DailyPickRequest(BaseModel):
@@ -119,29 +123,83 @@ def make_daily_pick(
     db.commit()
     return {"status": "ok", "message": "Pick saved"}
 
+# === ОБНОВЛЕННЫЙ ЛИДЕРБОРД С ФИЛЬТРОМ ===
 @router.get("/leaderboard", response_model=List[DailyLeaderboardEntry])
-def get_daily_leaderboard(db: Session = Depends(get_db)):
-    # УБРАЛИ LIMIT(100)
-    results = db.query(models.DailyLeaderboard).join(models.User)\
-        .order_by(desc(models.DailyLeaderboard.total_points), desc(models.DailyLeaderboard.correct_picks))\
-        .all()
+def get_daily_leaderboard(
+    tournament_filter: Optional[str] = Query(None), # Новый параметр
+    db: Session = Depends(get_db)
+):
+    global _leaderboard_cache
     
-    leaderboard = []
-    current_rank = 1
+    # 1. Если фильтра НЕТ -> отдаем Общий (с кэшем)
+    if not tournament_filter:
+        current_time = time.time()
+        cache_time, cache_data = _leaderboard_cache
+        if cache_data and (current_time - cache_time < CACHE_TTL):
+            return cache_data
 
-    for idx, entry in enumerate(results):
-        # Плотное ранжирование
-        if idx > 0:
-            prev = results[idx-1]
-            if entry.total_points != prev.total_points or entry.correct_picks != prev.correct_picks:
-                current_rank += 1
+        # Берем из готовой таблицы total stats
+        results = db.query(models.DailyLeaderboard).join(models.User)\
+            .order_by(desc(models.DailyLeaderboard.total_points), desc(models.DailyLeaderboard.correct_picks))\
+            .all()
+            
+        leaderboard = []
+        current_rank = 1
+        for idx, entry in enumerate(results):
+            if idx > 0:
+                prev = results[idx-1]
+                if entry.total_points != prev.total_points:
+                    current_rank += 1
+            
+            name = entry.user.username if entry.user.username else f"{entry.user.first_name} {entry.user.last_name or ''}".strip()
+            leaderboard.append({
+                "rank": current_rank,
+                "user_id": entry.user_id,
+                "username": name,
+                "total_points": entry.total_points,
+                "correct_picks": entry.correct_picks
+            })
+        
+        _leaderboard_cache = (current_time, leaderboard)
+        return leaderboard
 
-        name = entry.user.username if entry.user.username else f"{entry.user.first_name} {entry.user.last_name or ''}".strip()
-        leaderboard.append({
-            "rank": current_rank,
-            "user_id": entry.user_id,
-            "username": name,
-            "total_points": entry.total_points,
-            "correct_picks": entry.correct_picks
-        })
-    return leaderboard
+    # 2. Если фильтр ЕСТЬ -> Считаем на лету по таблице DailyMatches + Picks
+    else:
+        # Ищем совпадение по названию турнира (без учета регистра)
+        search_term = f"%{tournament_filter}%"
+        
+        # Считаем сумму очков только по нужным матчам
+        query = db.query(
+            models.DailyPick.user_id,
+            models.User.username,
+            models.User.first_name,
+            models.User.last_name,
+            func.sum(models.DailyPick.points).label("points"),
+            func.count(models.DailyPick.id).label("correct_picks") # тут считаем именно кол-во правильных (где points=1)
+        ).join(models.DailyMatch, models.DailyPick.match_id == models.DailyMatch.id)\
+         .join(models.User, models.DailyPick.user_id == models.User.user_id)\
+         .filter(models.DailyMatch.tournament.ilike(search_term))\
+         .filter(models.DailyPick.is_correct == True)\
+         .group_by(models.DailyPick.user_id, models.User.user_id)\
+         .order_by(desc("points"))
+         
+        results = query.all()
+        
+        filtered_leaderboard = []
+        current_rank = 1
+        for idx, row in enumerate(results):
+            if idx > 0:
+                prev = results[idx-1]
+                if row.points != prev.points:
+                    current_rank += 1
+            
+            name = row.username if row.username else f"{row.first_name} {row.last_name or ''}".strip()
+            filtered_leaderboard.append({
+                "rank": current_rank,
+                "user_id": row.user_id,
+                "username": name,
+                "total_points": row.points,
+                "correct_picks": row.correct_picks
+            })
+            
+        return filtered_leaderboard
