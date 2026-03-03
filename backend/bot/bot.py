@@ -23,7 +23,7 @@ load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "360269274"))
-MINI_APP_URL = "https://tennischallenge.online" # Обновил на новый домен
+MINI_APP_URL = "https://prime-challenge.vercel.app" # Обновил на новый домен
 TIMEZONE = pytz.timezone('Europe/Moscow')
 
 logging.basicConfig(level=logging.INFO)
