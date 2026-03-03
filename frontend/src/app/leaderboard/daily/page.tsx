@@ -65,6 +65,9 @@ export default function DailyLeaderboardPage() {
     const { impact } = useHapticFeedback();
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    
+    // ФИЛЬТР: 'ALL' (Общий) или 'IW' (Индиан Уэллс)
+    const [filter, setFilter] = useState<'ALL' | 'IW'>('IW'); // Ставим IW по умолчанию для актуальности
 
     useEffect(() => {
         if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
@@ -72,8 +75,15 @@ export default function DailyLeaderboardPage() {
         }
     }, []);
 
+    // Формируем URL в зависимости от фильтра
+    // Для фильтра "Indian Wells" мы передаем строку "Wells" или "Indian", 
+    // чтобы найти все матчи (ATP Indian Wells, WTA Indian Wells и т.д.)
+    const apiUrl = filter === 'ALL' 
+        ? '/api/daily/leaderboard' 
+        : '/api/daily/leaderboard?tournament_filter=Indian%20Wells'; // Можно заменить на "Wells" если названия разные
+
     const { data: leaderboardData, isLoading } = useSWR<DailyLeaderboardEntry[]>(
-        '/api/daily/leaderboard', 
+        apiUrl, 
         fetcher,
         { revalidateOnFocus: false, dedupingInterval: 60000, keepPreviousData: true }
     );
@@ -81,12 +91,10 @@ export default function DailyLeaderboardPage() {
     const fullList = leaderboardData || [];
     const currentUserEntry = fullList.find(u => u.user_id === currentUserId);
 
-    // ФИЛЬТРАЦИЯ ПОИСКОМ
     const filteredList = fullList.filter(u => 
         u.username.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // Для подиума берем всегда ТОП-3 из полного списка, а не отфильтрованного
     const top1 = fullList.find(u => u.rank === 1);
     const top2 = fullList.find(u => u.rank === 2);
     const top3 = fullList.find(u => u.rank === 3);
@@ -105,7 +113,36 @@ export default function DailyLeaderboardPage() {
                     >
                         <BackIcon />
                     </button>
-                    <h1 className="text-[20px] font-bold text-white tracking-tight leading-none">Дейли Рейтинг</h1>
+                    <div className="flex flex-col items-center">
+                        <h1 className="text-[20px] font-bold text-white tracking-tight leading-none">Дейли Рейтинг</h1>
+                        <span className="text-[10px] text-[#00B2FF] font-medium mt-0.5 tracking-wide uppercase">
+                            {filter === 'ALL' ? 'Общий зачет' : 'Indian Wells'}
+                        </span>
+                    </div>
+                </div>
+
+                {/* TABS (Переключатель) */}
+                <div className="flex bg-[#1C1C1E] p-1 rounded-[14px] border border-white/5 mb-3">
+                     <button
+                        onClick={() => { impact('light'); setFilter('IW'); }}
+                        className={`flex-1 py-2 text-[12px] font-bold rounded-[10px] transition-all ${
+                            filter === 'IW' 
+                            ? 'bg-[#2C2C2E] text-white shadow-md' 
+                            : 'text-[#8E8E93] hover:text-white'
+                        }`}
+                    >
+                        INDIAN WELLS
+                    </button>
+                    <button
+                        onClick={() => { impact('light'); setFilter('ALL'); }}
+                        className={`flex-1 py-2 text-[12px] font-bold rounded-[10px] transition-all ${
+                            filter === 'ALL' 
+                            ? 'bg-[#2C2C2E] text-white shadow-md' 
+                            : 'text-[#8E8E93] hover:text-white'
+                        }`}
+                    >
+                        ВЕСЬ СЕЗОН
+                    </button>
                 </div>
 
                 {/* SEARCH BAR */}
@@ -128,7 +165,7 @@ export default function DailyLeaderboardPage() {
             ) : (
                 <main className="px-4 mt-4 animate-fade-in">
                     
-                    {/* PODIUM (Скрываем при поиске) */}
+                    {/* PODIUM */}
                     {showPodium && (
                         <div className="relative w-full h-[260px] mt-2 mb-2">
                             <div className="absolute bottom-0 left-0 right-0 h-[140px] z-10 flex justify-center items-end">
@@ -142,9 +179,9 @@ export default function DailyLeaderboardPage() {
                         </div>
                     )}
 
-                    {/* MY RANK (Показываем всегда, если нет поиска) */}
+                    {/* MY RANK */}
                     {currentUserEntry && !searchQuery && (
-                        <div className="sticky top-[130px] z-40 pb-2 bg-[#141414]">
+                        <div className="sticky top-[180px] z-40 pb-2 bg-[#141414]">
                             <div className="leaderboard-card h-[54px] w-full flex items-center justify-between px-4 relative overflow-hidden shadow-lg border border-[#00B2FF]/30 rounded-[16px] bg-[#1C1C1E]">
                                 <div className="absolute inset-0 bg-[#00B2FF]/5 pointer-events-none" />
                                 <div className="flex items-center gap-3 relative z-10">
