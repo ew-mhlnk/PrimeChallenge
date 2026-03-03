@@ -6,7 +6,7 @@ import pytz
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -23,7 +23,7 @@ load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "360269274"))
-MINI_APP_URL = "https://prime-challenge.vercel.app" # Обновил на новый домен
+MINI_APP_URL = "https://prime-challenge.vercel.app"
 TIMEZONE = pytz.timezone('Europe/Moscow')
 
 logging.basicConfig(level=logging.INFO)
@@ -52,7 +52,7 @@ class BroadcastState(StatesGroup):
     waiting_for_confirm = State()
     waiting_for_time = State()
 
-# 2. Для Редактирования Прогноза (НОВОЕ)
+# 2. Для Редактирования ОДНОГО Прогноза
 class EditPickState(StatesGroup):
     waiting_for_tour_id = State()
     waiting_for_user_id = State()
@@ -60,6 +60,13 @@ class EditPickState(StatesGroup):
     waiting_for_old_name = State()
     waiting_for_new_name = State()
     waiting_for_final_confirm = State()
+
+# 3. Для МАССОВОЙ Замены Игрока (НОВОЕ)
+class ReplacePlayerState(StatesGroup):
+    waiting_for_tour_id = State()
+    waiting_for_old_name = State()
+    waiting_for_new_name = State()
+    waiting_for_confirm = State()
 
 # --- ХЕЛПЕРЫ ---
 def get_all_user_ids():
@@ -72,7 +79,6 @@ def get_all_user_ids():
         logger.error(f"DB Error: {e}")
         return []
 
-# ОБНОВЛЕННАЯ ФУНКЦИЯ run_broadcast
 async def run_broadcast(chat_id: int, message_id: int):
     users = get_all_user_ids()
     await bot.send_message(ADMIN_ID, f"🚀 Рассылка началась ({len(users)} чел.)...")
@@ -80,18 +86,15 @@ async def run_broadcast(chat_id: int, message_id: int):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👉 Войти в игру", web_app=WebAppInfo(url=MINI_APP_URL))]
     ])
-    
     for uid in users:
         try:
-            # copy_message умеет копировать фото, видео и текст!
             await bot.copy_message(chat_id=uid, from_chat_id=chat_id, message_id=message_id, reply_markup=kb)
             count_ok += 1
-            await asyncio.sleep(0.05) 
+            await asyncio.sleep(0.05)
         except Exception as e:
-            # ТЕПЕРЬ МЫ БУДЕМ ВИДЕТЬ ОШИБКУ В ЛОГАХ
+            # Логируем ошибки (чтобы видеть, почему не дошло)
             logger.error(f"❌ Failed to send to {uid}: {e}")
             pass
-            
     await bot.send_message(ADMIN_ID, f"✅ Рассылка завершена. Дошло: {count_ok}")
 
 # --- ХАНДЛЕРЫ ---
@@ -108,49 +111,131 @@ async def cmd_start(message: types.Message):
         reply_markup=kb
     )
 
-# --- АДМИНКА ---
+# --- ГЛАВНОЕ МЕНЮ АДМИНА ---
 
 @dp.message(Command("admin"))
 async def cmd_admin(message: types.Message):
     if message.from_user.id != ADMIN_ID: return
     
     kb = ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="📢 Новая рассылка"), KeyboardButton(text="✏️ Изменить прогноз")],
+        [KeyboardButton(text="📢 Новая рассылка")],
+        [KeyboardButton(text="✏️ Изменить прогноз"), KeyboardButton(text="🔁 Замена игрока")],
         [KeyboardButton(text="❌ Отмена")]
     ], resize_keyboard=True)
     
     await message.answer("Админ-панель открыта.", reply_markup=kb)
 
 # ==========================================
-# ЛОГИКА ИЗМЕНЕНИЯ ПРОГНОЗА (ПОСТРОЧНО)
+# 1. МАССОВАЯ ЗАМЕНА ИГРОКА (НОВОЕ)
 # ==========================================
 
-# 1. Старт
+@dp.message(F.text == "🔁 Замена игрока")
+async def start_replace_player(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID: return
+    await message.answer("Введите **ID Турнира** (например: 11):", reply_markup=ReplyKeyboardRemove())
+    await state.set_state(ReplacePlayerState.waiting_for_tour_id)
+
+@dp.message(ReplacePlayerState.waiting_for_tour_id)
+async def process_replace_tour_id(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("❌ Введите ID цифрами.")
+        return
+    await state.update_data(tour_id=int(message.text))
+    await message.answer("Введите **СТАРОЕ имя** (или часть имени).\n\nНапример, если написать `Казо`, бот найдет всех, у кого есть `Казо` в прогнозе.")
+    await state.set_state(ReplacePlayerState.waiting_for_old_name)
+
+@dp.message(ReplacePlayerState.waiting_for_old_name)
+async def process_replace_old_name(message: types.Message, state: FSMContext):
+    await state.update_data(old_name=message.text.strip())
+    await message.answer("Введите **НОВОЕ имя** (точное, как в Гугл Таблице):")
+    await state.set_state(ReplacePlayerState.waiting_for_new_name)
+
+@dp.message(ReplacePlayerState.waiting_for_new_name)
+async def process_replace_new_name(message: types.Message, state: FSMContext):
+    await state.update_data(new_name=message.text.strip())
+    data = await state.get_data()
+    
+    msg = (
+        "⚠️ **МАССОВАЯ ЗАМЕНА! ПРОВЕРЬ!**\n\n"
+        f"🏆 Турнир ID: `{data['tour_id']}`\n"
+        f"🔍 Ищем: `% {data['old_name']} %`\n"
+        f"✏️ Меняем на: `{data['new_name']}`\n\n"
+        "Это изменит прогнозы у **ВСЕХ** пользователей в этом турнире."
+    )
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 ВЫПОЛНИТЬ ЗАМЕНУ", callback_data="exec_replace")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_replace")]
+    ])
+    
+    await message.answer(msg, reply_markup=kb)
+    await state.set_state(ReplacePlayerState.waiting_for_confirm)
+
+@dp.callback_query(ReplacePlayerState.waiting_for_confirm)
+async def execute_replace(callback: types.CallbackQuery, state: FSMContext):
+    if callback.data == "cancel_replace":
+        await callback.message.edit_text("❌ Отменено.")
+        await state.clear()
+        return
+
+    data = await state.get_data()
+    
+    try:
+        with engine.connect() as conn:
+            # Используем ILIKE для нечувствительности к регистру и добавляем %
+            query = text("""
+                UPDATE user_picks
+                SET predicted_winner = :new_name
+                WHERE tournament_id = :tid
+                  AND predicted_winner ILIKE :old_pattern
+            """)
+            
+            # Добавляем проценты для поиска подстроки
+            old_pattern = f"%{data['old_name']}%"
+            
+            result = conn.execute(query, {
+                "new_name": data['new_name'],
+                "tid": data['tour_id'],
+                "old_pattern": old_pattern
+            })
+            conn.commit()
+            
+            await callback.message.edit_text(
+                f"✅ **Готово!**\n\n"
+                f"Обновлено записей: **{result.rowcount}**"
+            )
+    except Exception as e:
+        await callback.message.edit_text(f"❌ Ошибка БД: {e}")
+    
+    await state.clear()
+
+
+# ==========================================
+# ЛОГИКА ИЗМЕНЕНИЯ ОДНОГО ПРОГНОЗА (Была)
+# ==========================================
+
 @dp.message(F.text == "✏️ Изменить прогноз")
 async def start_edit_pick(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID: return
-    await message.answer("Введите **ID Турнира** (например: 16):", reply_markup=ReplyKeyboardRemove())
+    await message.answer("Введите **ID Турнира**:", reply_markup=ReplyKeyboardRemove())
     await state.set_state(EditPickState.waiting_for_tour_id)
 
-# 2. Получили ID Турнира -> Просим ID Юзера
 @dp.message(EditPickState.waiting_for_tour_id)
 async def process_tour_id(message: types.Message, state: FSMContext):
     if not message.text.isdigit():
-        await message.answer("❌ Это не число. Введите ID турнира цифрами.")
+        await message.answer("❌ Цифрами, пожалуйста.")
         return
     await state.update_data(tour_id=int(message.text))
-    await message.answer("Введите **ID Пользователя** (User ID):")
+    await message.answer("Введите **ID Пользователя**:")
     await state.set_state(EditPickState.waiting_for_user_id)
 
-# 3. Получили ID Юзера -> Просим Раунд (с кнопками)
 @dp.message(EditPickState.waiting_for_user_id)
 async def process_user_id(message: types.Message, state: FSMContext):
     if not message.text.isdigit():
-        await message.answer("❌ Это не число. Введите User ID цифрами.")
+        await message.answer("❌ Цифрами.")
         return
     await state.update_data(user_id=int(message.text))
     
-    # Кнопки для раундов
     kb = ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="R128"), KeyboardButton(text="R64"), KeyboardButton(text="R32")],
         [KeyboardButton(text="R16"), KeyboardButton(text="QF"), KeyboardButton(text="SF")],
@@ -161,7 +246,6 @@ async def process_user_id(message: types.Message, state: FSMContext):
     await message.answer("Выберите **Раунд**:", reply_markup=kb)
     await state.set_state(EditPickState.waiting_for_round)
 
-# 4. Получили Раунд -> Просим Старое имя
 @dp.message(EditPickState.waiting_for_round)
 async def process_round(message: types.Message, state: FSMContext):
     if message.text == "❌ Отмена":
@@ -170,77 +254,62 @@ async def process_round(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(round_name=message.text)
-    await message.answer("Введите **СТАРОЕ имя** (которое сейчас в базе, точь-в-точь):", reply_markup=ReplyKeyboardRemove())
+    await message.answer("Введите **СТАРОЕ имя** (точное):", reply_markup=ReplyKeyboardRemove())
     await state.set_state(EditPickState.waiting_for_old_name)
 
-# 5. Получили Старое имя -> Просим Новое имя
 @dp.message(EditPickState.waiting_for_old_name)
 async def process_old_name(message: types.Message, state: FSMContext):
     await state.update_data(old_name=message.text.strip())
-    await message.answer("Введите **НОВОЕ имя** (на которое меняем):")
+    await message.answer("Введите **НОВОЕ имя**:")
     await state.set_state(EditPickState.waiting_for_new_name)
 
-# 6. Получили Новое имя -> Подтверждение
 @dp.message(EditPickState.waiting_for_new_name)
 async def process_new_name(message: types.Message, state: FSMContext):
     await state.update_data(new_name=message.text.strip())
     data = await state.get_data()
     
     msg = (
-        "⚠️ **Проверь данные:**\n\n"
+        "⚠️ **ИЗМЕНЕНИЕ ОДНОГО ЮЗЕРА**\n"
         f"🏆 Турнир: `{data['tour_id']}`\n"
         f"👤 Юзер: `{data['user_id']}`\n"
         f"🎾 Раунд: `{data['round_name']}`\n"
         f"❌ Было: `{data['old_name']}`\n"
-        f"✅ Станет: `{data['new_name']}`\n"
+        f"✅ Станет: `{data['new_name']}`"
     )
     
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Подтвердить замену", callback_data="confirm_edit_pick")],
+        [InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_edit_pick")],
         [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_edit_pick")]
     ])
     
     await message.answer(msg, reply_markup=kb)
     await state.set_state(EditPickState.waiting_for_final_confirm)
 
-# 7. Финал -> Выполнение SQL
 @dp.callback_query(EditPickState.waiting_for_final_confirm)
 async def execute_edit_pick(callback: types.CallbackQuery, state: FSMContext):
     if callback.data == "cancel_edit_pick":
-        await callback.message.edit_text("❌ Замена отменена.")
+        await callback.message.edit_text("❌ Отменено.")
         await state.clear()
         return
         
     data = await state.get_data()
-    
     try:
         with engine.connect() as conn:
             query = text("""
-                UPDATE user_picks 
-                SET predicted_winner = :new_name 
-                WHERE tournament_id = :tid 
-                  AND user_id = :uid
-                  AND round = :rnd
-                  AND predicted_winner = :old_name
+                UPDATE user_picks SET predicted_winner = :new_name 
+                WHERE tournament_id = :tid AND user_id = :uid
+                  AND round = :rnd AND predicted_winner = :old_name
             """)
-            
             result = conn.execute(query, {
-                "new_name": data['new_name'], 
-                "tid": data['tour_id'], 
-                "uid": data['user_id'],
-                "rnd": data['round_name'],
-                "old_name": data['old_name']
+                "new_name": data['new_name'], "tid": data['tour_id'], 
+                "uid": data['user_id'], "rnd": data['round_name'], "old_name": data['old_name']
             })
             conn.commit()
             
             if result.rowcount > 0:
-                await callback.message.edit_text("✅ **Успешно!** Данные обновлены.")
+                await callback.message.edit_text("✅ Данные обновлены.")
             else:
-                await callback.message.edit_text(
-                    "❌ **Не найдено.**\n"
-                    "База данных не нашла запись с такими параметрами.\n"
-                    "Проверь ID, раунд или старое имя."
-                )
+                await callback.message.edit_text("❌ Запись не найдена. Проверь старое имя.")
     except Exception as e:
         await callback.message.edit_text(f"❌ Ошибка БД: {e}")
     
@@ -248,7 +317,7 @@ async def execute_edit_pick(callback: types.CallbackQuery, state: FSMContext):
 
 
 # ==========================================
-# ЛОГИКА РАССЫЛКИ
+# ЛОГИКА РАССЫЛКИ (С ЛОГАМИ)
 # ==========================================
 
 @dp.message(F.text == "📢 Новая рассылка")
