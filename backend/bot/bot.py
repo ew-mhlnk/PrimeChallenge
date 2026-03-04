@@ -22,7 +22,7 @@ load_dotenv()
 # --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "360269274"))
+ADMIN_ID = int(os.getenv("ADMIN_ID", "360269274", "5159283334"))
 MINI_APP_URL = "https://prime-challenge.vercel.app"
 TIMEZONE = pytz.timezone('Europe/Moscow')
 
