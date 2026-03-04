@@ -22,9 +22,19 @@ load_dotenv()
 # --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "360269274", "5159283334"))
 MINI_APP_URL = "https://prime-challenge.vercel.app"
 TIMEZONE = pytz.timezone('Europe/Moscow')
+
+# === ИСПРАВЛЕНИЕ: Список Админов ===
+# Получаем строку из переменной окружения (например "123,456")
+# Если переменной нет, используем дефолтные ID
+admin_env = os.getenv("ADMIN_ID", "360269274,5159283334")
+try:
+    # Превращаем строку "123, 456" в список чисел [123, 456]
+    ADMIN_IDS = [int(x.strip()) for x in admin_env.split(",")]
+except ValueError:
+    print("❌ Ошибка в ADMIN_ID! Проверь переменную окружения (должны быть числа через запятую).")
+    ADMIN_IDS = [360269274] # Fallback на твой ID
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,14 +55,11 @@ dp = Dispatcher(storage=storage)
 scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 
 # --- СОСТОЯНИЯ ---
-
-# 1. Для Рассылки
 class BroadcastState(StatesGroup):
     waiting_for_content = State()
     waiting_for_confirm = State()
     waiting_for_time = State()
 
-# 2. Для Редактирования ОДНОГО Прогноза
 class EditPickState(StatesGroup):
     waiting_for_tour_id = State()
     waiting_for_user_id = State()
@@ -61,7 +68,6 @@ class EditPickState(StatesGroup):
     waiting_for_new_name = State()
     waiting_for_final_confirm = State()
 
-# 3. Для МАССОВОЙ Замены Игрока (НОВОЕ)
 class ReplacePlayerState(StatesGroup):
     waiting_for_tour_id = State()
     waiting_for_old_name = State()
@@ -81,7 +87,12 @@ def get_all_user_ids():
 
 async def run_broadcast(chat_id: int, message_id: int):
     users = get_all_user_ids()
-    await bot.send_message(ADMIN_ID, f"🚀 Рассылка началась ({len(users)} чел.)...")
+    # Отправляем отчет ВСЕМ админам
+    for admin in ADMIN_IDS:
+        try:
+            await bot.send_message(admin, f"🚀 Рассылка началась ({len(users)} чел.)...")
+        except: pass
+        
     count_ok = 0
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👉 Войти в игру", web_app=WebAppInfo(url=MINI_APP_URL))]
@@ -92,10 +103,13 @@ async def run_broadcast(chat_id: int, message_id: int):
             count_ok += 1
             await asyncio.sleep(0.05)
         except Exception as e:
-            # Логируем ошибки (чтобы видеть, почему не дошло)
             logger.error(f"❌ Failed to send to {uid}: {e}")
             pass
-    await bot.send_message(ADMIN_ID, f"✅ Рассылка завершена. Дошло: {count_ok}")
+            
+    for admin in ADMIN_IDS:
+        try:
+            await bot.send_message(admin, f"✅ Рассылка завершена. Дошло: {count_ok}")
+        except: pass
 
 # --- ХАНДЛЕРЫ ---
 
@@ -115,7 +129,8 @@ async def cmd_start(message: types.Message):
 
 @dp.message(Command("admin"))
 async def cmd_admin(message: types.Message):
-    if message.from_user.id != ADMIN_ID: return
+    # ПРОВЕРКА НА СПИСОК АДМИНОВ
+    if message.from_user.id not in ADMIN_IDS: return
     
     kb = ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="📢 Новая рассылка")],
@@ -123,15 +138,15 @@ async def cmd_admin(message: types.Message):
         [KeyboardButton(text="❌ Отмена")]
     ], resize_keyboard=True)
     
-    await message.answer("Админ-панель открыта.", reply_markup=kb)
+    await message.answer(f"Админ-панель открыта. (ID: {message.from_user.id})", reply_markup=kb)
 
 # ==========================================
-# 1. МАССОВАЯ ЗАМЕНА ИГРОКА (НОВОЕ)
+# 1. МАССОВАЯ ЗАМЕНА ИГРОКА
 # ==========================================
 
 @dp.message(F.text == "🔁 Замена игрока")
 async def start_replace_player(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id not in ADMIN_IDS: return
     await message.answer("Введите **ID Турнира** (например: 11):", reply_markup=ReplyKeyboardRemove())
     await state.set_state(ReplacePlayerState.waiting_for_tour_id)
 
@@ -182,17 +197,13 @@ async def execute_replace(callback: types.CallbackQuery, state: FSMContext):
     
     try:
         with engine.connect() as conn:
-            # Используем ILIKE для нечувствительности к регистру и добавляем %
             query = text("""
                 UPDATE user_picks
                 SET predicted_winner = :new_name
                 WHERE tournament_id = :tid
                   AND predicted_winner ILIKE :old_pattern
             """)
-            
-            # Добавляем проценты для поиска подстроки
             old_pattern = f"%{data['old_name']}%"
-            
             result = conn.execute(query, {
                 "new_name": data['new_name'],
                 "tid": data['tour_id'],
@@ -200,10 +211,7 @@ async def execute_replace(callback: types.CallbackQuery, state: FSMContext):
             })
             conn.commit()
             
-            await callback.message.edit_text(
-                f"✅ **Готово!**\n\n"
-                f"Обновлено записей: **{result.rowcount}**"
-            )
+            await callback.message.edit_text(f"✅ **Готово!**\n\nОбновлено записей: **{result.rowcount}**")
     except Exception as e:
         await callback.message.edit_text(f"❌ Ошибка БД: {e}")
     
@@ -211,12 +219,12 @@ async def execute_replace(callback: types.CallbackQuery, state: FSMContext):
 
 
 # ==========================================
-# ЛОГИКА ИЗМЕНЕНИЯ ОДНОГО ПРОГНОЗА (Была)
+# ЛОГИКА ИЗМЕНЕНИЯ ОДНОГО ПРОГНОЗА
 # ==========================================
 
 @dp.message(F.text == "✏️ Изменить прогноз")
 async def start_edit_pick(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id not in ADMIN_IDS: return
     await message.answer("Введите **ID Турнира**:", reply_markup=ReplyKeyboardRemove())
     await state.set_state(EditPickState.waiting_for_tour_id)
 
@@ -322,7 +330,7 @@ async def execute_edit_pick(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message(F.text == "📢 Новая рассылка")
 async def start_broadcast_flow(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id not in ADMIN_IDS: return
     await message.answer("Отправь сообщение для рассылки.", reply_markup=ReplyKeyboardRemove())
     await state.set_state(BroadcastState.waiting_for_content)
 
