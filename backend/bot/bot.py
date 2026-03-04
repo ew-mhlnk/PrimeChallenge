@@ -6,7 +6,7 @@ import pytz
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -22,19 +22,15 @@ load_dotenv()
 # --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
-MINI_APP_URL = "https://prime-challenge.vercel.app"
+MINI_APP_URL = "https://tennischallenge.online"
 TIMEZONE = pytz.timezone('Europe/Moscow')
 
-# === ИСПРАВЛЕНИЕ: Список Админов ===
-# Получаем строку из переменной окружения (например "123,456")
-# Если переменной нет, используем дефолтные ID
+# Список Админов
 admin_env = os.getenv("ADMIN_ID", "360269274,5159283334")
 try:
-    # Превращаем строку "123, 456" в список чисел [123, 456]
     ADMIN_IDS = [int(x.strip()) for x in admin_env.split(",")]
 except ValueError:
-    print("❌ Ошибка в ADMIN_ID! Проверь переменную окружения (должны быть числа через запятую).")
-    ADMIN_IDS = [360269274] # Fallback на твой ID
+    ADMIN_IDS = [360269274]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -55,11 +51,14 @@ dp = Dispatcher(storage=storage)
 scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 
 # --- СОСТОЯНИЯ ---
+
+# 1. Рассылка
 class BroadcastState(StatesGroup):
     waiting_for_content = State()
     waiting_for_confirm = State()
     waiting_for_time = State()
 
+# 2. Турнирный прогноз
 class EditPickState(StatesGroup):
     waiting_for_tour_id = State()
     waiting_for_user_id = State()
@@ -68,11 +67,18 @@ class EditPickState(StatesGroup):
     waiting_for_new_name = State()
     waiting_for_final_confirm = State()
 
+# 3. Замена игрока (массовая)
 class ReplacePlayerState(StatesGroup):
     waiting_for_tour_id = State()
     waiting_for_old_name = State()
     waiting_for_new_name = State()
     waiting_for_confirm = State()
+
+# 4. Daily Challenge (НОВОЕ)
+class EditDailyPickState(StatesGroup):
+    waiting_for_match_id = State()
+    waiting_for_user_id = State()
+    waiting_for_winner = State()
 
 # --- ХЕЛПЕРЫ ---
 def get_all_user_ids():
@@ -87,10 +93,8 @@ def get_all_user_ids():
 
 async def run_broadcast(chat_id: int, message_id: int):
     users = get_all_user_ids()
-    # Отправляем отчет ВСЕМ админам
     for admin in ADMIN_IDS:
-        try:
-            await bot.send_message(admin, f"🚀 Рассылка началась ({len(users)} чел.)...")
+        try: await bot.send_message(admin, f"🚀 Рассылка началась ({len(users)} чел.)...")
         except: pass
         
     count_ok = 0
@@ -107,8 +111,7 @@ async def run_broadcast(chat_id: int, message_id: int):
             pass
             
     for admin in ADMIN_IDS:
-        try:
-            await bot.send_message(admin, f"✅ Рассылка завершена. Дошло: {count_ok}")
+        try: await bot.send_message(admin, f"✅ Рассылка завершена. Дошло: {count_ok}")
         except: pass
 
 # --- ХАНДЛЕРЫ ---
@@ -129,19 +132,114 @@ async def cmd_start(message: types.Message):
 
 @dp.message(Command("admin"))
 async def cmd_admin(message: types.Message):
-    # ПРОВЕРКА НА СПИСОК АДМИНОВ
     if message.from_user.id not in ADMIN_IDS: return
     
     kb = ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="📢 Новая рассылка")],
         [KeyboardButton(text="✏️ Изменить прогноз"), KeyboardButton(text="🔁 Замена игрока")],
-        [KeyboardButton(text="❌ Отмена")]
+        [KeyboardButton(text="🎲 Daily: Изменить"), KeyboardButton(text="❌ Отмена")]
     ], resize_keyboard=True)
     
     await message.answer(f"Админ-панель открыта. (ID: {message.from_user.id})", reply_markup=kb)
 
+
 # ==========================================
-# 1. МАССОВАЯ ЗАМЕНА ИГРОКА
+# 4. DAILY CHALLENGE: ИЗМЕНЕНИЕ ПРОГНОЗА (НОВОЕ)
+# ==========================================
+
+@dp.message(F.text == "🎲 Daily: Изменить")
+async def start_edit_daily(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS: return
+    await message.answer(
+        "Введите **ID матча** (например: `12104107`).\n"
+        "Его можно взять из Гугл Таблицы (первая колонка).", 
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.set_state(EditDailyPickState.waiting_for_match_id)
+
+@dp.message(EditDailyPickState.waiting_for_match_id)
+async def process_daily_match_id(message: types.Message, state: FSMContext):
+    await state.update_data(match_id=message.text.strip())
+    await message.answer("Введите **ID Юзера** (User ID):")
+    await state.set_state(EditDailyPickState.waiting_for_user_id)
+
+@dp.message(EditDailyPickState.waiting_for_user_id)
+async def process_daily_user_id(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("❌ ID Юзера должен быть числом.")
+        return
+    await state.update_data(user_id=int(message.text))
+    
+    kb = ReplyKeyboardMarkup(keyboard=[
+        [KeyboardButton(text="1"), KeyboardButton(text="2")],
+        [KeyboardButton(text="❌ Отмена")]
+    ], resize_keyboard=True)
+    
+    await message.answer("Выберите победителя (**1** или **2**):", reply_markup=kb)
+    await state.set_state(EditDailyPickState.waiting_for_winner)
+
+@dp.message(EditDailyPickState.waiting_for_winner)
+async def execute_daily_change(message: types.Message, state: FSMContext):
+    if message.text == "❌ Отмена":
+        await message.answer("Отменено.", reply_markup=ReplyKeyboardRemove())
+        await state.clear()
+        return
+
+    if message.text not in ["1", "2"]:
+        await message.answer("❌ Выберите 1 или 2.")
+        return
+
+    new_pick = int(message.text)
+    data = await state.get_data()
+    
+    try:
+        with engine.connect() as conn:
+            # 1. Пытаемся обновить существующий
+            update_query = text("""
+                UPDATE daily_picks
+                SET predicted_winner = :pick
+                WHERE user_id = :uid AND match_id = :mid
+            """)
+            result = conn.execute(update_query, {
+                "pick": new_pick,
+                "uid": data['user_id'],
+                "mid": data['match_id']
+            })
+            
+            action = "Обновлено"
+            
+            # 2. Если обновлять нечего (0 строк) - создаем новый!
+            if result.rowcount == 0:
+                insert_query = text("""
+                    INSERT INTO daily_picks (user_id, match_id, predicted_winner, created_at)
+                    VALUES (:uid, :mid, :pick, NOW())
+                """)
+                conn.execute(insert_query, {
+                    "pick": new_pick,
+                    "uid": data['user_id'],
+                    "mid": data['match_id']
+                })
+                action = "🆕 Создано"
+            
+            conn.commit()
+            
+            await message.answer(
+                f"✅ **Успешно!**\n"
+                f"Действие: {action}\n"
+                f"Матч: `{data['match_id']}`\n"
+                f"Юзер: `{data['user_id']}`\n"
+                f"Выбор: **{new_pick}**",
+                reply_markup=ReplyKeyboardRemove()
+            )
+            
+    except Exception as e:
+        await message.answer(f"❌ Ошибка БД: {e}")
+    
+    await state.clear()
+
+
+# ==========================================
+# 1. МАССОВАЯ ЗАМЕНА ИГРОКА (BRACKET)
 # ==========================================
 
 @dp.message(F.text == "🔁 Замена игрока")
@@ -219,7 +317,7 @@ async def execute_replace(callback: types.CallbackQuery, state: FSMContext):
 
 
 # ==========================================
-# ЛОГИКА ИЗМЕНЕНИЯ ОДНОГО ПРОГНОЗА
+# 2. ЛОГИКА ИЗМЕНЕНИЯ ОДНОГО ПРОГНОЗА (BRACKET)
 # ==========================================
 
 @dp.message(F.text == "✏️ Изменить прогноз")
