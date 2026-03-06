@@ -21,9 +21,19 @@ def save_picks_bulk_transaction(picks_data: list, db: Session, user_id: int):
         raise HTTPException(status_code=404, detail="Tournament not found")
         
     status_str = str(tournament.status.value if hasattr(tournament.status, 'value') else tournament.status)
-    if status_str != "ACTIVE":
+    
+    # === GOD MODE: ТЕСТЕРЫ ===
+    TESTERS = [1783228089, 1009165444, 360269274]
+    TEST_TOURNAMENTS = [116, 29]
+    
+    # Если это тестер в нужном турнире - разрешаем (пропускаем проверку)
+    is_tester = (user_id in TESTERS and t_id in TEST_TOURNAMENTS)
+    
+    # Проверка статуса (только если НЕ тестер)
+    if status_str != "ACTIVE" and not is_tester:
         logger.warning(f"User {user_id} tried to save to closed tournament {t_id}")
         raise HTTPException(status_code=403, detail="Tournament is closed")
+    # ==========================
 
     try:
         # 2. Получаем ВСЕ существующие пики юзера для этого турнира

@@ -53,9 +53,21 @@ def get_tournament_by_id(
     
     user_id = user["id"]
     
+    # === GOD MODE: ТЕСТЕРЫ ===
+    # Список ID юзеров-тестеров
+    TESTERS = [1783228089, 1009165444, 360269274]
+    # Список ID турниров для тестов
+    TEST_TOURNAMENTS = [116, 29]
+
+    # Изначальный статус из базы
     status_val = tournament.status
     status_str = status_val.value if hasattr(status_val, 'value') else str(status_val)
     status_str = status_str.upper()
+
+    # ЕСЛИ это тестер и нужный турнир -> ПРИНУДИТЕЛЬНО ставим ACTIVE
+    if user_id in TESTERS and id in TEST_TOURNAMENTS:
+        status_str = "ACTIVE"
+    # ==========================
     
     true_draws = db.query(models.TrueDraw).filter(models.TrueDraw.tournament_id == id).all()
     user_picks = db.query(models.UserPick).filter(
@@ -73,6 +85,7 @@ def get_tournament_by_id(
     
     bracket = generate_bracket(tournament, true_draws, user_picks, rounds)
     
+    # Используем status_str (возможно, подмененный) для логики закрытия
     if status_str in ["CLOSED", "COMPLETED"]:
         try:
             bracket = reconstruct_fantasy_bracket(bracket, user_picks)
@@ -96,7 +109,7 @@ def get_tournament_by_id(
         id=tournament.id,
         name=tournament.name,
         dates=tournament.dates,
-        status=tournament.status,
+        status=status_str, # <--- ВАЖНО: Передаем нашу переменную, а не tournament.status
         sheet_name=tournament.sheet_name,
         starting_round=tournament.starting_round,
         type=tournament.type,
