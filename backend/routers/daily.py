@@ -13,9 +13,11 @@ from pydantic import BaseModel
 router = APIRouter() 
 
 # --- КЭШ ---
-# Кэшируем отдельно для каждого фильтра: "ALL" -> data, "IW" -> data
 _leaderboard_cache: dict[str, Tuple[float, List[dict]]] = {}
 CACHE_TTL = 60 
+
+# --- ID "БОГА" ДЛЯ DAILY ---
+GOD_DAILY_USER = 1097762641
 
 # --- Pydantic Schemas ---
 class DailyPickRequest(BaseModel):
@@ -70,11 +72,19 @@ def get_daily_matches(
         if m.start_time:
             time_str = m.start_time.strftime("%H:%M")
 
+        # === GOD MODE (VISUAL) ===
+        # Для избранного юзера подменяем статус на PLANNED,
+        # чтобы кнопки на фронтенде были активны (не disabled)
+        final_status = m.status
+        if user_id == GOD_DAILY_USER:
+            final_status = "PLANNED"
+        # =========================
+
         result.append({
             "id": m.id,
             "tournament": m.tournament,
             "start_time": time_str, 
-            "status": m.status,
+            "status": final_status, 
             "player1": m.player1,
             "player2": m.player2,
             "score": m.score,
@@ -96,15 +106,19 @@ def make_daily_pick(
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
         
-    if match.status != "PLANNED":
-         raise HTTPException(status_code=400, detail="Match started")
+    # === GOD MODE (LOGIC) ===
+    # Если это НЕ бог, то проверяем правила
+    if user_id != GOD_DAILY_USER:
+        if match.status != "PLANNED":
+             raise HTTPException(status_code=400, detail="Match started")
 
-    if match.start_time:
-        is_midnight = (match.start_time.hour == 0 and match.start_time.minute == 0)
-        if not is_midnight:
-            now = datetime.now()
-            if now > (match.start_time + timedelta(minutes=5)):
-                 raise HTTPException(status_code=400, detail="Time expired")
+        if match.start_time:
+            is_midnight = (match.start_time.hour == 0 and match.start_time.minute == 0)
+            if not is_midnight:
+                now = datetime.now()
+                if now > (match.start_time + timedelta(minutes=5)):
+                     raise HTTPException(status_code=400, detail="Time expired")
+    # ========================
 
     existing_pick = db.query(models.DailyPick).filter(
         models.DailyPick.user_id == user_id,
@@ -113,12 +127,22 @@ def make_daily_pick(
     
     if existing_pick:
         existing_pick.predicted_winner = pick_data.winner
+        # Если матч завершен, сразу пересчитываем "правильность" для этого пика
+        # (чтобы админ сразу видел результат, если меняет задним числом)
+        if match.winner is not None:
+            existing_pick.is_correct = (pick_data.winner == match.winner)
+            existing_pick.points = 1 if existing_pick.is_correct else 0
     else:
         new_pick = models.DailyPick(
             user_id=user_id,
             match_id=pick_data.match_id,
             predicted_winner=pick_data.winner
         )
+        # То же самое для нового пика
+        if match.winner is not None:
+            new_pick.is_correct = (pick_data.winner == match.winner)
+            new_pick.points = 1 if new_pick.is_correct else 0
+            
         db.add(new_pick)
         
     db.commit()
@@ -132,39 +156,33 @@ def get_daily_leaderboard(
 ):
     global _leaderboard_cache
     
-    # Ключ кэша: либо "ALL", либо название турнира
     cache_key = tournament_filter if tournament_filter else "ALL"
     current_time = time.time()
     
-    # 1. Проверяем кэш
     if cache_key in _leaderboard_cache:
         timestamp, data = _leaderboard_cache[cache_key]
         if current_time - timestamp < CACHE_TTL:
             return data
 
-    # 2. Строим запрос (Считаем на лету)
     query = db.query(
         models.DailyPick.user_id,
         models.User.username,
         models.User.first_name,
         models.User.last_name,
         func.sum(models.DailyPick.points).label("points"),
-        func.count(models.DailyPick.id).label("correct_picks") # Для сортировки
+        func.count(models.DailyPick.id).label("correct_picks") 
     ).join(models.DailyMatch, models.DailyPick.match_id == models.DailyMatch.id)\
      .join(models.User, models.DailyPick.user_id == models.User.user_id)\
-     .filter(models.DailyPick.is_correct == True) # Только верные ответы
+     .filter(models.DailyPick.is_correct == True) 
     
-    # Если есть фильтр - добавляем условие
     if tournament_filter:
         search_term = f"%{tournament_filter}%"
         query = query.filter(models.DailyMatch.tournament.ilike(search_term))
     
-    # Группировка и сортировка
     results = query.group_by(models.DailyPick.user_id, models.User.user_id)\
                    .order_by(desc("points"))\
                    .all()
     
-    # 3. Формируем список с рангами
     leaderboard = []
     current_rank = 1
     
@@ -183,6 +201,5 @@ def get_daily_leaderboard(
             "correct_picks": row.correct_picks
         })
         
-    # 4. Сохраняем в кэш
     _leaderboard_cache[cache_key] = (current_time, leaderboard)
     return leaderboard
