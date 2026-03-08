@@ -38,14 +38,18 @@ export function useDailyChallenge() {
           const day = String(selectedDate.getDate()).padStart(2, '0');
           const dateStr = `${year}-${month}-${day}`;
 
-          const res = await fetch(`/api/daily/matches?target_date=${dateStr}`, {
+          // === АНТИ-КЭШ ХАК ===
+          // Добавляем timestamp, чтобы браузер не отдавал старую версию
+          const uniqueUrl = `/api/daily/matches?target_date=${dateStr}&_t=${Date.now()}`;
+
+          const res = await fetch(uniqueUrl, {
               headers: { Authorization: initData || '' },
-              cache: 'no-store'
+              cache: 'no-store', // Жесткий запрет кэша
+              next: { revalidate: 0 } // Для Next.js
           });
           
           if (!res.ok) {
               if (res.status === 401 || res.status === 403) {
-                  // Если токен протух при загрузке - можно перезагрузить
                   window.location.reload();
                   return;
               }
@@ -64,9 +68,6 @@ export function useDailyChallenge() {
 
       } catch (e) {
           console.error(e);
-          if (isFirstLoad.current) {
-              // toast.error('Ошибка загрузки матчей');
-          }
       } finally {
           setIsLoading(false);
           isFirstLoad.current = false;
@@ -76,16 +77,19 @@ export function useDailyChallenge() {
   useEffect(() => {
       isFirstLoad.current = true;
       fetchMatches();
+      
+      // Обновляем данные каждые 30 секунд, чтобы ловить LIVE статусы
       const intervalId = setInterval(() => {
           fetchMatches();
       }, 30000);
+      
       return () => clearInterval(intervalId);
   }, [fetchMatches]);
 
   const makePick = useCallback(async (matchId: string, winner: 1 | 2) => {
       impact('medium');
       
-      // Оптимистичное обновление
+      // 1. Оптимистичное обновление (Сразу красим кнопку)
       setMatches(prev => prev.map(m => 
           m.id === matchId ? { ...m, my_pick: winner } : m
       ));
@@ -113,21 +117,25 @@ export function useDailyChallenge() {
                   if (res.status === 401 || res.status === 403) {
                       throw new Error('AUTH_EXPIRED');
                   }
+                  // Если матч начался или другая ошибка
                   throw new Error(err.detail || 'Save failed');
               }
           } catch (e: any) {
               console.error(e);
               notification('error');
               
+              // === ОТКАТ ИНТЕРФЕЙСА ===
+              // Если ошибка, мы должны показать юзеру, что НЕ СОХРАНИЛОСЬ
               if (e.message === 'AUTH_EXPIRED') {
-                  toast.error('Сессия истекла. Обновляю...');
+                  toast.error('Сессия истекла. Обновите страницу!');
                   setTimeout(() => window.location.reload(), 1500);
               } else if (e.message === 'Match started' || e.message === 'Time expired') {
-                  toast.error('Матч уже начался!');
+                  toast.error('Матч уже начался! Ставки закрыты.');
               } else {
-                  toast.error('Ошибка сохранения');
+                  toast.error('Ошибка сети. Прогноз не сохранен.');
               }
               
+              // Срочно перезагружаем реальные данные с сервера, чтобы убрать "фейковое" выделение
               fetchMatches(); 
           } finally {
               delete debounceRefs.current[matchId];
