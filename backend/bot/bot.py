@@ -22,7 +22,7 @@ load_dotenv()
 # --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
-MINI_APP_URL = "https://tennischallenge.online"
+MINI_APP_URL = "https://prime-challenge.vercel.app"
 TIMEZONE = pytz.timezone('Europe/Moscow')
 
 # Список Админов
