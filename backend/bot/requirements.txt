@@ -4,3 +4,5 @@ psycopg2-binary>=2.9.10
 python-dotenv>=1.0.1
 pytz
 apscheduler
+gspread==6.1.0
+oauth2client==4.1.3
