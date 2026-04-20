@@ -66,8 +66,8 @@ export default function DailyLeaderboardPage() {
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     
-    // === ИЗМЕНЕНИЕ 1: Фильтр по умолчанию на MONTE_CARLO ===
-    const[filter, setFilter] = useState<'ALL' | 'MONTE_CARLO'>('MONTE_CARLO'); 
+    // === ИЗМЕНЕНИЕ 1: Фильтр по умолчанию на MADRID ===
+    const [filter, setFilter] = useState<'ALL' | 'MADRID'>('MADRID'); 
 
     useEffect(() => {
         if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
@@ -75,10 +75,10 @@ export default function DailyLeaderboardPage() {
         }
     },[]);
 
-    // === ИЗМЕНЕНИЕ 2: Ищем слово Monte в названии турнира ===
+    // === ИЗМЕНЕНИЕ 2: Ищем слово Madrid в названии турнира ===
     const apiUrl = filter === 'ALL' 
         ? '/api/daily/leaderboard' 
-        : '/api/daily/leaderboard?tournament_filter=Monte'; 
+        : '/api/daily/leaderboard?tournament_filter=Madrid'; 
 
     const { data: leaderboardData, isLoading } = useSWR<DailyLeaderboardEntry[]>(
         apiUrl, 
@@ -115,7 +115,7 @@ export default function DailyLeaderboardPage() {
                         <h1 className="text-[20px] font-bold text-white tracking-tight leading-none">Дейли Рейтинг</h1>
                         <span className="text-[10px] text-[#00B2FF] font-medium mt-0.5 tracking-wide uppercase">
                             {/* === ИЗМЕНЕНИЕ 3: Текст под заголовком === */}
-                            {filter === 'ALL' ? 'Общий зачет' : 'Monte Carlo'}
+                            {filter === 'ALL' ? 'Общий зачет' : 'Madrid Open'}
                         </span>
                     </div>
                 </div>
@@ -123,15 +123,15 @@ export default function DailyLeaderboardPage() {
                 {/* TABS (Переключатель) */}
                 <div className="flex bg-[#1C1C1E] p-1 rounded-[14px] border border-white/5 mb-3">
                      <button
-                        onClick={() => { impact('light'); setFilter('MONTE_CARLO'); }}
+                        onClick={() => { impact('light'); setFilter('MADRID'); }}
                         className={`flex-1 py-2 text-[12px] font-bold rounded-[10px] transition-all ${
-                            filter === 'MONTE_CARLO' 
+                            filter === 'MADRID' 
                             ? 'bg-[#2C2C2E] text-white shadow-md' 
                             : 'text-[#8E8E93] hover:text-white'
                         }`}
                     >
                         {/* === ИЗМЕНЕНИЕ 4: Название кнопки === */}
-                        MONTE CARLO
+                        MADRID OPEN
                     </button>
                     <button
                         onClick={() => { impact('light'); setFilter('ALL'); }}
