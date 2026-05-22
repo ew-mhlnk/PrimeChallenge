@@ -87,3 +87,46 @@ body {
   border: 1px solid transparent;
   border-radius: 16px; /* или 12px, как вам нравится */
 }
+
+/* --- ОПТИМИЗИРОВАННАЯ ГРУНТОВАЯ ОБВОДКА ДЛЯ ТБШ --- */
+.rg-border-gradient {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Создаем вращающийся градиент подложкой */
+.rg-border-gradient::before {
+  content: '';
+  position: absolute;
+  width: 180%;
+  height: 180%;
+  top: -40%;
+  left: -40%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 35%,
+    #FF7A45 65%,   /* Светлая терракота */
+    #E06528 85%,   /* Классический грунтовый оранжевый */
+    #A83A14 95%,   /* Глубокий кирпично-красный */
+    transparent 100%
+  );
+  animation: rg-spin 4s linear infinite;
+  z-index: 1;
+  will-change: transform; /* Подсказка браузеру вынести анимацию на GPU */
+}
+
+/* Внутренняя плашка перекрывает центр вращения, оставляя видимым только 1.5px край */
+.rg-border-gradient-inner {
+  position: relative;
+  background: #1C1C1E;
+  z-index: 2;
+}
+
+@keyframes rg-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

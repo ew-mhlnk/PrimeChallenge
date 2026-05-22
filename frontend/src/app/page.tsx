@@ -75,6 +75,15 @@ export default function Home() {
     return tournament.tag === selectedTag;
   }) : [];
 
+  // ВСЕГДА закрепляем ТБШ (Grand Slam) сверху списка
+  const sortedActiveTournaments = [...activeTournaments].sort((a, b) => {
+    const isASlam = a.tag === 'ТБШ' || (a.tag && (a.tag.includes('ТБШ') || a.tag.toUpperCase().includes('SLAM')));
+    const isBSlam = b.tag === 'ТБШ' || (b.tag && (b.tag.includes('ТБШ') || b.tag.toUpperCase().includes('SLAM')));
+    if (isASlam && !isBSlam) return -1;
+    if (!isASlam && isBSlam) return 1;
+    return 0;
+  });
+
   const userName = user?.firstName || 'Друг';
 
   return (
@@ -120,13 +129,13 @@ export default function Home() {
                [1,2].map(i => (
                  <div key={i} className="h-[120px] w-full bg-[#1C1C1E] rounded-[24px] animate-pulse border border-white/5" />
                ))
-            ) : activeTournaments.length === 0 ? (
+            ) : sortedActiveTournaments.length === 0 ? (
                 <div className="text-center py-10">
                     <p className="text-[#8E8E93] text-sm">Нет активных турниров</p>
                     <Link href="/archive" className="text-[#007AFF] text-sm mt-2 block">Посмотреть календарь</Link>
                 </div>
             ) : (
-                activeTournaments.map((tournament: Tournament) => (
+                sortedActiveTournaments.map((tournament: Tournament) => (
                   <TournamentCard key={tournament.id} tournament={tournament} />
                 ))
             )}
