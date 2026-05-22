@@ -1,5 +1,4 @@
 'use client';
-
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
@@ -43,15 +42,13 @@ const getTagColor = (tag?: string) => {
 const LeaderboardTournamentCard = ({ item }: { item: TournamentRanked }) => {
     const { impact } = useHapticFeedback();
     
-    // ЛОГИКА ССЫЛКИ
-    // Если это группа (ТБШ) -> ведем на страницу GrandSlam с параметрами
-    // Если обычный -> ведем на страницу [id]
+    // Если это группа (ТБШ) -> ведем на страницу GrandSlam с параметрами ATP и WTA ID
+    // Если обычный турнир -> на детальный лидерборд турнира
     const href = item.isGroup 
         ? `/leaderboard/grandslam?atp=${item.atpId}&wta=${item.wtaId}&name=${encodeURIComponent(item.name)}`
         : `/leaderboard/tournaments/${item.id}`;
-
+        
     const badgeStyle = getTagColor(item.tag);
-    
     const rankText = item.my_rank 
         ? <><span className="text-[#00B2FF] font-bold">{item.my_rank}</span><span className="text-[#5F6067]">/{item.total_participants}</span></>
         : <span className="text-[#5F6067] text-[10px]">нет участия</span>;
@@ -74,7 +71,6 @@ const LeaderboardTournamentCard = ({ item }: { item: TournamentRanked }) => {
                         <span className="text-[#8E8E93] text-[11px]">{item.dates}</span>
                     </div>
                 </div>
-
                 <div className="flex flex-col items-end justify-center pl-4">
                     {!item.isGroup ? (
                         <>
@@ -92,7 +88,7 @@ const LeaderboardTournamentCard = ({ item }: { item: TournamentRanked }) => {
             </motion.div>
         </Link>
     );
-}
+};
 
 export default function TournamentListLeaderboard() {
   const router = useRouter();
@@ -104,16 +100,16 @@ export default function TournamentListLeaderboard() {
       { dedupingInterval: 300000, revalidateOnFocus: false, keepPreviousData: true }
   );
 
-  // === ГРУППИРОВКА ДЛЯ ТБШ (ROLAND GARROS НАВЕРХУ) ===
+  // Сборка и упорядочивание списка турниров
   const processedTournaments = (() => {
       if (!data) return [];
       const result: TournamentRanked[] = [];
       const usedIds = new Set<number>();
 
-      // 1. Сначала ищем Roland Garros (Ролан Гаррос) для закрепления сверху
-      const rgATP = data.find(t => !usedIds.has(t.id) && (t.name.toLowerCase().includes('roland') || t.name.toLowerCase().includes('ролан')) && t.name.toUpperCase().includes('ATP'));
-      const rgWTA = data.find(t => !usedIds.has(t.id) && (t.name.toLowerCase().includes('roland') || t.name.toLowerCase().includes('ролан')) && t.name.toUpperCase().includes('WTA'));
-      
+      // 1. Сначала ищем и объединяем Roland Garros по точным ID: 53 (ATP) и 52 (WTA)
+      const rgATP = data.find(t => t.id === 53);
+      const rgWTA = data.find(t => t.id === 52);
+
       if (rgATP && rgWTA) {
           result.push({
               id: 0, 
@@ -125,18 +121,45 @@ export default function TournamentListLeaderboard() {
               my_rank: null, 
               total_participants: 0,
               isGroup: true,
-              atpId: rgATP.id,
-              wtaId: rgWTA.id
+              atpId: 53, // Мужчины
+              wtaId: 52  // Женщины
           });
-          usedIds.add(rgATP.id);
-          usedIds.add(rgWTA.id);
+          usedIds.add(53);
+          usedIds.add(52);
+      } else {
+          // Мягкий фолбек на случай несовпадения ID на тестовой базе
+          const rgMatches = data.filter(t => !usedIds.has(t.id) && (
+              t.name.toLowerCase().includes('roland') || 
+              t.name.toLowerCase().includes('ролан') || 
+              t.name.toLowerCase().includes('гаррос') || 
+              t.name.toLowerCase().includes('garros')
+          ));
+          const fallbackATP = rgMatches.find(t => t.name.toUpperCase().includes('ATP') || t.tag === 'ATP' || t.name.toLowerCase().includes('men'));
+          const fallbackWTA = rgMatches.find(t => t.name.toUpperCase().includes('WTA') || t.tag === 'WTA' || t.name.toLowerCase().includes('women'));
+          
+          if (fallbackATP && fallbackWTA) {
+              result.push({
+                  id: 0, 
+                  name: "Roland Garros",
+                  dates: fallbackATP.dates,
+                  status: fallbackATP.status,
+                  type: 'Combined',
+                  tag: 'ТБШ',
+                  my_rank: null, 
+                  total_participants: 0,
+                  isGroup: true,
+                  atpId: fallbackATP.id,
+                  wtaId: fallbackWTA.id
+              });
+              usedIds.add(fallbackATP.id);
+              usedIds.add(fallbackWTA.id);
+          }
       }
 
-      // 2. Ищем Australian Open (динамически по имени или ID)
-      const aoMen = data.find(t => !usedIds.has(t.id) && (t.id === 11 || t.name.toLowerCase().includes('australian') || t.name.toLowerCase().includes('австрали')) && t.name.toUpperCase().includes('ATP'));
-      const aoWomen = data.find(t => !usedIds.has(t.id) && (t.id === 10 || t.name.toLowerCase().includes('australian') || t.name.toLowerCase().includes('австрали')) && t.name.toUpperCase().includes('WTA'));
-      
-      if (aoMen && aoWomen) {
+      // 2. Затем ищем Australian Open (11 - ATP, 10 - WTA)
+      const aoMen = data.find(t => t.id === 11);
+      const aoWomen = data.find(t => t.id === 10);
+      if (aoMen && aoWomen && !usedIds.has(11) && !usedIds.has(10)) {
           result.push({
               id: 0, 
               name: "Australian Open",
@@ -147,14 +170,14 @@ export default function TournamentListLeaderboard() {
               my_rank: null, 
               total_participants: 0,
               isGroup: true,
-              atpId: aoMen.id,
-              wtaId: aoWomen.id
+              atpId: 11,
+              wtaId: 10
           });
-          usedIds.add(aoMen.id);
-          usedIds.add(aoWomen.id);
+          usedIds.add(11);
+          usedIds.add(10);
       }
 
-      // 3. Обрабатываем остальные турниры (по стандартной логике)
+      // 3. Обрабатываем все остальные турниры
       data.forEach(t => {
           if (usedIds.has(t.id)) return;
           const isSlam = t.tag && (t.tag.includes('ТБШ') || t.tag.includes('Grand Slam'));
@@ -199,7 +222,6 @@ export default function TournamentListLeaderboard() {
         </button>
         <h1 className="text-[20px] font-bold">Выберите турнир</h1>
       </header>
-
       <main className="px-4 mt-4 animate-fade-in">
         {isLoading && !data ? (
             <div className="flex justify-center mt-20"><div className="w-6 h-6 border-2 border-[#00B2FF] border-t-transparent rounded-full animate-spin" /></div>
