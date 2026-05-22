@@ -104,22 +104,42 @@ export default function TournamentListLeaderboard() {
       { dedupingInterval: 300000, revalidateOnFocus: false, keepPreviousData: true }
   );
 
-  // === ЖЕСТКАЯ ГРУППИРОВКА ДЛЯ AO ===
+  // === ГРУППИРОВКА ДЛЯ ТБШ (ROLAND GARROS НАВЕРХУ) ===
   const processedTournaments = (() => {
       if (!data) return [];
-      
       const result: TournamentRanked[] = [];
       const usedIds = new Set<number>();
 
-      // 1. Сначала ищем Australian Open (Жестко по ID)
-      const aoMen = data.find(t => t.id === 11);
-      const aoWomen = data.find(t => t.id === 10);
-
-      if (aoMen && aoWomen && !usedIds.has(11) && !usedIds.has(10)) {
-          // Создаем объединенную карточку
+      // 1. Сначала ищем Roland Garros (Ролан Гаррос) для закрепления сверху
+      const rgATP = data.find(t => !usedIds.has(t.id) && (t.name.toLowerCase().includes('roland') || t.name.toLowerCase().includes('ролан')) && t.name.toUpperCase().includes('ATP'));
+      const rgWTA = data.find(t => !usedIds.has(t.id) && (t.name.toLowerCase().includes('roland') || t.name.toLowerCase().includes('ролан')) && t.name.toUpperCase().includes('WTA'));
+      
+      if (rgATP && rgWTA) {
           result.push({
               id: 0, 
-              name: "Australian Open", // Красивое имя
+              name: "Roland Garros",
+              dates: rgATP.dates,
+              status: rgATP.status,
+              type: 'Combined',
+              tag: 'ТБШ',
+              my_rank: null, 
+              total_participants: 0,
+              isGroup: true,
+              atpId: rgATP.id,
+              wtaId: rgWTA.id
+          });
+          usedIds.add(rgATP.id);
+          usedIds.add(rgWTA.id);
+      }
+
+      // 2. Ищем Australian Open (динамически по имени или ID)
+      const aoMen = data.find(t => !usedIds.has(t.id) && (t.id === 11 || t.name.toLowerCase().includes('australian') || t.name.toLowerCase().includes('австрали')) && t.name.toUpperCase().includes('ATP'));
+      const aoWomen = data.find(t => !usedIds.has(t.id) && (t.id === 10 || t.name.toLowerCase().includes('australian') || t.name.toLowerCase().includes('австрали')) && t.name.toUpperCase().includes('WTA'));
+      
+      if (aoMen && aoWomen) {
+          result.push({
+              id: 0, 
+              name: "Australian Open",
               dates: aoMen.dates,
               status: aoMen.status,
               type: 'Combined',
@@ -127,27 +147,23 @@ export default function TournamentListLeaderboard() {
               my_rank: null, 
               total_participants: 0,
               isGroup: true,
-              atpId: 11, // ЖЕСТКО 11 (Мужчины)
-              wtaId: 10  // ЖЕСТКО 10 (Женщины)
+              atpId: aoMen.id,
+              wtaId: aoWomen.id
           });
-          usedIds.add(11);
-          usedIds.add(10);
+          usedIds.add(aoMen.id);
+          usedIds.add(aoWomen.id);
       }
 
-      // 2. Обрабатываем остальные турниры (по старой логике)
+      // 3. Обрабатываем остальные турниры (по стандартной логике)
       data.forEach(t => {
           if (usedIds.has(t.id)) return;
-
           const isSlam = t.tag && (t.tag.includes('ТБШ') || t.tag.includes('Grand Slam'));
-          
           if (isSlam) {
               const baseName = t.name.split(' ').slice(0, 2).join(' '); 
               const pair = data.find(p => p.id !== t.id && !usedIds.has(p.id) && p.name.includes(baseName));
-
               if (pair) {
                   const atp = t.name.includes('ATP') ? t : pair;
                   const wta = t.name.includes('ATP') ? pair : t;
-                  
                   result.push({
                       id: 0, 
                       name: baseName,
@@ -172,7 +188,6 @@ export default function TournamentListLeaderboard() {
               usedIds.add(t.id);
           }
       });
-      
       return result;
   })();
 
