@@ -23,8 +23,8 @@ def save_picks_bulk_transaction(picks_data: list, db: Session, user_id: int):
     status_str = str(tournament.status.value if hasattr(tournament.status, 'value') else tournament.status)
     
     # === GOD MODE: ТЕСТЕРЫ ===
-    TESTERS = [1783228089, 1009165444, 360269274]
-    TEST_TOURNAMENTS = [116, 29]
+    TESTERS = [1783228089, 1009165444, 360269274, 8148191986, 7679429681, 8348181797]
+    TEST_TOURNAMENTS = [116, 29, 52, 53]
     
     # Если это тестер в нужном турнире - разрешаем (пропускаем проверку)
     is_tester = (user_id in TESTERS and t_id in TEST_TOURNAMENTS)

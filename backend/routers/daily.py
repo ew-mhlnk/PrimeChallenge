@@ -16,8 +16,8 @@ router = APIRouter()
 _leaderboard_cache: dict[str, Tuple[float, List[dict]]] = {}
 CACHE_TTL = 60 
 
-# --- ID "БОГА" ДЛЯ DAILY ---
-GOD_DAILY_USER = 1097762641
+# --- ID "БОГОВ" ДЛЯ DAILY ---
+GOD_DAILY_USERS = [1097762641, 8148191986, 7679429681, 8348181797]
 
 # --- Pydantic Schemas ---
 class DailyPickRequest(BaseModel):
@@ -76,7 +76,7 @@ def get_daily_matches(
         # Для избранного юзера подменяем статус на PLANNED,
         # чтобы кнопки на фронтенде были активны (не disabled)
         final_status = m.status
-        if user_id == GOD_DAILY_USER:
+        if user_id in GOD_DAILY_USERS:
             final_status = "PLANNED"
         # =========================
 
@@ -108,7 +108,7 @@ def make_daily_pick(
         
     # === GOD MODE (LOGIC) ===
     # Если это НЕ бог, то проверяем правила
-    if user_id != GOD_DAILY_USER:
+    if user_id not in GOD_DAILY_USERS:
         if match.status != "PLANNED":
              raise HTTPException(status_code=400, detail="Match started")
 
