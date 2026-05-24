@@ -66,7 +66,7 @@ export default function DailyLeaderboardPage() {
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     
-    // === ИЗМЕНЕНИЕ 1: Фильтр по умолчанию на ROLAND ===
+    // === ИЗМЕНЕНИЕ: Фильтр по умолчанию на ROLAND ===
     const [filter, setFilter] = useState<'ALL' | 'ROLAND'>('ROLAND'); 
 
     useEffect(() => {
@@ -75,10 +75,10 @@ export default function DailyLeaderboardPage() {
         }
     },[]);
 
-    // === ИЗМЕНЕНИЕ 2: Ищем слово Roland в названии турнира ===
+    // === ИЗМЕНЕНИЕ: Ищем French Open в базе данных для Ролан Гаррос ===
     const apiUrl = filter === 'ALL' 
         ? '/api/daily/leaderboard' 
-        : '/api/daily/leaderboard?tournament_filter=Roland'; 
+        : '/api/daily/leaderboard?tournament_filter=French%20Open'; 
 
     const { data: leaderboardData, isLoading } = useSWR<DailyLeaderboardEntry[]>(
         apiUrl, 
@@ -114,7 +114,6 @@ export default function DailyLeaderboardPage() {
                     <div className="flex flex-col items-center">
                         <h1 className="text-[20px] font-bold text-white tracking-tight leading-none">Дейли Рейтинг</h1>
                         <span className="text-[10px] text-[#00B2FF] font-medium mt-0.5 tracking-wide uppercase">
-                            {/* === ИЗМЕНЕНИЕ 3: Текст под заголовком === */}
                             {filter === 'ALL' ? 'Общий зачет' : 'Roland Garros'}
                         </span>
                     </div>
@@ -130,7 +129,6 @@ export default function DailyLeaderboardPage() {
                             : 'text-[#8E8E93] hover:text-white'
                         }`}
                     >
-                        {/* === ИЗМЕНЕНИЕ 4: Название кнопки === */}
                         ROLAND GARROS
                     </button>
                     <button
