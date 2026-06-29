@@ -15,7 +15,7 @@ interface TournamentRanked {
     my_rank: number | null;
     total_participants: number;
     isGroup?: boolean;
-    isTeam?: boolean; // Добавлено для новой логики "Прайм Тим"
+    isTeam?: boolean;
     atpId?: number;
     wtaId?: number;
 }
@@ -32,7 +32,8 @@ const fetcher = async (url: string) => {
     return res.json();
 };
 
-const getTagColor = (tag?: string) => {
+const getTagColor = (tag?: string, isTeam?: boolean) => {
+    if (isTeam) return 'bg-[#FF453A]/20 text-[#FF453A] border-[#FF453A]/30';
     const t = tag?.toUpperCase() || '';
     if (t === 'WTA') return 'bg-[#7B00FF]/20 text-[#D0bcff] border-[#7B00FF]/30';
     if (t === 'ATP') return 'bg-[#002BFF]/20 text-[#8E8E93] border-[#002BFF]/30';
@@ -43,13 +44,11 @@ const getTagColor = (tag?: string) => {
 const LeaderboardTournamentCard = ({ item }: { item: TournamentRanked }) => {
     const { impact } = useHapticFeedback();
     
-    // Если это группа (ТБШ) -> ведем на страницу GrandSlam с параметрами ATP и WTA ID
-    // Если обычный турнир -> на детальный лидерборд турнира
     const href = item.isGroup 
-        ? `/leaderboard/grandslam?atp=${item.atpId}&wta=${item.wtaId}&name=${encodeURIComponent(item.name)}`
+        ? `/leaderboard/grandslam?atp=${item.atpId}&wta=${item.wtaId}&name=${encodeURIComponent(item.name)}${item.isTeam ? '&team=true' : ''}`
         : `/leaderboard/tournaments/${item.id}`;
         
-    const badgeStyle = getTagColor(item.tag);
+    const badgeStyle = getTagColor(item.tag, item.isTeam);
     const rankText = item.my_rank 
         ? <><span className="text-[#00B2FF] font-bold">{item.my_rank}</span><span className="text-[#5F6067]">/{item.total_participants}</span></>
         : <span className="text-[#5F6067] text-[10px]">нет участия</span>;
@@ -66,24 +65,28 @@ const LeaderboardTournamentCard = ({ item }: { item: TournamentRanked }) => {
                     </h3>
                     <div className="flex gap-2 text-xs items-center">
                         <span className={`px-1.5 py-0.5 rounded-[6px] text-[10px] font-bold uppercase border ${badgeStyle}`}>
-                            {item.tag || 'ATP'}
+                            {item.isTeam ? 'Команда' : item.tag || 'ATP'}
                         </span>
                         {item.isGroup && <span className="text-[10px] text-[#8E8E93] border border-white/10 px-1.5 py-0.5 rounded">M + W</span>}
                         <span className="text-[#8E8E93] text-[11px]">{item.dates}</span>
                     </div>
                 </div>
                 <div className="flex flex-col items-end justify-center pl-4">
-                    {!item.isGroup ? (
+                    {item.isTeam ? (
+                        <div className="bg-[#FF453A]/10 rounded-full w-8 h-8 flex items-center justify-center border border-[#FF453A]/30">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF453A" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+                        </div>
+                    ) : item.isGroup ? (
+                        <div className="bg-[#FFD700]/10 rounded-full w-8 h-8 flex items-center justify-center border border-[#FFD700]/30">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+                        </div>
+                    ) : (
                         <>
                             <div className="bg-[#141414] rounded-[12px] px-3 py-1.5 border border-white/5 flex items-center gap-1 text-sm font-mono">
                                 {rankText}
                             </div>
                             <span className="text-[9px] text-[#5F6067] mt-1 pr-1">ваше место</span>
                         </>
-                    ) : (
-                        <div className="bg-[#FFD700]/10 rounded-full w-8 h-8 flex items-center justify-center border border-[#FFD700]/30">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFD700" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
-                        </div>
                     )}
                 </div>
             </motion.div>
@@ -101,13 +104,12 @@ export default function TournamentListLeaderboard() {
       { dedupingInterval: 300000, revalidateOnFocus: false, keepPreviousData: true }
   );
 
-  // === ГРУППИРОВКА ДЛЯ ТБШ (УИМБЛДОН НА САМОМ ВЕРХУ) ===
   const processedTournaments = (() => {
       if (!data) return [];
       const result: TournamentRanked[] = [];
       const usedIds = new Set<number>();
 
-      // 1. Динамически ищем Уимблдон (Wimbledon) по названию в базе
+      // 1. Ищем Уимблдон (Wimbledon) по названию и закрепляем его на самом 1-м месте
       const wimMatches = data.filter(t => (
           t.name.toLowerCase().includes('wimbledon') || 
           t.name.toLowerCase().includes('уимблдон')
@@ -116,23 +118,6 @@ export default function TournamentListLeaderboard() {
       const wimWTA = wimMatches.find(t => t.name.toUpperCase().includes('WTA') || (t.tag && t.tag.toUpperCase().includes('WTA')));
 
       if (wimATP && wimWTA) {
-          // А. Добавляем командный зачет "Прайм Тим Wimbledon" на 1-е место
-          result.push({
-              id: 0, 
-              name: "Прайм Тим Wimbledon",
-              dates: wimATP.dates,
-              status: wimATP.status,
-              type: 'Combined',
-              tag: 'ТБШ',
-              my_rank: null, 
-              total_participants: 0,
-              isGroup: true,
-              isTeam: true,
-              atpId: wimATP.id,
-              wtaId: wimWTA.id
-          });
-
-          // Б. Добавляем общий зачет "Wimbledon" на 2-е место
           result.push({
               id: 0, 
               name: "Wimbledon",
@@ -151,26 +136,11 @@ export default function TournamentListLeaderboard() {
           usedIds.add(wimWTA.id);
       }
 
-      // 2. Ищем Roland Garros (53 - ATP, 52 - WTA) для архива
+      // 2. Ищем Roland Garros (53 - ATP, 52 - WTA) для архива (командный зачет удален)
       const rgATP = data.find(t => !usedIds.has(t.id) && t.id === 53);
       const rgWTA = data.find(t => !usedIds.has(t.id) && t.id === 52);
 
       if (rgATP && rgWTA) {
-          result.push({
-              id: 0, 
-              name: "Прайм Тим Roland Garros",
-              dates: rgATP.dates,
-              status: rgATP.status,
-              type: 'Combined',
-              tag: 'ТБШ',
-              my_rank: null, 
-              total_participants: 0,
-              isGroup: true,
-              isTeam: true,
-              atpId: 53,
-              wtaId: 52
-          });
-
           result.push({
               id: 0, 
               name: "Roland Garros",
@@ -210,7 +180,7 @@ export default function TournamentListLeaderboard() {
           usedIds.add(10);
       }
 
-      // 4. Обрабатываем все остальные турниры
+      // 4. Обрабатываем все остальные турниры в стандартном режиме
       data.forEach(t => {
           if (usedIds.has(t.id)) return;
           const isSlam = t.tag && (t.tag.includes('ТБШ') || t.tag.includes('Grand Slam'));
