@@ -66,8 +66,8 @@ export default function DailyLeaderboardPage() {
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     
-    // === ИЗМЕНЕНИЕ: Фильтр по умолчанию на ROLAND ===
-    const [filter, setFilter] = useState<'ALL' | 'ROLAND'>('ROLAND'); 
+    // 1. Изменено состояние фильтра по умолчанию
+    const [filter, setFilter] = useState<'ALL' | 'WIMBLEDON'>('WIMBLEDON'); 
 
     useEffect(() => {
         if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
@@ -75,10 +75,10 @@ export default function DailyLeaderboardPage() {
         }
     },[]);
 
-    // === ИЗМЕНЕНИЕ: Ищем French Open в базе данных для Ролан Гаррос ===
+    // 2. Обновлен URL запроса к бэкенду с новым фильтром
     const apiUrl = filter === 'ALL' 
         ? '/api/daily/leaderboard' 
-        : '/api/daily/leaderboard?tournament_filter=French%20Open'; 
+        : '/api/daily/leaderboard?tournament_filter=Wimbledon'; 
 
     const { data: leaderboardData, isLoading } = useSWR<DailyLeaderboardEntry[]>(
         apiUrl, 
@@ -111,25 +111,27 @@ export default function DailyLeaderboardPage() {
                     >
                         <BackIcon />
                     </button>
+                    {/* 3. Обновлен текст подзаголовка */}
                     <div className="flex flex-col items-center">
                         <h1 className="text-[20px] font-bold text-white tracking-tight leading-none">Дейли Рейтинг</h1>
                         <span className="text-[10px] text-[#00B2FF] font-medium mt-0.5 tracking-wide uppercase">
-                            {filter === 'ALL' ? 'Общий зачет' : 'Roland Garros'}
+                            {filter === 'ALL' ? 'Общий зачет' : 'Wimbledon'}
                         </span>
                     </div>
                 </div>
 
+                {/* 4. Обновлены вкладки переключателя */}
                 {/* TABS (Переключатель) */}
                 <div className="flex bg-[#1C1C1E] p-1 rounded-[14px] border border-white/5 mb-3">
                      <button
-                        onClick={() => { impact('light'); setFilter('ROLAND'); }}
+                        onClick={() => { impact('light'); setFilter('WIMBLEDON'); }}
                         className={`flex-1 py-2 text-[12px] font-bold rounded-[10px] transition-all ${
-                            filter === 'ROLAND' 
+                            filter === 'WIMBLEDON' 
                             ? 'bg-[#2C2C2E] text-white shadow-md' 
                             : 'text-[#8E8E93] hover:text-white'
                         }`}
                     >
-                        ROLAND GARROS
+                        WIMBLEDON
                     </button>
                     <button
                         onClick={() => { impact('light'); setFilter('ALL'); }}
