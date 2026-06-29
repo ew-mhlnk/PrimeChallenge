@@ -15,6 +15,7 @@ interface TournamentRanked {
     my_rank: number | null;
     total_participants: number;
     isGroup?: boolean;
+    isTeam?: boolean; // Добавлено для новой логики "Прайм Тим"
     atpId?: number;
     wtaId?: number;
 }
@@ -100,17 +101,76 @@ export default function TournamentListLeaderboard() {
       { dedupingInterval: 300000, revalidateOnFocus: false, keepPreviousData: true }
   );
 
-  // Сборка и упорядочивание списка турниров
+  // === ГРУППИРОВКА ДЛЯ ТБШ (УИМБЛДОН НА САМОМ ВЕРХУ) ===
   const processedTournaments = (() => {
       if (!data) return [];
       const result: TournamentRanked[] = [];
       const usedIds = new Set<number>();
 
-      // 1. Сначала ищем и объединяем Roland Garros по точным ID: 53 (ATP) и 52 (WTA)
-      const rgATP = data.find(t => t.id === 53);
-      const rgWTA = data.find(t => t.id === 52);
+      // 1. Динамически ищем Уимблдон (Wimbledon) по названию в базе
+      const wimMatches = data.filter(t => (
+          t.name.toLowerCase().includes('wimbledon') || 
+          t.name.toLowerCase().includes('уимблдон')
+      ));
+      const wimATP = wimMatches.find(t => t.name.toUpperCase().includes('ATP') || (t.tag && t.tag.toUpperCase().includes('ATP')));
+      const wimWTA = wimMatches.find(t => t.name.toUpperCase().includes('WTA') || (t.tag && t.tag.toUpperCase().includes('WTA')));
+
+      if (wimATP && wimWTA) {
+          // А. Добавляем командный зачет "Прайм Тим Wimbledon" на 1-е место
+          result.push({
+              id: 0, 
+              name: "Прайм Тим Wimbledon",
+              dates: wimATP.dates,
+              status: wimATP.status,
+              type: 'Combined',
+              tag: 'ТБШ',
+              my_rank: null, 
+              total_participants: 0,
+              isGroup: true,
+              isTeam: true,
+              atpId: wimATP.id,
+              wtaId: wimWTA.id
+          });
+
+          // Б. Добавляем общий зачет "Wimbledon" на 2-е место
+          result.push({
+              id: 0, 
+              name: "Wimbledon",
+              dates: wimATP.dates,
+              status: wimATP.status,
+              type: 'Combined',
+              tag: 'ТБШ',
+              my_rank: null, 
+              total_participants: 0,
+              isGroup: true,
+              atpId: wimATP.id,
+              wtaId: wimWTA.id
+          });
+          
+          usedIds.add(wimATP.id);
+          usedIds.add(wimWTA.id);
+      }
+
+      // 2. Ищем Roland Garros (53 - ATP, 52 - WTA) для архива
+      const rgATP = data.find(t => !usedIds.has(t.id) && t.id === 53);
+      const rgWTA = data.find(t => !usedIds.has(t.id) && t.id === 52);
 
       if (rgATP && rgWTA) {
+          result.push({
+              id: 0, 
+              name: "Прайм Тим Roland Garros",
+              dates: rgATP.dates,
+              status: rgATP.status,
+              type: 'Combined',
+              tag: 'ТБШ',
+              my_rank: null, 
+              total_participants: 0,
+              isGroup: true,
+              isTeam: true,
+              atpId: 53,
+              wtaId: 52
+          });
+
           result.push({
               id: 0, 
               name: "Roland Garros",
@@ -121,44 +181,17 @@ export default function TournamentListLeaderboard() {
               my_rank: null, 
               total_participants: 0,
               isGroup: true,
-              atpId: 53, // Мужчины
-              wtaId: 52  // Женщины
+              atpId: 53,
+              wtaId: 52
           });
+          
           usedIds.add(53);
           usedIds.add(52);
-      } else {
-          // Мягкий фолбек на случай несовпадения ID на тестовой базе
-          const rgMatches = data.filter(t => !usedIds.has(t.id) && (
-              t.name.toLowerCase().includes('roland') || 
-              t.name.toLowerCase().includes('ролан') || 
-              t.name.toLowerCase().includes('гаррос') || 
-              t.name.toLowerCase().includes('garros')
-          ));
-          const fallbackATP = rgMatches.find(t => t.name.toUpperCase().includes('ATP') || t.tag === 'ATP' || t.name.toLowerCase().includes('men'));
-          const fallbackWTA = rgMatches.find(t => t.name.toUpperCase().includes('WTA') || t.tag === 'WTA' || t.name.toLowerCase().includes('women'));
-          
-          if (fallbackATP && fallbackWTA) {
-              result.push({
-                  id: 0, 
-                  name: "Roland Garros",
-                  dates: fallbackATP.dates,
-                  status: fallbackATP.status,
-                  type: 'Combined',
-                  tag: 'ТБШ',
-                  my_rank: null, 
-                  total_participants: 0,
-                  isGroup: true,
-                  atpId: fallbackATP.id,
-                  wtaId: fallbackWTA.id
-              });
-              usedIds.add(fallbackATP.id);
-              usedIds.add(fallbackWTA.id);
-          }
       }
 
-      // 2. Затем ищем Australian Open (11 - ATP, 10 - WTA)
-      const aoMen = data.find(t => t.id === 11);
-      const aoWomen = data.find(t => t.id === 10);
+      // 3. Ищем Australian Open (11 - ATP, 10 - WTA)
+      const aoMen = data.find(t => !usedIds.has(t.id) && t.id === 11);
+      const aoWomen = data.find(t => !usedIds.has(t.id) && t.id === 10);
       if (aoMen && aoWomen && !usedIds.has(11) && !usedIds.has(10)) {
           result.push({
               id: 0, 
@@ -177,7 +210,7 @@ export default function TournamentListLeaderboard() {
           usedIds.add(10);
       }
 
-      // 3. Обрабатываем все остальные турниры
+      // 4. Обрабатываем все остальные турниры
       data.forEach(t => {
           if (usedIds.has(t.id)) return;
           const isSlam = t.tag && (t.tag.includes('ТБШ') || t.tag.includes('Grand Slam'));
