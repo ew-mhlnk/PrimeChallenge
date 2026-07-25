@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 const visby = localFont({
-  src: '../../../public/fonts/VisbyCF.otf',
+  src: '../../../public/fonts/VisbyCF.otf', // Укажите ваш путь к файлу шрифта
   display: 'swap',
 });
 
@@ -22,49 +22,51 @@ export const PromoBanner = () => {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         className="
-          relative w-full overflow-hidden rounded-[24px] border border-white/5 shadow-2xl
-          h-[140px] sm:h-[180px] lg:h-[200px]
-          select-none cursor-pointer
+          relative w-full overflow-hidden rounded-[20px] sm:rounded-[24px] 
+          h-[130px] sm:h-[170px] lg:h-[200px]
+          border border-white/5 shadow-2xl select-none cursor-pointer
         "
       >
-        {/* Фоновое изображение гр.png растянуто на всю ширину баннера */}
+        {/* 1. Градиентный фон (гр.png) на всю ширину баннера */}
         <Image
           src="/images/promo/гр.png"
-          alt="Background City"
+          alt="Background"
           fill
           priority
           sizes="100vw"
-          className="object-cover object-center pointer-events-none z-0"
+          className="object-cover object-center z-0 pointer-events-none"
         />
 
-        {/* Затемнение для читаемости текста */}
-        <div className="absolute inset-0 z-10 bg-gradient-to-b from-black/50 via-black/20 to-black/60" />
-
-        {/* Прозрачный силуэт статуи на переднем плане */}
-        <div className="absolute inset-x-0 bottom-0 h-full z-20 pointer-events-none">
+        {/* 2. Статуя справа */}
+        <div className="absolute right-0 bottom-0 h-full w-[45%] sm:w-[40%] z-10 pointer-events-none">
           <Image
             src="/images/promo/статуя.png"
-            alt="Statue"
+            alt="Статуя"
             fill
-            className="object-contain object-bottom drop-shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
+            priority
+            sizes="(max-width: 640px) 45vw, 40vw"
+            className="object-contain object-right-bottom"
           />
         </div>
 
-        {/* Текст */}
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center text-center px-4">
+        {/* 3. Текст слева */}
+        <div className="absolute inset-y-0 left-0 z-20 flex flex-col justify-center items-start pl-6 sm:pl-10 lg:pl-14 max-w-[60%]">
           <h2
             className={`
-              ${visby.className} italic font-bold text-white uppercase leading-none
-              text-[clamp(1.8rem,9vw,3.5rem)] tracking-tight
-              drop-shadow-[0_3px_14px_rgba(0,0,0,0.7)]
+              ${visby.className} italic font-black text-white uppercase leading-none
+              text-[clamp(1.8rem,5.5vw,3.5rem)] tracking-tight
+              drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]
             `}
           >
-            US Open
+            US OPEN
           </h2>
-          <p className="mt-1.5 text-[11px] sm:text-[13px] text-white/80 font-medium tracking-wide drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]">
-            Один из четырёх турниров Большого шлема
-          </p>
-          <span className="mt-1 text-[12px] sm:text-[15px] font-bold uppercase tracking-[0.25em] text-[#CCFF00] drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]">
+          <span
+            className={`
+              ${visby.className} italic font-medium text-white/90
+              text-[clamp(1rem,2.8vw,1.8rem)] leading-none mt-1.5 sm:mt-2.5
+              drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]
+            `}
+          >
             скоро...
           </span>
         </div>
