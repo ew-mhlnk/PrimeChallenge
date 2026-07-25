@@ -3,43 +3,57 @@ import localFont from 'next/font/local';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
-// Загружаем локальные шрифты
-const benzin = localFont({
-  src: '../../../public/fonts/BenzinMedium.ttf',
-  display: 'swap',
-});
-
-const oswald = localFont({
-  src: '../../../public/fonts/OswaldSemiBold.ttf',
+const visby = localFont({
+  src: '../../../public/fonts/VisbyCF.otf',
   display: 'swap',
 });
 
 export const PromoBanner = () => {
   return (
     <Link href="https://vk.com/tennisprimesport" target="_blank" rel="noopener noreferrer" className="block w-full">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full relative h-[105px] sm:h-[135px] rounded-[24px] overflow-hidden shadow-2xl group cursor-pointer border border-white/5 bg-cover bg-center flex flex-col items-center justify-center"
-        style={{ 
-          backgroundImage: "url('/images/promo/grass.PNG')" 
-        }}
+        className="
+          relative w-full overflow-hidden rounded-[24px] border border-white/5 shadow-2xl
+          aspect-[16/9] sm:aspect-[21/9] max-h-[240px]
+          bg-cover bg-center bg-no-repeat select-none cursor-pointer
+        "
+        style={{ backgroundImage: "url('/images/promo/гр.png')" }}
       >
-        {/* Затемняющая подложка для читаемости текста на детальном фоне травы */}
-        <div className="absolute inset-0 bg-black/30 transition-colors duration-300 group-hover:bg-black/40 z-10" />
+        {/* затемнение для читаемости текста */}
+        <div className="absolute inset-0 z-10 bg-gradient-to-b from-black/50 via-black/20 to-black/60" />
 
-        {/* Контент баннера */}
-        <div className="relative z-20 flex flex-col items-center justify-center text-center px-4 select-none">
-          <span className={`${oswald.className} text-[22px] sm:text-[34px] text-white font-bold uppercase tracking-wide leading-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]`}>
-            Травяной сезон
-          </span>
-          <span className={`${benzin.className} text-[10px] sm:text-[13px] text-[#CCFF00] font-bold tracking-widest uppercase mt-1.5 sm:mt-2.5 drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]`}>
-            в самом разгаре!
+        {/* статуя — прижата к низу по центру */}
+        <img
+          src="/images/promo/статуя.png"
+          alt=""
+          aria-hidden
+          className="
+            absolute bottom-0 left-1/2 -translate-x-1/2 z-20
+            h-[85%] w-auto max-w-none object-contain object-bottom
+            drop-shadow-[0_4px_20px_rgba(0,0,0,0.5)] pointer-events-none
+          "
+        />
+
+        {/* текст поверх слоёв */}
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center text-center px-4">
+          <h2
+            className={`
+              ${visby.className} italic font-bold text-white uppercase leading-none
+              text-[clamp(2rem,11vw,4.5rem)] tracking-tight
+              drop-shadow-[0_3px_14px_rgba(0,0,0,0.7)]
+            `}
+          >
+            US Open
+          </h2>
+          <p className="mt-2 text-[11px] sm:text-[14px] text-white/80 font-medium tracking-wide drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]">
+            Один из четырёх турниров Большого шлема
+          </p>
+          <span className="mt-1 text-[13px] sm:text-[16px] font-bold uppercase tracking-[0.25em] text-[#CCFF00] drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]">
+            скоро...
           </span>
         </div>
-
-        {/* Эффект блика при наведении */}
-        <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-300 z-30" />
       </motion.div>
     </Link>
   );
