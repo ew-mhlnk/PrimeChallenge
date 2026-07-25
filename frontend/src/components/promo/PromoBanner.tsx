@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 const visby = localFont({
-  src: '../../../public/fonts/VisbyCF.otf', // Проверьте правильность пути к шрифту
+  src: '../../../public/fonts/VisbyCF.otf',
   display: 'swap',
 });
 
@@ -27,32 +27,30 @@ export const PromoBanner = () => {
           select-none cursor-pointer
         "
       >
-        {/* Фоновое изображение (оптимизированное через Next.js Image) */}
+        {/* Фоновое изображение гр.png растянуто на всю ширину баннера */}
         <Image
           src="/images/promo/гр.png"
-          alt="Promo Background"
+          alt="Background City"
           fill
           priority
           sizes="100vw"
           className="object-cover object-center pointer-events-none z-0"
         />
 
-        {/* Затемнение фона для читаемости текста */}
+        {/* Затемнение для читаемости текста */}
         <div className="absolute inset-0 z-10 bg-gradient-to-b from-black/50 via-black/20 to-black/60" />
 
-        {/* Статуя — позиционируется по центру снизу, масштабируясь по высоте баннера */}
+        {/* Прозрачный силуэт статуи на переднем плане */}
         <div className="absolute inset-x-0 bottom-0 h-full z-20 pointer-events-none">
           <Image
             src="/images/promo/статуя.png"
-            alt="Статуя"
+            alt="Statue"
             fill
-            priority
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="object-contain object-bottom drop-shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
           />
         </div>
 
-        {/* Контентный слой (текст) */}
+        {/* Текст */}
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center text-center px-4">
           <h2
             className={`
