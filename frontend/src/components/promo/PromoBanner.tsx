@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 const visby = localFont({
-  src: '../../../public/fonts/VisbyCF.otf', // Проверьте путь к вашему шрифту
+  src: '../../../public/fonts/VisbyCF.otf',
   display: 'swap',
 });
 
@@ -27,9 +27,9 @@ export const PromoBanner = () => {
           border border-white/5 shadow-2xl select-none cursor-pointer
         "
       >
-        {/* Изображение статуи растягивается на весь баннер, приоритет на правую сторону */}
+        {/* Изображение US Open растягивается на весь баннер, приоритет на правую сторону */}
         <Image
-          src="/images/promo/статуя.png"
+          src="/images/promo/us.png"
           alt="US Open"
           fill
           priority
@@ -38,7 +38,7 @@ export const PromoBanner = () => {
         />
 
         {/* Легкое затемнение слева для уверенной читаемости белого текста */}
-        <div className="absolute inset-0 z-10 bg-gradient-to-r from-black/40 via-transparent to-transparent" />
+        <div className="absolute inset-0 z-10 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
 
         {/* Текст слева поверх фона */}
         <div className="absolute inset-y-0 left-0 z-20 flex flex-col justify-center items-start pl-6 sm:pl-10 lg:pl-14">
