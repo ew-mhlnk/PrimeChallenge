@@ -65,8 +65,8 @@ def get_global_leaderboard(db: Session = Depends(get_db)):
     return leaderboard
 
 # --- 2. СПИСОК ТУРНИРОВ ---
-# Этот список меняется редко, но зависит от юзера (rank), поэтому кэшировать сложно.
-# Оставим как есть, он легкий.
+# Оптимизировано: вместо N+1 запросов (2 на каждый турнир) — 2 агрегированных запроса.
+# Список зависит от юзера (rank), поэтому кэшировать нельзя, но теперь он быстрый.
 @router.get("/list", response_model=List[dict])
 def get_tournaments_with_ranks(
     db: Session = Depends(get_db),
@@ -77,17 +77,18 @@ def get_tournaments_with_ranks(
         models.Tournament.status.in_(["ACTIVE", "COMPLETED", "CLOSED"])
     ).order_by(models.Tournament.id.desc()).all()
     
+    counts = dict(
+        db.query(models.Leaderboard.tournament_id, func.count(models.Leaderboard.id))
+          .group_by(models.Leaderboard.tournament_id)
+          .all()
+    )
+    my_ranks = dict(
+        db.query(models.Leaderboard.tournament_id, models.Leaderboard.rank)
+          .filter(models.Leaderboard.user_id == user_id)
+          .all()
+    )
     result = []
     for t in tournaments:
-        total_participants = db.query(models.Leaderboard).filter(
-            models.Leaderboard.tournament_id == t.id
-        ).count()
-        
-        my_entry = db.query(models.Leaderboard).filter(
-            models.Leaderboard.tournament_id == t.id,
-            models.Leaderboard.user_id == user_id
-        ).first()
-        
         result.append({
             "id": t.id,
             "name": t.name,
@@ -95,10 +96,9 @@ def get_tournaments_with_ranks(
             "status": t.status,
             "type": t.type,
             "tag": t.tag,
-            "my_rank": my_entry.rank if my_entry else None,
-            "total_participants": total_participants
+            "my_rank": my_ranks.get(t.id),
+            "total_participants": counts.get(t.id, 0)
         })
-        
     return result
 
 # --- 3. ЛИДЕРБОРД КОНКРЕТНОГО ТУРНИРА (КЭШИРУЕМ) ---
