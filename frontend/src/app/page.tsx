@@ -133,37 +133,6 @@ export default function Home() {
             )}
           </div>
         </section>
-
-        {/* НОВЫЙ БЛОК: СОТРУДНИЧЕСТВО */}
-        <section className="mt-2 mb-4">
-          <Link href="https://t.me/primetennis" target="_blank" rel="noopener noreferrer" className="block w-full">
-            <motion.div 
-              whileTap={{ scale: 0.98 }}
-              className="
-                relative w-full bg-[#1C1C1E] rounded-[24px] p-5 
-                border border-white/5 shadow-lg flex items-center gap-4
-                hover:border-[#00B2FF]/20 transition-all duration-300
-              "
-            >
-              {/* Круглая синяя иконка Telegram */}
-              <div className="w-10 h-10 rounded-full bg-[#00B2FF]/10 border border-[#00B2FF]/20 flex items-center justify-center text-[#00B2FF] flex-shrink-0">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13" />
-                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                </svg>
-              </div>
-              
-              <div className="flex flex-col gap-1">
-                <h4 className="text-[15px] font-bold text-white leading-tight">
-                  Открыты к сотрудничеству
-                </h4>
-                <p className="text-[12px] text-[#8E8E93] leading-snug">
-                  Вся статистика и контакт для связи: <span className="text-[#00B2FF] font-semibold">@primetennis</span>
-                </p>
-              </div>
-            </motion.div>
-          </Link>
-        </section>
       </main>
     </div>
   );

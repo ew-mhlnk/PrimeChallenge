@@ -93,6 +93,9 @@ export const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
 
   // Проверяем, является ли турнир Большим Шлемом
   const isSlam = tournament.tag === 'ТБШ' || (tournament.tag && (tournament.tag.includes('ТБШ') || tournament.tag.toUpperCase().includes('SLAM')));
+  const isUSOpen = isSlam && tournament.name.toLowerCase().includes('us open');
+  const gradClass = isUSOpen ? 'uso-border-gradient' : 'rg-border-gradient';
+  const gradInnerClass = isUSOpen ? 'uso-border-gradient-inner' : 'rg-border-gradient-inner';
 
   return (
     <Link href={`/tournament/${tournament.id}`} onClick={() => impact('light')} className="block w-full mb-3">
@@ -100,12 +103,12 @@ export const TournamentCard = ({ tournament }: { tournament: Tournament }) => {
         whileTap={{ scale: 0.98 }}
         className={`
             relative w-full rounded-[24px] overflow-hidden shadow-sm
-            ${isSlam ? 'rg-border-gradient p-[1.5px]' : 'bg-[#1C1C1E] p-4 border border-white/5 flex items-center justify-between'}
+            ${isSlam ? `${gradClass} p-[1.5px]` : 'bg-[#1C1C1E] p-4 border border-white/5 flex items-center justify-between'}
         `}
       >
         {isSlam ? (
           /* Если ТБШ — используем обертку с анимированной рамкой и внутренним отступом */
-          <div className="rg-border-gradient-inner w-full h-full bg-[#1C1C1E] rounded-[22.5px] p-4 flex items-center justify-between">
+          <div className={`${gradInnerClass} w-full h-full bg-[#1C1C1E] rounded-[22.5px] p-4 flex items-center justify-between`}>
             <CardContent tournament={tournament} statusBadge={statusBadge} />
           </div>
         ) : (

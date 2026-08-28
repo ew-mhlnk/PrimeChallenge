@@ -109,6 +109,39 @@ export default function TournamentListLeaderboard() {
       const result: TournamentRanked[] = [];
       const usedIds = new Set<number>();
 
+      // --- US OPEN (первым, чтобы был в самом верху) ---
+      const usoSide = (arr: TournamentRanked[], side: 'ATP' | 'WTA') =>
+          arr.find(t => {
+              const s = `${t.name} ${t.tag || ''} ${t.type || ''}`.toUpperCase();
+              return side === 'ATP'
+                  ? (s.includes('ATP') || s.includes('МУЖ'))
+                  : (s.includes('WTA') || s.includes('ЖЕН'));
+          });
+      const usoMatches = data.filter(t => t.name.toLowerCase().includes('us open'));
+      let usoATP = usoSide(usoMatches, 'ATP');
+      let usoWTA = usoSide(usoMatches, 'WTA');
+      if ((!usoATP || !usoWTA) && usoMatches.length === 2) {
+          usoATP = usoMatches[0];
+          usoWTA = usoMatches[1];
+      }
+      if (usoATP && usoWTA && usoATP.id !== usoWTA.id) {
+          result.push({
+              id: 0,
+              name: "US Open",
+              dates: usoATP.dates,
+              status: usoATP.status,
+              type: 'Combined',
+              tag: 'ТБШ',
+              my_rank: null,
+              total_participants: 0,
+              isGroup: true,
+              atpId: usoATP.id,
+              wtaId: usoWTA.id
+          });
+          usedIds.add(usoATP.id);
+          usedIds.add(usoWTA.id);
+      }
+
       // 1. Ищем Уимблдон (Wimbledon) по названию и закрепляем его на самом 1-м месте
       const wimMatches = data.filter(t => (
           t.name.toLowerCase().includes('wimbledon') || 

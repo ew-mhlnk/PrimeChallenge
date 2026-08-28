@@ -131,3 +131,34 @@ body {
     transform: rotate(360deg);
   }
 }
+
+/* --- ГРАДИЕНТ US OPEN (СИНИЙ-ЖЁЛТЫЙ) --- */
+.uso-border-gradient {
+  position: relative;
+  overflow: hidden;
+}
+.uso-border-gradient::before {
+  content: '';
+  position: absolute;
+  width: 180%;
+  height: 180%;
+  top: -40%;
+  left: -40%;
+  background: conic-gradient(
+    from 0deg,
+    #4DA6FF 0%,
+    #0033A0 25%,
+    #FFD400 45%,
+    transparent 65%,
+    transparent 100%
+  );
+  animation: rg-spin 6s linear infinite;
+  z-index: 1;
+  filter: blur(3px);
+  will-change: transform;
+}
+.uso-border-gradient-inner {
+  position: relative;
+  background: #1C1C1E;
+  z-index: 2;
+}
