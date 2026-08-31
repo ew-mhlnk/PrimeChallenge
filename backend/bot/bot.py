@@ -86,6 +86,9 @@ class EditDailyPickState(StatesGroup):
     waiting_for_user_id = State()
     waiting_for_winner = State()
 
+class StatsState(StatesGroup):
+    waiting_for_match_id = State()
+
 # --- ХЕЛПЕРЫ ---
 def get_all_user_ids():
     if not engine: return []
@@ -144,7 +147,7 @@ async def cmd_admin(message: types.Message):
     if message.from_user.id not in ADMIN_IDS: return
 
     kb = ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="📢 Новая рассылка")],
+        [KeyboardButton(text="📢 Новая рассылка"), KeyboardButton(text="📊 Статистика матча")],
         [KeyboardButton(text="🔁 Замена (Простая)"), KeyboardButton(text="🤺 Замена (С соперником)")],
         [KeyboardButton(text="✏️ Изменить 1 прогноз"), KeyboardButton(text="🎲 Daily: Изменить")],
         [KeyboardButton(text="❌ Отмена")]
@@ -498,6 +501,76 @@ async def execute_edit_pick(callback: types.CallbackQuery, state: FSMContext):
     except Exception as e:
         await callback.message.edit_text(f"❌ Ошибка БД: {e}")
     await state.clear()
+
+
+# ==========================================
+# СТАТИСТИКА МАТЧА ПО ID
+# ==========================================
+@dp.message(F.text == "📊 Статистика матча")
+async def start_match_stats(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS: return
+    await message.answer("Введите **ID матча** (например: `12158141`):", reply_markup=ReplyKeyboardRemove())
+    await state.set_state(StatsState.waiting_for_match_id)
+
+@dp.message(StatsState.waiting_for_match_id)
+async def process_match_stats_id(message: types.Message, state: FSMContext):
+    match_id = message.text.strip()
+    await state.clear()
+    
+    if not engine:
+        await message.answer("❌ Ошибка: нет подключения к базе данных.")
+        return
+
+    try:
+        with engine.connect() as conn:
+            # Запрос матча
+            match_query = text("SELECT id, tournament, player1, player2, status, winner FROM daily_matches WHERE id = :mid")
+            match = conn.execute(match_query, {"mid": match_id}).fetchone()
+            
+            if not match:
+                await message.answer(f"❌ Матч с ID `{match_id}` не найден в таблице `daily_matches`.")
+                return
+
+            # Запрос голосов
+            votes_query = text("""
+                SELECT 
+                    COUNT(p.id) as total,
+                    SUM(CASE WHEN p.predicted_winner = 1 THEN 1 ELSE 0 END) as p1,
+                    SUM(CASE WHEN p.predicted_winner = 2 THEN 1 ELSE 0 END) as p2
+                FROM daily_picks p
+                WHERE p.match_id = :mid
+            """)
+            stats = conn.execute(votes_query, {"mid": match_id}).fetchone()
+            
+            total = stats[0] or 0
+            votes_1 = stats[1] or 0
+            votes_2 = stats[2] or 0
+            
+            # Проценты
+            pct_1 = round((votes_1 / total * 100) if total > 0 else 0, 1)
+            pct_2 = round((votes_2 / total * 100) if total > 0 else 0, 1)
+
+            text_resp = (
+                f"📊 <b>Статистика матча:</b> <code>{match_id}</code>\n"
+                f"🏆 <b>Турнир:</b> {match[1]}\n"
+                f"📌 <b>Статус:</b> {match[4]}\n\n"
+                f"1️⃣ <b>{match[2]}</b>: <b>{votes_1}</b> голосов ({pct_1}%)\n"
+                f"2️⃣ <b>{match[3]}</b>: <b>{votes_2}</b> голосов ({pct_2}%)\n\n"
+                f"👥 <b>Всего прогнозов:</b> {total}"
+            )
+            
+            # Возвращаем клавиатуру админ-панели обратно
+            kb = ReplyKeyboardMarkup(keyboard=[
+                [KeyboardButton(text="📢 Новая рассылка"), KeyboardButton(text="📊 Статистика матча")],
+                [KeyboardButton(text="🔁 Замена (Простая)"), KeyboardButton(text="🤺 Замена (С соперником)")],
+                [KeyboardButton(text="✏️ Изменить 1 прогноз"), KeyboardButton(text="🎲 Daily: Изменить")],
+                [KeyboardButton(text="❌ Отмена")]
+            ], resize_keyboard=True)
+            
+            await message.answer(text_resp, reply_markup=kb)
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка при запросе к БД: {e}")
 
 
 # ==========================================
