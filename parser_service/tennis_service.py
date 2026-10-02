@@ -108,7 +108,8 @@ def format_set_score(val):
 
 def build_score(match):
     sets = []
-    scores_arr = match.get("scores", [])
+    # FIX: null-safe (ключ есть, но значение null)
+    scores_arr = match.get("scores") or []
     if scores_arr:
         for s in scores_arr:
             s1 = format_set_score(s.get("score_first"))
@@ -126,7 +127,8 @@ def build_score(match):
                         sp2 = format_set_score(sub[1])
                         sets.append(f"{sp1}-{sp2}")
     res = ", ".join(sets)
-    game = str(match.get("event_game_result", ""))
+    # FIX: null-safe
+    game = str(match.get("event_game_result") or "")
     if game and game not in ["-", "None"]:
         clean_game = game.replace(" - ", ":").replace("-", ":").replace(" : ", ":")
         res += f" ({clean_game})"
@@ -165,78 +167,94 @@ def fetch_live_data():
 def process_matches(matches):
     processed = []
     seen = set()
-    for m in matches:
-        m_id = str(m.get("event_key"))
-        
-        # 1. Фильтр квалификаций
-        q_field = str(m.get("event_qualification", "")).lower()
-        if q_field in ["true", "1"]: continue
-        r_raw = str(m.get("tournament_round", "")).lower()
-        if "qual" in r_raw or "prelim" in r_raw: continue
-
-        # 2. Фильтр по НАЗВАНИЮ и ТИПУ (Davis Cup)
-        t_raw_name = str(m.get("tournament_name", "")).lower()
-        e_type_raw = str(m.get("event_type_type", "")).lower()
-        
-        if any(ex in t_raw_name for ex in EXCLUDED_TOURNAMENTS): continue
-        if any(ex in e_type_raw for ex in EXCLUDED_TOURNAMENTS): continue
-
-        # 3. Фильтр по ТИПУ (ITF и тд)
-        etype_title = str(m.get("event_type_type", "")).title()
-        if any(b in etype_title for b in INVALID_TYPES): continue
-        
-        # 4. Проверка на одиночный разряд
-        is_singles = "Singles" in etype_title or "United Cup" in etype_title
-        is_major = any(x in etype_title for x in ["Atp", "Wta", "Open", "Slam", "Cup"])
-        if not (is_singles and is_major): continue
-        
-        # 5. Проверка на парный разряд
-        p1_raw = m.get("event_first_player", "")
-        if "/" in p1_raw: continue
-
-        if m_id in seen: continue
-        seen.add(m_id)
-
-        t_clean = (m.get("tournament_name") or "").replace(" Singles", "").strip()
-        if "Wta" in etype_title and "WTA" not in t_clean: t_clean = f"WTA {t_clean}"
-        elif "Atp" in etype_title and "ATP" not in t_clean: t_clean = f"ATP {t_clean}"
-        
-        st_raw = str(m.get("event_status", "")).lower()
-        status = "PLANNED"
-        is_api_live = str(m.get("event_live", "0")) == "1"
-        
-        if any(x in st_raw for x in ["can", "int", "walk", "w/o"]): status = "CANCELLED"
-        elif any(x in st_raw for x in ["fin", "aft", "ret"]): status = "COMPLETED"
-        elif is_api_live or any(x in st_raw for x in ["live", "set", "game"]): status = "LIVE"
-        
-        score_str = build_score(m)
-        
-        # Детектор лайва
-        if status == "PLANNED" and score_str:
-            has_digits = any(c.isdigit() for c in score_str)
-            is_not_zero = score_str.strip() != "0-0"
-            if has_digits and is_not_zero:
-                status = "LIVE"
-
-        winner = None
-        if status == "COMPLETED":
-            w = m.get("event_winner", "")
-            if "First" in w or "Home" in w: winner = 1
-            elif "Second" in w or "Away" in w: winner = 2
-
-        d_part = m.get("event_date", "")
-        t_part = m.get("event_time", "")
-        time_str = f"{d_part} {t_part}"
+    for m in matches or []:
+        # FIX: один битый матч не должен ронять весь апдейт
         try:
-            dt = datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M")
-            time_str = dt.strftime("%d.%m.%Y %H:%M")
-        except: pass
+            m_id = str(m.get("event_key") or "")
+            if not m_id:
+                logger.warning("Skip match without event_key")
+                continue
 
-        processed.append([m_id, t_clean, status, clean_round(m.get("tournament_round")), time_str, translate(p1_raw), translate(m.get("event_second_player")), score_str, winner])
+            # 1. Фильтр квалификаций
+            q_field = str(m.get("event_qualification") or "").lower()
+            if q_field in ["true", "1"]: continue
+            r_raw = str(m.get("tournament_round") or "").lower()
+            if "qual" in r_raw or "prelim" in r_raw: continue
+
+            # 2. Фильтр по НАЗВАНИЮ и ТИПУ (Davis Cup)
+            t_raw_name = str(m.get("tournament_name") or "").lower()
+            e_type_raw = str(m.get("event_type_type") or "").lower()
+            
+            if any(ex in t_raw_name for ex in EXCLUDED_TOURNAMENTS): continue
+            if any(ex in e_type_raw for ex in EXCLUDED_TOURNAMENTS): continue
+
+            # 3. Фильтр по ТИПУ (ITF и тд)
+            etype_title = str(m.get("event_type_type") or "").title()
+            if any(b in etype_title for b in INVALID_TYPES): continue
+            
+            # 4. Проверка на одиночный разряд
+            is_singles = "Singles" in etype_title or "United Cup" in etype_title
+            is_major = any(x in etype_title for x in ["Atp", "Wta", "Open", "Slam", "Cup"])
+            if not (is_singles and is_major): continue
+            
+            # 5. Проверка на парный разряд (FIX: null-safe)
+            p1_raw = m.get("event_first_player") or ""
+            if "/" in p1_raw: continue
+
+            if m_id in seen: continue
+            seen.add(m_id)
+
+            t_clean = (m.get("tournament_name") or "").replace(" Singles", "").strip()
+            if "Wta" in etype_title and "WTA" not in t_clean: t_clean = f"WTA {t_clean}"
+            elif "Atp" in etype_title and "ATP" not in t_clean: t_clean = f"ATP {t_clean}"
+            
+            st_raw = str(m.get("event_status") or "").lower()
+            status = "PLANNED"
+            is_api_live = str(m.get("event_live") or "0") == "1"
+            
+            if any(x in st_raw for x in ["can", "int", "walk", "w/o"]): status = "CANCELLED"
+            elif any(x in st_raw for x in ["fin", "aft", "ret"]): status = "COMPLETED"
+            elif is_api_live or any(x in st_raw for x in ["live", "set", "game"]): status = "LIVE"
+            
+            score_str = build_score(m)
+            
+            # Детектор лайва
+            if status == "PLANNED" and score_str:
+                has_digits = any(c.isdigit() for c in score_str)
+                is_not_zero = score_str.strip() != "0-0"
+                if has_digits and is_not_zero:
+                    status = "LIVE"
+
+            winner = None
+            if status == "COMPLETED":
+                # FIX: null-safe, Retired-матчи часто приходят с event_winner: null
+                w = str(m.get("event_winner") or "")
+                if "First" in w or "Home" in w: winner = 1
+                elif "Second" in w or "Away" in w: winner = 2
+
+            d_part = m.get("event_date") or ""
+            t_part = m.get("event_time") or ""
+            time_str = f"{d_part} {t_part}"
+            try:
+                dt = datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M")
+                time_str = dt.strftime("%d.%m.%Y %H:%M")
+            except: pass
+
+            processed.append([
+                m_id, t_clean, status,
+                clean_round(m.get("tournament_round") or ""),
+                time_str,
+                translate(p1_raw),
+                translate(m.get("event_second_player") or ""),
+                score_str, winner
+            ])
+        except Exception as e:
+            logger.warning(f"Skip match {m.get('event_key')}: {e}")
+            continue
     return processed
 
 # =========================================================
-# ГЛАВНАЯ ФУНКЦИЯ (v15.2 - NO SAFETY BRAKE)
+# ГЛАВНАЯ ФУНКЦИЯ (v15.3 - NULL-SAFE + PER-MATCH GUARD)
 # =========================================================
 def update_google_sheet_from_api():
     if not PLAYER_DICT: load_dictionary_from_sheets()
@@ -260,16 +278,19 @@ def update_google_sheet_from_api():
     api_map = {}
     dates_with_data = set() 
     
-    # 3. FIXTURES
+    # 3. FIXTURES (FIX: падение по одной дате не убивает весь синк)
     logger.info(f"⏳ Syncing Fixtures for {dates}")
     for d in dates:
-        raw = fetch_from_api(d)
-        if raw:
-            processed = process_matches(raw)
-            if processed:
-                dates_with_data.add(d) 
-                for item in processed:
-                    api_map[str(item[0])] = item
+        try:
+            raw = fetch_from_api(d)
+            if raw:
+                processed = process_matches(raw)
+                if processed:
+                    dates_with_data.add(d) 
+                    for item in processed:
+                        api_map[str(item[0])] = item
+        except Exception as e:
+            logger.error(f"Fixtures failed for {d}: {e}")
 
     # 4. LIVE
     try:
