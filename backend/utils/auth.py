@@ -1,6 +1,9 @@
+import logging
 import os
 from fastapi import Header, HTTPException, status
-from init_data_py import InitData
+from init_data_py import validate_by_hash
+
+logger = logging.getLogger(__name__)
 
 def verify_telegram_data(init_data_raw: str) -> dict:
     """
@@ -11,10 +14,8 @@ def verify_telegram_data(init_data_raw: str) -> dict:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable is not set")
 
     try:
-        init_data = InitData.parse(init_data_raw)
-        
         # 24 часа жизни токена
-        init_data.validate(bot_token, lifetime=86400)  
+        init_data = validate_by_hash(init_data_raw, bot_token, expires_in=86400)
         
         user_data = init_data.user
         if not user_data:
@@ -30,7 +31,8 @@ def verify_telegram_data(init_data_raw: str) -> dict:
             "allows_write_to_pm": user_data.allows_write_to_pm or False,
             "photo_url": user_data.photo_url or ""
         }
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Telegram auth rejected: {type(e).__name__}: {e}")
         return None
 
 async def get_current_user(authorization: str = Header(default=None)):
