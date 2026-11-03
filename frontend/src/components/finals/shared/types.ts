@@ -38,6 +38,7 @@ export interface FinalsData {
   dates?: string;
   tag?: string;
   image_url?: string;
+  server_now: string;
   score: number;
   correct_picks: number;
   scoring: { GROUP: number; SF: number; F: number };

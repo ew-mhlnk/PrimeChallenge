@@ -115,7 +115,7 @@ async def startup_event():
     scheduler.add_job(sync_google_sheets_with_db, "interval", minutes=5, args=[engine])
     
     # 5.1 Итоговые турниры (WTA/ATP Finals): свой лист и свой подсчет очков
-    scheduler.add_job(sync_finals, "interval", minutes=5)
+    scheduler.add_job(sync_finals, "interval", minutes=1, max_instances=1)
 
     # [ОТКЛЮЧЕНО] 6. Dictionary Update
     # Внешний сервис теперь обновляет это для себя, а здесь обновлять не обязательно так часто

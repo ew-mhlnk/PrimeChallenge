@@ -17,6 +17,17 @@ export function useFinalsSelection(data: FinalsData) {
   const [finalists, setFinalists] = useState<(string | null)[]>([null, null]);
   const [champion, setChampion] = useState<string | null>(null);
 
+  // Пересобираем выбор, только если изменилось что-то важное: иначе фоновое
+  // обновление стирало бы то, что пользователь выбрал, но еще не сохранил
+  const serverKey = JSON.stringify([
+    groups.map((group) => [group.players, group.picks]),
+    playoff.pairs,
+    playoff.picked_finalists,
+    playoff.picked_champion,
+    data.group_stage.state,
+    data.playoff_stage.state,
+  ]);
+
   // Выбор берем с сервера: снявшиеся игроки из него автоматически выпадают
   useEffect(() => {
     setGroupPicks(Object.fromEntries(groups.map((group) => [group.stage, validPicks(group)])));
@@ -25,7 +36,8 @@ export function useFinalsSelection(data: FinalsData) {
     );
     setFinalists(picked);
     setChampion(picked.find((player) => samePlayer(player, playoff.picked_champion)) || null);
-  }, [groups, playoff]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverKey]);
 
   const toggleGroupPick = useCallback((stage: string, player: string) => {
     selection();
