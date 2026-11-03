@@ -19,6 +19,10 @@ def save_picks_bulk_transaction(picks_data: list, db: Session, user_id: int):
     
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
+
+    # Итоговые турниры сохраняются только через /finals/{id}/picks
+    if (tournament.type or "").strip().upper() == "FINALS":
+        raise HTTPException(status_code=403, detail="Use finals endpoint")
         
     status_str = str(tournament.status.value if hasattr(tournament.status, 'value') else tournament.status)
     

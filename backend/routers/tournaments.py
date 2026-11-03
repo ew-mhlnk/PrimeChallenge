@@ -25,6 +25,7 @@ def get_tournaments(db: Session = Depends(get_db)):
             "id": t.id,
             "name": t.name,
             "status": t.status,
+            "type": t.type,
             "dates": t.dates,
             "start": t.start,
             "close": t.close,

@@ -6,6 +6,8 @@ import useTournaments from '../hooks/useTournaments';
 import useAuth from '../hooks/useAuth';
 import { Tournament } from '@/types';
 import { TournamentCard } from '@/components/tournament/TournamentCard';
+import { FinalsCard } from '@/components/finals/FinalsCard';
+import { isFinalsTournament } from '@/components/finals/shared/helpers';
 // Импортируем наш новый баннер
 import { PromoBanner } from '@/components/promo/PromoBanner';
 
@@ -73,6 +75,9 @@ export default function Home() {
 
   // Сортируем: ТБШ (Grand Slam) всегда в начале
   const sortedActiveTournaments = [...activeTournaments].sort((a, b) => {
+    // Итоговые турниры закреплены сверху
+    const finalsOrder = Number(isFinalsTournament(b)) - Number(isFinalsTournament(a));
+    if (finalsOrder !== 0) return finalsOrder;
     const isASlam = a.tag === 'ТБШ' || (a.tag && (a.tag.includes('ТБШ') || a.tag.toUpperCase().includes('SLAM')));
     const isBSlam = b.tag === 'ТБШ' || (b.tag && (b.tag.includes('ТБШ') || b.tag.toUpperCase().includes('SLAM')));
     if (isASlam && !isBSlam) return -1;
@@ -128,7 +133,9 @@ export default function Home() {
                 </div>
             ) : (
                 sortedActiveTournaments.map((tournament: Tournament) => (
-                  <TournamentCard key={tournament.id} tournament={tournament} />
+                  isFinalsTournament(tournament)
+                    ? <FinalsCard key={tournament.id} tournament={tournament} />
+                    : <TournamentCard key={tournament.id} tournament={tournament} />
                 ))
             )}
           </div>

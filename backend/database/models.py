@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Enum, ForeignKey, DateTime, Boolean, BigInteger
+from sqlalchemy import Column, Integer, String, Enum, ForeignKey, DateTime, Boolean, BigInteger, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.schema import UniqueConstraint
@@ -138,3 +138,33 @@ class DailyLeaderboard(Base):
     correct_picks = Column(Integer, default=0)
     total_picks = Column(Integer, default=0)
     user = relationship("User")
+
+# === ИТОГОВЫЕ ТУРНИРЫ (WTA/ATP FINALS) ===
+class FinalsDraw(Base):
+    """Этап итогового турнира: GROUP_A, GROUP_B, SF или F."""
+    __tablename__ = "finals_draw"
+    id = Column(Integer, primary_key=True, index=True)
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True, nullable=False)
+    stage = Column(String, nullable=False)
+    title = Column(String, nullable=True)
+    players = Column(JSON, nullable=False, default=list)
+    columns = Column(JSON, nullable=False, default=list)
+    table_rows = Column(JSON, nullable=False, default=list)
+    winners = Column(JSON, nullable=False, default=list)
+    opens_at = Column(DateTime(timezone=True), nullable=True)
+    closes_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (UniqueConstraint('tournament_id', 'stage', name='unique_finals_stage'),)
+
+class FinalsPick(Base):
+    """Выбор пользователя на этап. В picks лежит список имен."""
+    __tablename__ = "finals_picks"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(BigInteger, ForeignKey("users.user_id"), index=True, nullable=False)
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True, nullable=False)
+    stage = Column(String, nullable=False)
+    picks = Column(JSON, nullable=False, default=list)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (UniqueConstraint('user_id', 'tournament_id', 'stage', name='unique_finals_pick'),)

@@ -1,0 +1,429 @@
+/* Цвета дизайна. Для ATP меняются только базовые тона */
+.page, .card, .loading {
+  --bg: #1b0029;
+  --row: #2d0046;
+  --slot: #2c0048;
+  --line: #3a1453;
+  --slot-line: #4a1a66;
+  --muted: #b79ccc;
+  --faint: #8d6aa6;
+  --ink: #2a0040;
+  --mint: #00e9b2;
+  --green: #00e07a;
+  --red: #ff3d78;
+  --picked: linear-gradient(90deg, #2b1290, #240d65);
+  --correct: #242e53;
+  --wrong: #520139;
+  --cta: linear-gradient(90deg, #00d063, #00e9b2);
+  --tab: linear-gradient(90deg, #190f24 0%, #3f097b 100%);
+}
+.page[data-tag='ATP'], .card[data-tag='ATP'] {
+  --bg: #050d2b;
+  --row: #0f2158;
+  --slot: #0f2158;
+  --line: #24386f;
+  --slot-line: #2b417f;
+  --muted: #a8b4d6;
+  --faint: #7686b3;
+  --ink: #050d2b;
+  --tab: linear-gradient(90deg, #0a1020 0%, #0f2f7b 100%);
+}
+
+/* Страница */
+.loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--mint);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  background: var(--bg);
+  color: #fff;
+}
+.column {
+  width: 100%;
+  max-width: 480px;
+  min-width: 0;
+  padding: max(14px, env(safe-area-inset-top)) 0 124px;
+}
+.back {
+  width: 32px;
+  height: 32px;
+  margin: 0 0 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--row);
+  color: #fff;
+}
+
+/* Шапка */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 0 16px;
+}
+.logo { display: block; width: 186px; max-width: 46vw; height: auto; }
+.title { min-width: 0; font-size: 28px; font-weight: 900; line-height: 1.05; }
+.points {
+  flex: none;
+  min-width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 2px;
+  color: #fff;
+}
+.points strong {
+  font-size: clamp(56px, 18vw, 76px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -2px;
+  font-variant-numeric: tabular-nums;
+}
+.points span { margin-top: 8px; font-size: 20px; font-weight: 800; letter-spacing: 0.2px; text-transform: uppercase; }
+.points small { margin-top: 6px; font-size: 11px; font-weight: 700; color: var(--mint); }
+
+/* Вкладки */
+.tabs {
+  display: flex;
+  gap: 60px;
+  margin-top: 32px;
+  padding: 0 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+}
+.tab {
+  flex: none;
+  width: 286px;
+  max-width: calc(100vw - 70px);
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 24px;
+  scroll-snap-align: start;
+  scroll-margin-left: 16px;
+  background: var(--tab);
+  color: #e6d6f5;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  transition: background 0.3s, color 0.3s;
+}
+.tabActive { background: var(--cta); color: var(--ink); }
+.tabDone {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--ink);
+  font-size: 10px;
+}
+.tabActive .tabDone { background: var(--ink); color: var(--mint); }
+
+/* Экраны этапов */
+.panels {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+}
+.panel {
+  flex: 0 0 100%;
+  min-width: 0;
+  padding: 22px 16px 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+.hintRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 20px; }
+.status { font-size: 12px; font-weight: 700; color: var(--mint); }
+.hint { margin-top: 4px; font-size: 12px; font-weight: 600; line-height: 1.35; color: var(--muted); text-wrap: pretty; }
+.stageScore {
+  flex: none;
+  padding: 5px 10px;
+  border-radius: 12px;
+  background: rgba(0, 233, 178, 0.1);
+  color: var(--mint);
+  font-size: 12px;
+  font-weight: 800;
+}
+.warning {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 196, 0, 0.12);
+  color: #ffd76a;
+  font-size: 12px;
+  font-weight: 600;
+}
+.empty { padding: 56px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+.summary { margin-top: 16px; font-size: 12px; font-weight: 600; line-height: 1.5; color: var(--muted); }
+
+/* Таблица группы */
+.groups { display: flex; flex-direction: column; gap: 30px; margin-top: 14px; }
+.groupHeader, .groupRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(4, clamp(30px, 9.3vw, 41px)) clamp(36px, 13vw, 59px);
+}
+.groupHeader { align-items: end; height: 96px; }
+.groupTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 0 10px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.count { font-size: 10px; font-weight: 700; color: var(--faint); }
+.countDone { font-size: 10px; font-weight: 700; color: var(--mint); }
+.columnCell { display: flex; justify-content: center; padding-bottom: 10px; }
+.columnCell span {
+  max-height: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+.wlTitle { padding-bottom: 6px; text-align: center; font-size: 10px; font-weight: 800; }
+.groupBody { border: 1px solid var(--line); border-bottom: 0; }
+.groupRow {
+  position: relative;
+  width: 100%;
+  min-height: 41px;
+  border-bottom: 1px solid var(--line);
+  background: var(--row);
+  color: #fff;
+  text-align: left;
+  transition: background 0.25s;
+}
+.groupRow::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  bottom: -1px;
+  width: 5px;
+  background: transparent;
+  transition: background 0.25s;
+}
+.playerName {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 12px;
+  font-size: clamp(11px, 3.1vw, 12px);
+  font-weight: 700;
+}
+.playerName span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.playerName b { flex: none; font-size: 11px; font-weight: 900; }
+.scoreCell, .wlCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid var(--line);
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.wlCell { font-size: 10px; font-weight: 800; }
+.scoreCellEmpty { background: rgba(10, 0, 20, 0.35); }
+.rowPicked { background: var(--picked); }
+.rowPicked .playerName { color: #d9d3ff; }
+.rowCorrect { background: var(--correct); }
+.rowCorrect::before { background: var(--green); }
+.rowCorrect .playerName { color: var(--green); }
+.rowWrong { background: var(--wrong); }
+.rowWrong::before { background: var(--red); }
+.rowWrong .playerName { color: #ffb3cb; }
+.rowWrong .playerName b { color: var(--red); }
+.rowAdvanced::before { background: var(--green); }
+
+/* Сетка */
+.bracket { position: relative; height: 326px; margin-top: 32px; }
+.slot {
+  position: absolute;
+  left: 0;
+  right: 94px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  overflow: hidden;
+  border: 1px solid var(--slot-line);
+  border-radius: 14px;
+  background: var(--slot);
+  color: #fff;
+  text-align: left;
+  transition: background 0.25s, border-color 0.25s;
+}
+.slot::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: transparent;
+}
+.slot b { flex: none; font-size: 12px; font-weight: 900; }
+.slotTag { flex: none; width: 16px; font-size: 9px; font-weight: 800; color: var(--faint); }
+.slotName, .slotPlaceholder {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.slotPlaceholder { color: var(--faint); }
+.slotPicked { border-color: #6f5cff; background: var(--picked); color: #e3deff; }
+.slotCorrect { border-color: #3b5a8a; background: var(--correct); color: var(--green); }
+.slotCorrect::before, .slotAdvanced::before { background: var(--green); }
+.slotWrong { border-color: #7a1a55; background: var(--wrong); color: #ffb3cb; }
+.slotWrong b { color: var(--red); }
+.line, .lineActive { position: absolute; background: #e8dff0; transition: background 0.3s; }
+.lineActive { background: var(--mint); }
+.dot, .dotActive {
+  position: absolute;
+  right: 1px;
+  top: 151px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #dcdcdc;
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 900;
+}
+.dotActive { background: var(--cta); box-shadow: 0 0 0 6px rgba(0, 233, 178, 0.15), 0 0 24px rgba(0, 233, 178, 0.5); }
+.championCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 14px 16px;
+  border: 1px solid var(--slot-line);
+  border-radius: 14px;
+  background: var(--slot);
+}
+.championCardPicked { background: var(--picked); }
+.championCardCorrect { border-color: #3b5a8a; background: var(--correct); }
+.championCard i {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--cta);
+  color: var(--ink);
+  font-size: 17px;
+  font-style: normal;
+}
+.championCard div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.championCard span { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted); }
+.championCard strong { font-size: 14px; font-weight: 800; }
+
+/* Легенда */
+.legend { display: flex; flex-wrap: wrap; gap: 14px 18px; margin-top: 28px; }
+.legendItem { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; color: #cdb8dc; }
+.legendItem i { width: 18px; height: 12px; border-left: 3px solid; border-radius: 3px; }
+.legendPicked { background: #2b1290; border-color: #2b1290; }
+.legendEmpty { background: var(--row); border-color: var(--row); }
+.legendCorrect { background: var(--correct); border-color: var(--green); }
+.legendWrong { background: var(--wrong); border-color: var(--red); }
+.legendAdvanced { background: var(--row); border-color: var(--green); }
+
+/* Нижняя кнопка */
+.ctaBar {
+  position: fixed;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.ctaBar > div {
+  width: 100%;
+  max-width: 480px;
+  padding: 18px 16px max(22px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, transparent, var(--bg) 40%);
+  pointer-events: auto;
+}
+.cta {
+  width: 100%;
+  height: 52px;
+  border-radius: 26px;
+  background: var(--cta);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  transition: all 0.25s;
+}
+.cta:disabled { background: var(--line); color: var(--muted); }
+
+/* Карточка на главной */
+.card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 112px;
+  padding: 16px 18px;
+  overflow: hidden;
+  border: 1px solid var(--slot-line);
+  border-radius: 24px;
+  background: linear-gradient(120deg, var(--bg), #3f097b);
+}
+.card[data-tag='ATP'] { background: linear-gradient(120deg, var(--bg), #0f2f7b); }
+.cardLogo { flex: none; width: 118px; max-width: 42%; height: auto; }
+.cardTitle { min-width: 0; font-size: 18px; font-weight: 800; line-height: 1.1; color: #fff; }
+.cardSide { min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; text-align: right; }
+.cardDates { font-size: 12px; font-weight: 600; color: var(--muted); }
+.cardAction {
+  padding: 9px 16px;
+  border-radius: 18px;
+  background: var(--cta);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}

@@ -7,11 +7,12 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from database.db import init_db, engine
 
 # Импорты Роутеров
-from routers import auth, tournaments, picks, users, leaderboard, daily
+from routers import auth, tournaments, picks, users, leaderboard, daily, finals
 
 # Импорты Сервисов Синхронизации
 # 1. Читают из Гугл Таблицы в БД (Bracket + Daily)
 from services.sync_service import sync_google_sheets_with_db, sync_daily_challenge
+from services.finals_service import sync_finals
 
 # 2. Пишут В Гугл Таблицу из API (Парсер + Словарь)
 from services.tennis_service import update_google_sheet_from_api, load_dictionary_from_sheets
@@ -81,6 +82,7 @@ app.include_router(picks.router, prefix="/picks", tags=["picks"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(leaderboard.router, prefix="/leaderboard", tags=["leaderboard"])
 app.include_router(daily.router, prefix="/daily", tags=["daily"])
+app.include_router(finals.router, prefix="/finals", tags=["finals"])
 
 # === ПЛАНИРОВЩИК (SCHEDULER) ===
 scheduler = AsyncIOScheduler()
@@ -112,6 +114,9 @@ async def startup_event():
     # Забираем данные турниров раз в 10 минут
     scheduler.add_job(sync_google_sheets_with_db, "interval", minutes=5, args=[engine])
     
+    # 5.1 Итоговые турниры (WTA/ATP Finals): свой лист и свой подсчет очков
+    scheduler.add_job(sync_finals, "interval", minutes=5)
+
     # [ОТКЛЮЧЕНО] 6. Dictionary Update
     # Внешний сервис теперь обновляет это для себя, а здесь обновлять не обязательно так часто
     # scheduler.add_job(load_dictionary_from_sheets, "interval", minutes=60)

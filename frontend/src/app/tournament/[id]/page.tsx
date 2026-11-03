@@ -4,6 +4,8 @@ import { use, useEffect, useState, useRef } from 'react';
 import ActiveBracket from '@/components/bracket/ActiveBracket';
 import ClosedBracket from '@/components/bracket/ClosedBracket';
 import PlannedTournamentView from '@/components/tournament/PlannedTournamentView';
+import FinalsTournament from '@/components/finals/FinalsTournament';
+import { isFinalsTournament } from '@/components/finals/shared/helpers';
 import { useTournamentContext } from '@/context/TournamentContext';
 import { Tournament } from '@/types';
 
@@ -40,6 +42,11 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
             </div>
         </div>
       );
+  }
+
+  // Итоговые турниры живут на своем экране, этапы открываются по датам из листа
+  if (isFinalsTournament(fullData)) {
+      return <FinalsTournament tournamentId={id} />;
   }
 
   const { status } = fullData;

@@ -18,6 +18,7 @@ interface ApiTournament {
   name: string;
   dates?: string;
   status: string;
+  type?: string;
   start?: string;
   close?: string;
   tag?: string;
@@ -68,6 +69,7 @@ export const TournamentProvider = ({ children }: { children: ReactNode }) => {
         name: item.name,
         dates: item.dates,
         status: item.status,
+        type: item.type,
         start: item.start,
         close: item.close,
         tag: item.tag,
