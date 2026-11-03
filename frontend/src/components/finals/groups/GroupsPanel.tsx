@@ -1,7 +1,8 @@
 import styles from '../Finals.module.css';
 import { Legend } from '../shared/Legend';
 import { StageHint } from '../shared/StageHint';
-import { pointsWord } from '../shared/helpers';
+import { pointsWord, stageLabel } from '../shared/helpers';
+import { finalsToast } from '../shared/toast';
 import { FinalsData } from '../shared/types';
 import { GroupTable } from './GroupTable';
 
@@ -43,6 +44,7 @@ export const GroupsPanel = ({ data, groupPicks, droppedPick, onToggle }: GroupsP
                 selected={editable ? groupPicks[group.stage] || [] : group.picks}
                 editable={editable}
                 onToggle={(player) => onToggle(group.stage, player)}
+                onLocked={() => finalsToast(stageLabel(stage))}
               />
             ))}
           </div>

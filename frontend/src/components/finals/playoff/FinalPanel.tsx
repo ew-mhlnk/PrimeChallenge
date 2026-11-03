@@ -1,7 +1,7 @@
 import styles from '../Finals.module.css';
 import { Legend } from '../shared/Legend';
 import { StageHint } from '../shared/StageHint';
-import { championWord, pointsWord, samePlayer } from '../shared/helpers';
+import { championWord, pointsWord, samePlayer, stageLabel } from '../shared/helpers';
 import { finalsToast } from '../shared/toast';
 import { FinalsData } from '../shared/types';
 import { BracketBoard, BracketLine, BracketSlot } from './BracketBoard';
@@ -61,6 +61,7 @@ export const FinalPanel = ({ data, finalists, champion, onSelect }: FinalPanelPr
         lines={buildLines(Boolean(displayedChampion))}
         editable={editable}
         hasChampion={Boolean(displayedChampion)}
+        onLocked={() => finalsToast(stageLabel(stage))}
       />
       {displayedChampion && (
         <div className={`${styles.championCard} ${results ? '' : styles.championCardPicked} ${guessed ? styles.championCardCorrect : ''}`}>

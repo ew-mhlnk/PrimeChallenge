@@ -9,6 +9,7 @@ interface GroupTableProps {
   selected: string[];
   editable: boolean;
   onToggle: (player: string) => void;
+  onLocked: () => void;
 }
 
 const rowState = (group: FinalsGroup, player: string, selected: string[]) => {
@@ -21,7 +22,7 @@ const rowState = (group: FinalsGroup, player: string, selected: string[]) => {
   return { className: '', mark: '' };
 };
 
-export const GroupTable = ({ group, selected, editable, onToggle }: GroupTableProps) => (
+export const GroupTable = ({ group, selected, editable, onToggle, onLocked }: GroupTableProps) => (
   <section>
     <div className={styles.groupHeader}>
       <div className={styles.groupTitle}>
@@ -41,9 +42,9 @@ export const GroupTable = ({ group, selected, editable, onToggle }: GroupTablePr
           <button
             key={player}
             type="button"
-            disabled={!editable}
+            aria-disabled={!editable}
             aria-pressed={includesPlayer(selected, player)}
-            onClick={() => onToggle(player)}
+            onClick={() => (editable ? onToggle(player) : onLocked())}
             className={`${styles.groupRow} ${state.className}`}
           >
             <span className={styles.playerName}>

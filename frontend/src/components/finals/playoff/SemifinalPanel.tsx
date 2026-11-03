@@ -1,7 +1,8 @@
 import styles from '../Finals.module.css';
 import { Legend } from '../shared/Legend';
 import { StageHint } from '../shared/StageHint';
-import { includesPlayer, pointsWord } from '../shared/helpers';
+import { includesPlayer, pointsWord, stageLabel } from '../shared/helpers';
+import { finalsToast } from '../shared/toast';
 import { FinalsData } from '../shared/types';
 import { BracketBoard, BracketLine, BracketSlot } from './BracketBoard';
 import { slotState } from './slotState';
@@ -67,6 +68,7 @@ export const SemifinalPanel = ({ data, finalists, droppedPick, hasChampion, onSe
         lines={buildLines(Boolean(finalists[0] || winners[0]), Boolean(finalists[1] || winners[1]))}
         editable={editable && ready}
         hasChampion={hasChampion}
+        onLocked={() => finalsToast(stageLabel(stage))}
       />
       {hasResults && (
         <p className={styles.summary}>

@@ -25,6 +25,7 @@ interface BracketBoardProps {
   lines: BracketLine[];
   editable: boolean;
   hasChampion: boolean;
+  onLocked: () => void;
 }
 
 const STATE_CLASS: Record<SlotState, string> = {
@@ -35,15 +36,15 @@ const STATE_CLASS: Record<SlotState, string> = {
   advanced: styles.slotAdvanced,
 };
 
-export const BracketBoard = ({ slots, lines, editable, hasChampion }: BracketBoardProps) => (
+export const BracketBoard = ({ slots, lines, editable, hasChampion, onLocked }: BracketBoardProps) => (
   <div className={styles.bracket}>
     {slots.map((slot) => (
       <button
         key={slot.key}
         type="button"
-        disabled={!editable}
+        aria-disabled={!editable}
         aria-pressed={slot.state === 'picked'}
-        onClick={slot.onClick}
+        onClick={editable ? slot.onClick : onLocked}
         style={{ top: slot.top }}
         className={`${styles.slot} ${STATE_CLASS[slot.state]}`}
       >

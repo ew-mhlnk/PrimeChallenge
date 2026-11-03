@@ -6,9 +6,11 @@
 import asyncio
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
+import pytz
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -18,7 +20,6 @@ from services.sync_service import (
     clean_sheet_value,
     get_google_sheets_client,
     normalize_name,
-    parse_datetime,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,31 @@ def _cell(rows, address: str) -> str:
     return clean_sheet_value(rows[row][col]) or ""
 
 
+# Google может показывать дату по-разному в зависимости от языка таблицы
+FINALS_DATE_FORMATS = (
+    "%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%y %H:%M",
+    "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M",
+    "%m/%d/%Y %H:%M:%S", "%m/%d/%Y %H:%M",
+    "%m/%d/%Y %I:%M:%S %p", "%m/%d/%Y %I:%M %p",
+)
+
+
+def parse_stage_date(value: str, cell: str):
+    """Дата этапа по Москве. Если прочитать нельзя, этап останется закрытым."""
+    text = re.sub(r"\s+", " ", (value or "").replace(",", " ")).strip()
+    if not text:
+        logger.warning(f"[Finals] {cell}: дата не заполнена")
+        return None
+    for date_format in FINALS_DATE_FORMATS:
+        try:
+            naive = datetime.strptime(text, date_format)
+        except ValueError:
+            continue
+        return pytz.timezone("Europe/Moscow").localize(naive).astimezone(pytz.UTC)
+    logger.error(f"[Finals] {cell}: не удалось прочитать дату '{value}'")
+    return None
+
+
 def find_player(name: str, players) -> Optional[str]:
     """Возвращает имя из списка участников или None."""
     target = normalize_name(name)
@@ -85,8 +111,8 @@ def parse_finals_sheet(rows) -> dict:
     warnings = []
     stages = {}
 
-    group_opens = parse_datetime(_cell(rows, "H1"))
-    group_closes = parse_datetime(_cell(rows, "I1"))
+    group_opens = parse_stage_date(_cell(rows, "H1"), "H1")
+    group_closes = parse_stage_date(_cell(rows, "I1"), "I1")
     for stage, layout in GROUP_LAYOUT.items():
         top = layout["top"]
         players = [_cell(rows, f"A{top + i}") for i in range(1, 5)]
@@ -111,8 +137,8 @@ def parse_finals_sheet(rows) -> dict:
             "closes_at": group_closes,
         }
 
-    playoff_opens = parse_datetime(_cell(rows, "E17"))
-    playoff_closes = parse_datetime(_cell(rows, "F17"))
+    playoff_opens = parse_stage_date(_cell(rows, "E17"), "E17")
+    playoff_closes = parse_stage_date(_cell(rows, "F17"), "F17")
     pair_1 = [_cell(rows, "A15"), _cell(rows, "A16")]
     pair_2 = [_cell(rows, "A19"), _cell(rows, "A20")]
     players = pair_1 + pair_2
@@ -149,14 +175,16 @@ def _as_utc(value):
 
 def stage_state(players, opens_at, closes_at, finished: bool, now: datetime) -> str:
     """waiting, open, closed или finished. Неполные данные никогда не открывают этап."""
+    opens_at, closes_at = _as_utc(opens_at), _as_utc(closes_at)
+    ready = bool(players) and all(players) and opens_at and closes_at
+    # Даты главнее результатов: заполненные G3:G10 не закрывают этап раньше срока
+    if ready and opens_at <= now < closes_at:
+        return "open"
     if finished:
         return "finished"
-    opens_at, closes_at = _as_utc(opens_at), _as_utc(closes_at)
-    if not all(players) or not players or not opens_at or not closes_at:
+    if not ready or now < opens_at:
         return "waiting"
-    if now < opens_at:
-        return "waiting"
-    return "open" if now < closes_at else "closed"
+    return "closed"
 
 
 def calculate_user_score(user_picks: dict, draws: dict) -> dict:
