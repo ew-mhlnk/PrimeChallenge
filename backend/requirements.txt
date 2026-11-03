@@ -7,6 +7,6 @@ gspread==6.1.0
 oauth2client==4.1.3
 python-dotenv==1.0.1
 pydantic==2.5.3
-git+https://github.com/nimaxin/init-data-py.git@38dbf87f8c6dae1a36a44f770ad00a0a84a89ee5
+git+https://github.com/nimaxin/init-data-py.git@2a4880d3967269eff0043db06772612701a0d67a
 apscheduler==3.10.4
 requests==2.31.0
