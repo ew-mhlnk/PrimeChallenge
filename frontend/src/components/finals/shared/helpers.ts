@@ -53,3 +53,7 @@ export const championWord = (tag?: string) => (tag === 'ATP' ? 'чемпиона
 
 export const finalsLogo = (tag?: string, imageUrl?: string) =>
   (tag === 'WTA' ? '/images/finals/wta-finals-logo.png' : imageUrl || null);
+
+// Кубок для карточки на главной. Для ATP можно будет добавить свой файл
+export const finalsTrophy = (tag?: string) =>
+  (tag === 'WTA' ? '/images/finals/wta-trophie.png' : null);

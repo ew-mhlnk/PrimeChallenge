@@ -1,28 +1,30 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Tournament } from '@/types';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import styles from './Finals.module.css';
 import { finalsFont } from './shared/font';
-import { finalsLogo } from './shared/helpers';
+import { finalsTrophy } from './shared/helpers';
 
 export const FinalsCard = ({ tournament }: { tournament: Tournament }) => {
   const { impact } = useHapticFeedback();
-  const logo = finalsLogo(tournament.tag, tournament.image_url);
+  const [trophyFailed, setTrophyFailed] = useState(false);
+  const trophy = finalsTrophy(tournament.tag);
 
   return (
     <Link href={`/tournament/${tournament.id}`} onClick={() => impact('light')} className="block w-full mb-3">
-      <motion.div whileTap={{ scale: 0.98 }} className={`${styles.card} ${finalsFont.className}`} data-tag={tournament.tag}>
-        {logo
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={logo} alt={tournament.name} className={styles.cardLogo} />
-          : <h3 className={styles.cardTitle}>{tournament.name}</h3>}
-        <div className={styles.cardSide}>
+      <motion.div whileTap={{ scale: 0.98 }} className={`${styles.card} ${finalsFont.className}`}>
+        <div className={styles.cardText}>
+          <h3 className={styles.cardTitle}>{tournament.name}</h3>
           <span className={styles.cardDates}>{tournament.dates || 'Даты уточняются'}</span>
-          <span className={styles.cardAction}>Играть</span>
         </div>
+        {trophy && !trophyFailed && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={trophy} alt="" className={styles.cardTrophy} onError={() => setTrophyFailed(true)} />
+        )}
       </motion.div>
     </Link>
   );

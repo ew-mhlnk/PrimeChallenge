@@ -402,28 +402,42 @@
 
 /* Карточка на главной */
 .card {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 112px;
-  padding: 16px 18px;
+  min-height: clamp(112px, 34vw, 150px);
+  padding: clamp(16px, 5vw, 22px) clamp(14px, 4vw, 20px) clamp(16px, 5vw, 22px) clamp(18px, 5.5vw, 26px);
   overflow: hidden;
-  border: 1px solid var(--slot-line);
-  border-radius: 24px;
-  background: linear-gradient(120deg, var(--bg), #3f097b);
+  border: 1px solid #3b0764;
+  border-radius: 26px;
+  background-color: #3b0764;
+  background-image: linear-gradient(to right, #0f172a, #3b0764);
 }
-.card[data-tag='ATP'] { background: linear-gradient(120deg, var(--bg), #0f2f7b); }
-.cardLogo { flex: none; width: 118px; max-width: 42%; height: auto; }
-.cardTitle { min-width: 0; font-size: 18px; font-weight: 800; line-height: 1.1; color: #fff; }
-.cardSide { min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; text-align: right; }
-.cardDates { font-size: 12px; font-weight: 600; color: var(--muted); }
-.cardAction {
-  padding: 9px 16px;
-  border-radius: 18px;
-  background: var(--cta);
-  color: var(--ink);
-  font-size: 12px;
+.cardText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cardTitle {
+  font-size: clamp(18px, 5.6vw, 24px);
   font-weight: 800;
-  text-transform: uppercase;
+  line-height: 1.1;
+  color: #fff;
+  text-wrap: balance;
+}
+.cardDates {
+  font-size: clamp(12px, 3.6vw, 14px);
+  font-weight: 600;
+  color: #c4b5fd;
+}
+.cardTrophy {
+  flex: none;
+  width: auto;
+  height: clamp(84px, 27vw, 120px);
+  max-width: 40%;
+  object-fit: contain;
+  pointer-events: none;
 }
