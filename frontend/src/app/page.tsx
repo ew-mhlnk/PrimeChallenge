@@ -9,7 +9,7 @@ import { TournamentCard } from '@/components/tournament/TournamentCard';
 import { FinalsCard } from '@/components/finals/FinalsCard';
 import { isFinalsTournament } from '@/components/finals/shared/helpers';
 // Импортируем наш новый баннер
-import { PromoBanner } from '@/components/promo/PromoBanner';
+// import { PromoBanner } from '@/components/promo/PromoBanner';
 
 interface FilterPillProps {
   label: string;
@@ -100,8 +100,8 @@ export default function Home() {
             </h1>
         </header>
 
-        {/* Травяной баннер */}
-        <PromoBanner />
+        {/* Баннер отключен, вернуть: раскомментировать строку ниже и импорт вверху */}
+        {/* <PromoBanner /> */}
 
         {/* Список турниров */}
         <section>
