@@ -46,7 +46,7 @@ export default function TournamentPage({ params }: { params: Promise<{ id: strin
 
   // Итоговые турниры живут на своем экране, этапы открываются по датам из листа
   if (isFinalsTournament(fullData)) {
-      return <FinalsTournament tournamentId={id} />;
+      return <FinalsTournament tournamentId={id} tag={fullData.tag} />;
   }
 
   const { status } = fullData;

@@ -166,12 +166,13 @@ const FinalsContent = ({ data, saving, save }: ContentProps) => {
   );
 };
 
-export default function FinalsTournament({ tournamentId }: { tournamentId: string }) {
+// tag приходит со страницы заранее, чтобы экран загрузки сразу был в цветах турнира
+export default function FinalsTournament({ tournamentId, tag }: { tournamentId: string; tag?: string }) {
   const { data, error, saving, save } = useFinals(tournamentId);
 
   if (!data) {
     return (
-      <div className={styles.loading}>
+      <div className={styles.loading} data-tag={finalsTag(tag)}>
         {error ? <p className={styles.empty}>Не удалось загрузить турнир</p> : <div className={styles.spinner} />}
       </div>
     );
