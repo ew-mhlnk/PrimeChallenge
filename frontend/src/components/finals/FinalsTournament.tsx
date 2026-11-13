@@ -11,7 +11,7 @@ import { FinalPanel } from './playoff/FinalPanel';
 import { SemifinalPanel } from './playoff/SemifinalPanel';
 import { PointsCounter } from './shared/PointsCounter';
 import { finalsFont } from './shared/font';
-import { finalsLogo } from './shared/helpers';
+import { finalsLogo, finalsTag } from './shared/helpers';
 import { FinalsData, FinalsSavePayload } from './shared/types';
 
 const TABS = ['Групповая стадия', 'Полуфинал', 'Финал'];
@@ -36,7 +36,8 @@ const FinalsContent = ({ data, saving, save }: ContentProps) => {
   const picks = useFinalsSelection(data);
 
   const { group_stage: groupStage, playoff_stage: playoffStage, scoring, playoff, groups } = data;
-  const logo = finalsLogo(data.tag, data.image_url);
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logo = logoFailed ? null : finalsLogo(data.tag, data.image_url);
   const hasAnyResults = groups.some((group) => group.winners.length > 0) || playoff.finalists.length > 0;
   const groupsEditable = groupStage.state === 'open';
   const playoffEditable = playoffStage.state === 'open';
@@ -103,7 +104,7 @@ const FinalsContent = ({ data, saving, save }: ContentProps) => {
   const cta = renderCta();
 
   return (
-    <div className={`${styles.page} ${finalsFont.className}`} data-tag={data.tag}>
+    <div className={`${styles.page} ${finalsFont.className}`} data-tag={finalsTag(data.tag)}>
       <div className={styles.column}>
         <button type="button" aria-label="Назад" className={styles.back} onClick={() => { impact('light'); router.back(); }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 19L8 12L15 5" /></svg>
@@ -112,7 +113,7 @@ const FinalsContent = ({ data, saving, save }: ContentProps) => {
         <header className={styles.header}>
           {logo
             // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={logo} alt={data.name} className={styles.logo} />
+            ? <img src={logo} alt={data.name} className={styles.logo} onError={() => setLogoFailed(true)} />
             : <h1 className={styles.title}>{data.name}</h1>}
           <PointsCounter
             points={data.score}

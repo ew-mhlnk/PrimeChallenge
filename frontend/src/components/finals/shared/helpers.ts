@@ -49,11 +49,20 @@ export const pointsWord = (value: number) => {
   return 'очков';
 };
 
-export const championWord = (tag?: string) => (tag === 'ATP' ? 'чемпиона' : 'чемпионку');
+
+// Тег сравниваем без учета регистра и пробелов: 'wta ' тоже считается WTA
+export const finalsTag = (tag?: string) => (tag || '').trim().toUpperCase();
+
+const LOGOS: Record<string, string> = {
+  WTA: '/images/finals/wta-finals-logo.png',
+  ATP: '/images/finals/atp-finals-logo.png',
+};
 
 export const finalsLogo = (tag?: string, imageUrl?: string) =>
-  (tag === 'WTA' ? '/images/finals/wta-finals-logo.png' : imageUrl || null);
+  LOGOS[finalsTag(tag)] || imageUrl || null;
 
-// Кубок для карточки на главной. Для ATP можно будет добавить свой файл
-export const finalsTrophy = (tag?: string) =>
-  (tag === 'WTA' ? '/images/finals/wta-trophie.png' : null);
+// Картинка справа на карточке главной: у WTA кубок, у ATP логотип турнира
+export const finalsTrophy = (tag?: string, imageUrl?: string) =>
+  (finalsTag(tag) === 'WTA' ? '/images/finals/wta-trophie.png' : finalsLogo(tag, imageUrl));
+
+export const championWord = (tag?: string) => (finalsTag(tag) === 'ATP' ? 'чемпиона' : 'чемпионку');

@@ -7,16 +7,16 @@ import { Tournament } from '@/types';
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
 import styles from './Finals.module.css';
 import { finalsFont } from './shared/font';
-import { finalsTrophy } from './shared/helpers';
+import { finalsTag, finalsTrophy } from './shared/helpers';
 
 export const FinalsCard = ({ tournament }: { tournament: Tournament }) => {
   const { impact } = useHapticFeedback();
   const [trophyFailed, setTrophyFailed] = useState(false);
-  const trophy = finalsTrophy(tournament.tag);
+  const trophy = finalsTrophy(tournament.tag, tournament.image_url);
 
   return (
     <Link href={`/tournament/${tournament.id}`} onClick={() => impact('light')} className="block w-full mb-3">
-      <motion.div whileTap={{ scale: 0.98 }} className={`${styles.card} ${finalsFont.className}`}>
+      <motion.div whileTap={{ scale: 0.98 }} className={`${styles.card} ${finalsFont.className}`} data-tag={finalsTag(tournament.tag)}>
         <div className={styles.cardText}>
           <h3 className={styles.cardTitle}>{tournament.name}</h3>
           <span className={styles.cardDates}>{tournament.dates || 'Даты уточняются'}</span>

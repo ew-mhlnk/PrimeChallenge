@@ -16,17 +16,53 @@
   --wrong: #520139;
   --cta: linear-gradient(90deg, #00d063, #00e9b2);
   --tab: linear-gradient(90deg, #190f24 0%, #3f097b 100%);
+  --tab-text: #e6d6f5;
+  --tab-active-text: var(--ink);
+  --picked-solid: #2b1290;
+  --picked-border: #6f5cff;
+  --picked-text: #d9d3ff;
+  --correct-border: #3b5a8a;
+  --wrong-border: #7a1a55;
+  --wrong-text: #ffb3cb;
+  --bracket-line: #e8dff0;
+  --dot: #dcdcdc;
+  --legend-text: #cdb8dc;
+  --card-from: #0f172a;
+  --card-to: #3b0764;
+  --card-border: #3b0764;
+  --card-dates: #c4b5fd;
 }
-.page[data-tag='ATP'], .card[data-tag='ATP'] {
-  --bg: #050d2b;
-  --row: #0f2158;
-  --slot: #0f2158;
-  --line: #24386f;
-  --slot-line: #2b417f;
-  --muted: #a8b4d6;
-  --faint: #7686b3;
-  --ink: #050d2b;
-  --tab: linear-gradient(90deg, #0a1020 0%, #0f2f7b 100%);
+
+/* ATP Finals: цвета из макета */
+.page[data-tag='ATP'], .card[data-tag='ATP'], .loading[data-tag='ATP'] {
+  --bg: #0d0f7e;
+  --row: #001346;
+  --slot: #001346;
+  --line: #1c2a8f;
+  --slot-line: #1395ac;
+  --muted: #a9b8ea;
+  --faint: #7d8cc9;
+  --ink: #001346;
+  --mint: #33d1ff;
+  --picked: linear-gradient(90deg, #0136ea, #0158d6);
+  --correct: #0d3a5c;
+  --wrong: #4a0a4f;
+  --cta: linear-gradient(90deg, #0136ea, #0186ce);
+  --tab: linear-gradient(90deg, #0136ea, #0186ce);
+  --tab-text: rgba(255, 255, 255, 0.72);
+  --tab-active-text: #ffffff;
+  --picked-solid: #0136ea;
+  --picked-border: #4f8dff;
+  --picked-text: #ffffff;
+  --correct-border: #1395ac;
+  --wrong-border: #8a2a6a;
+  --bracket-line: #ffffff;
+  --dot: #d9d9d9;
+  --legend-text: #c3cdf0;
+  --card-from: #001346;
+  --card-to: #0d0f7e;
+  --card-border: #1395ac;
+  --card-dates: #a9b8ea;
 }
 
 /* Страница */
@@ -123,14 +159,14 @@
   scroll-snap-align: start;
   scroll-margin-left: 16px;
   background: var(--tab);
-  color: #e6d6f5;
+  color: var(--tab-text);
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.3px;
   text-transform: uppercase;
   transition: background 0.3s, color 0.3s;
 }
-.tabActive { background: var(--cta); color: var(--ink); }
+.tabActive { background: var(--cta); color: var(--tab-active-text); }
 .tabDone {
   width: 16px;
   height: 16px;
@@ -256,13 +292,13 @@
 .wlCell { font-size: 10px; font-weight: 800; }
 .scoreCellEmpty { background: rgba(10, 0, 20, 0.35); }
 .rowPicked { background: var(--picked); }
-.rowPicked .playerName { color: #d9d3ff; }
+.rowPicked .playerName { color: var(--picked-text); }
 .rowCorrect { background: var(--correct); }
 .rowCorrect::before { background: var(--green); }
 .rowCorrect .playerName { color: var(--green); }
 .rowWrong { background: var(--wrong); }
 .rowWrong::before { background: var(--red); }
-.rowWrong .playerName { color: #ffb3cb; }
+.rowWrong .playerName { color: var(--wrong-text); }
 .rowWrong .playerName b { color: var(--red); }
 .rowAdvanced::before { background: var(--green); }
 
@@ -306,12 +342,12 @@
   font-weight: 700;
 }
 .slotPlaceholder { color: var(--faint); }
-.slotPicked { border-color: #6f5cff; background: var(--picked); color: #e3deff; }
-.slotCorrect { border-color: #3b5a8a; background: var(--correct); color: var(--green); }
+.slotPicked { border-color: var(--picked-border); background: var(--picked); color: var(--picked-text); }
+.slotCorrect { border-color: var(--correct-border); background: var(--correct); color: var(--green); }
 .slotCorrect::before, .slotAdvanced::before { background: var(--green); }
-.slotWrong { border-color: #7a1a55; background: var(--wrong); color: #ffb3cb; }
+.slotWrong { border-color: var(--wrong-border); background: var(--wrong); color: var(--wrong-text); }
 .slotWrong b { color: var(--red); }
-.line, .lineActive { position: absolute; background: #e8dff0; transition: background 0.3s; }
+.line, .lineActive { position: absolute; background: var(--bracket-line); transition: background 0.3s; }
 .lineActive { background: var(--mint); }
 .dot, .dotActive {
   position: absolute;
@@ -323,7 +359,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #dcdcdc;
+  background: var(--dot);
   color: var(--bg);
   font-size: 11px;
   font-weight: 900;
@@ -340,7 +376,7 @@
   background: var(--slot);
 }
 .championCardPicked { background: var(--picked); }
-.championCardCorrect { border-color: #3b5a8a; background: var(--correct); }
+.championCardCorrect { border-color: var(--correct-border); background: var(--correct); }
 .championCard i {
   flex: none;
   width: 36px;
@@ -360,9 +396,9 @@
 
 /* Легенда */
 .legend { display: flex; flex-wrap: wrap; gap: 14px 18px; margin-top: 28px; }
-.legendItem { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; color: #cdb8dc; }
+.legendItem { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; color: var(--legend-text); }
 .legendItem i { width: 18px; height: 12px; border-left: 3px solid; border-radius: 3px; }
-.legendPicked { background: #2b1290; border-color: #2b1290; }
+.legendPicked { background: var(--picked-solid); border-color: var(--picked-solid); }
 .legendEmpty { background: var(--row); border-color: var(--row); }
 .legendCorrect { background: var(--correct); border-color: var(--green); }
 .legendWrong { background: var(--wrong); border-color: var(--red); }
@@ -410,10 +446,10 @@
   min-height: clamp(112px, 34vw, 150px);
   padding: clamp(16px, 5vw, 22px) clamp(14px, 4vw, 20px) clamp(16px, 5vw, 22px) clamp(18px, 5.5vw, 26px);
   overflow: hidden;
-  border: 1px solid #3b0764;
+  border: 1px solid var(--card-border);
   border-radius: 26px;
-  background-color: #3b0764;
-  background-image: linear-gradient(to right, #0f172a, #3b0764);
+  background-color: var(--card-to);
+  background-image: linear-gradient(to right, var(--card-from), var(--card-to));
 }
 .cardText {
   min-width: 0;
@@ -431,7 +467,7 @@
 .cardDates {
   font-size: clamp(12px, 3.6vw, 14px);
   font-weight: 600;
-  color: #c4b5fd;
+  color: var(--card-dates);
 }
 .cardTrophy {
   flex: none;
